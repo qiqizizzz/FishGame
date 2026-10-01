@@ -1,0 +1,20 @@
+{
+    "name": "QTower",
+    "rootNamespace": "Framework.QTower",
+    "references": [
+        "GUID:1e6a16ebd49fdb74fad1843f95457608",
+        "GUID:9e24947de15b9834991c9d8411ea37cf",
+        "GUID:84651a3751eca9349aac36a66bba901b",
+        "UniTask",
+        "UniTask.Addressables"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
