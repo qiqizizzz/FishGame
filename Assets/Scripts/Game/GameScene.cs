@@ -30,7 +30,12 @@ namespace Game
 
             m_uiRoot = HierarchyFindTool.FindSceneRoot(UI_ROOT_NAME);
             if (m_uiRoot == null)
+            {
+#if UNITY_EDITOR
+                Debug.LogError($"[{nameof(GameScene)}] {UI_ROOT_NAME} 未找到，GameApp 未初始化。请确认 {UI_ROOT_NAME} 是场景根节点且命名完全一致");
+#endif
                 return;
+            }
 
             S_instance = this;
             DontDestroyOnLoad(gameObject);
