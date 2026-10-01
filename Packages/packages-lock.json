@@ -7,6 +7,17 @@
       "dependencies": {},
       "hash": "f74aace058f4ee7d3aa5bcc89cc98dbfb2a02892"
     },
+    "com.ivanmurzak.unity.mcp": {
+      "version": "0.93.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.test-framework": "1.1.33",
+        "com.unity.modules.uielements": "1.0.0",
+        "extensions.unity.playerprefsex": "2.1.5"
+      },
+      "url": "https://package.openupm.com"
+    },
     "com.unity.addressables": {
       "version": "1.22.3",
       "depth": 0,
@@ -155,6 +166,13 @@
         "com.unity.modules.ui": "1.0.0",
         "com.unity.modules.imgui": "1.0.0"
       }
+    },
+    "extensions.unity.playerprefsex": {
+      "version": "2.1.5",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://package.openupm.com"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

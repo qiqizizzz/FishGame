@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Archive Record"
+  short_description: "Write Protocol_Evac AI archive handoff records"
+  default_prompt: "Use $project-archive-record to archive today's Protocol_Evac development progress."
