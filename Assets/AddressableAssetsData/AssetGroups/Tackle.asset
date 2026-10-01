@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Tackle
+  m_EditorClassIdentifier: 
+  m_GroupName: Tackle
+  m_Data:
+    m_SerializedData: []
+  m_GUID: a4d4becbe1c7cb447bbf0278f76a0e67
+  m_SerializeEntries:
+  - m_GUID: 267f6d82136a6d842bf30e3a13075fcf
+    m_Address: FishingRod
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Tackle
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c84428ade8d18704daa3b3d9960b4905
+    m_Address: StandardLure
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Tackle
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 4f95dfdb2ffedf9438e073f0e008a823, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: fd89f114f20c04a4da367442d8ca672e, type: 2}
+    - {fileID: 11400000, guid: 54ce1862727e56142a2f50ffddedd085, type: 2}

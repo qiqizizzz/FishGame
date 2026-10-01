@@ -79,12 +79,12 @@ UniTask 用 Asset Store 的 unitypackage 也行，但必须连同它自带的 `U
 框架只管"按地址取资源"，地址表属于工程配置：
 
 - 全新工程：`Window → Asset Management → Addressables → Groups`，Unity 会自动生成 `Assets/AddressableAssetsData`
-- 从别人工程拷来的 `AddressableAssetsData` 缺 `Profiles/Default Profile.asset`（FishGame 目前就是这个状态：`m_ActiveProfileId` 指向不存在的 Profile）：同样打开 Groups 窗口让 Unity 重建，或者直接右键 `AddressableAssetsData → Create Profile`
+- Addressables 1.22 的 Profile 是**内联序列化**在 `Assets/AddressableAssetsData/AddressableAssetSettings.asset` 的 `m_Profiles` 段里的。工程内**不存在** `Profiles/` 目录属于正常状态，不要去找 `Default Profile.asset`，更不要因为缺它去重建配置
+- 校验方式：`m_ActiveProfileId` 的值能在 `m_Profiles` 中找到同 `m_Id` 的条目（`m_ProfileName: Default`）即为正确
 - 编辑器里不打包直接运行：`Window → Asset Management → Addressables → Mode → Use Asset Database (fastest)`
 - 出 APK：Mode 切到 `Use Existing Build`，并先 `Build → New Build` 生成 Content
 - `Assets/AddressableAssetsData` 必须进版本库，只提交 `Assets/Scripts` 的话队友拉下来一定加载失败
 
----
 ---
 
 ## 二、场景怎么搭
@@ -442,7 +442,7 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | 切关卡后上一关物体还在 | 玩法物体挂在了 `Game` 下，跟着 `DontDestroyOnLoad` 常驻 | 玩法物体放独立根节点 |
 | `NullReferenceException: GameApp.UIManager` | 在 `GameScene.Awake` 之前访问了框架 | 业务初始化一律从 `Controller.OnInit` 开始 |
 | `Open<T>()` 返回 null，日志"资源加载失败" | 地址未在 Addressables 注册；或 PlayMode Script 选了 `Use Existing Build` 但没打包 | Groups 里补地址；编辑器调试切 `Use Asset Database (fastest)` |
-| 启动即 `Attempting to ... profile` 一类 AA 报错 | `AddressableAssetsData/Profiles/Default Profile.asset` 缺失（FishGame 当前即如此） | 打开 Addressables Groups 窗口让 Unity 重建 Profile |
+| AA 报 profile 相关错误 | `AddressableAssetSettings.asset` 里 `m_ActiveProfileId` 在 `m_Profiles` 中找不到对应 `m_Id`，多为跨工程合并冲突 | 把 `m_ActiveProfileId` 改回 `m_Profiles` 中 `Default` 那条的 `m_Id`；**不是**缺 `Profiles/` 目录 |
 | 编译报 `CS0246: UIManager` | `QTower.asmdef` 的 `autoReferenced` 被改成 false，或业务层自己建了 asmdef 又没引用 `QTower` | 恢复 `autoReferenced`；给业务 asmdef 补 `QTower`、`Utils` 引用 |
 | 迁移后编译报找不到 `Addressables` / `UniTask` | `QTower.asmdef` 用的是 GUID 引用，跨工程失配 | 改成按名字引用，见 1.3 |
 | 退出 Play 后报错、或音效还在响 | `Singleton<T>` 静态实例不随场景销毁 | 保证 `GameScene.OnDestroy` 正常触发；不要手动 `Destroy` `SoundManager` 节点 |
@@ -469,7 +469,7 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 [ ] 1. 拷贝 Assets/Scripts 到工程
 [ ] 2. Packages/manifest.json 补 UniTask + Addressables + uGUI + TMP（见 1.1）
 [ ] 3. QTower.asmdef 引用改成按名字，清掉失效 GUID（见 1.3）
-[ ] 4. Window → Asset Management → Addressables → Groups，确认 Profile 存在
+[ ] 4. Window → Asset Management → Addressables → Groups 能正常打开，Profile 下拉里有 Default
 [ ] 5. Addressables Mode 设为 Use Asset Database (fastest)
 [ ] 6. 建 Assets/Scenes/Game.unity，按 2.2 摆 Game + UIRoot 两棵根
 [ ] 7. Game 下补 Main Camera / Directional Light / EventSystem
