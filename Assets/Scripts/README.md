@@ -130,8 +130,8 @@ UIRoot                    [常驻根] Canvas + CanvasScaler + GraphicRaycaster�
 | --- | --- | --- |
 | `UIRoot` 必须是**场景根节点**，名字逐字符一致 | `HierarchyFindTool.FindSceneRoot` 只遍历 `GetRootGameObjects()` | `GameApp` 完全不初始化，整个框架不启动 |
 | `UIRoot` 上不放任何业务脚本 | `GameScene` 只把它当父节点用 | 挂的脚本生命周期不受框架管理 |
-| 界面预制体根节点必须挂 `Canvas` | `UIManager.Open` 只在 `GetComponent<Canvas>() != null` 时写 `sortingOrder` | 界面层级压不住，弹窗被面板盖住 |
-| 每个界面一个**嵌套 Canvas** | 同上 | 被迫给 `UIRoot` 挂 `CanvasGroup` 才生效 |
+| 界面预制体根节点**不要**只挂 `Canvas` | `GraphicRaycaster` 靠 `GraphicRegistry.GetRaycastableGraphicsForCanvas(canvas)` 取图元，而 `Graphic` 只注册到自己**最近**的那个 `Canvas` | 根上有 `Canvas` 却没有 `GraphicRaycaster` 时，`UIRoot` 的射线完全看不到这个面板：显示正常，但按钮点不动、滑条拖不动 |
+| 层级顺序默认靠兄弟次序 | 同一 `Canvas` 下后加入的兄弟画在上层，`Open` 时刚实例化，天然排在 `UIRoot` 末尾 | 需要独立 `sortingOrder` 时，`Canvas` 与 `GraphicRaycaster` 必须**成对**添加，只加 `Canvas` 会踩上一条 |
 | 同一场景不要放两个 `GameScene` | `GameScene.Awake` 的 `S_instance` 判重会 `Destroy(gameObject)` | 后加载的那棵根物体被整个销毁 |
 | 资源地址必须已在 Addressables 注册 | `ResManager` 全部走 `Addressables.*` | `Open<T>()` 返回 null，Console 报"资源加载失败" |
 
@@ -215,7 +215,7 @@ public static class EventDefines
 
 - 路径：`Assets/Prefabs/UI/UIMainHUD.prefab`
 - 根节点命名 = 地址 = 视图类名，`RectTransform` 全屏拉伸、四边偏移 0
-- 根节点加一个**嵌套 `Canvas`**（只加 `Canvas`，不要再加 `CanvasScaler` / `GraphicRaycaster`，缩放与射线统一由 `UIRoot` 承担）
+- 根节点**只放 `RectTransform`，不要加 `Canvas`**：射线统一由 `UIRoot` 的 `GraphicRaycaster` 负责，根上多一个没有 `GraphicRaycaster` 的 `Canvas` 会让整个面板从射线系统里消失。确实需要独立 `sortingOrder` 时，`Canvas` 与 `GraphicRaycaster` 要一起加
 - 把视图脚本挂在根节点上，Inspector 里把 `SerializeField` 引用拖好
 - 拖进 `Addressables Groups` 的 `UI` 组，确认 Address 与 `UIDefines` 常量完全一致
 
@@ -438,7 +438,8 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | --- | --- | --- |
 | 运行后 Console 报 `GameApp 未初始化` | `UIRoot` 不是场景根节点，或名字不一致（大小写、空格） | 把 `UIRoot` 提到根节点，名字逐字符对齐 |
 | UI 全部点不动，但显示正常 | 缺 `EventSystem`；或 `EventSystem` 留在场景根节点上、切场景被销毁；或装了 Input System 却还挂 `StandaloneInputModule` | 把 `EventSystem` 放到常驻的 `Game` 下；Input System 工程换 `InputSystemUIInputModule` |
-| 弹窗被面板盖住 | 预制体根节点没挂 `Canvas`，`UIManager` 没机会写 `sortingOrder` | 每个界面预制体根加嵌套 `Canvas` |
+| 弹窗被面板盖住 | 同一 `Canvas` 下只按兄弟顺序渲染，`SortingOrder` 只有在根挂了 `Canvas` 时才生效 | 需要独立排序就给界面根加 `Canvas` + `GraphicRaycaster`（必须成对，见下一条） |
+| 面板显示正常，但按钮点不动、滑条拖不动 | 界面根上加了**没有 `GraphicRaycaster` 的嵌套 `Canvas`**：`Graphic` 只注册到最近的 `Canvas`，`UIRoot` 上的 `GraphicRaycaster` 取不到这些图元 | 去掉根上的 `Canvas`（层级交给兄弟顺序），或把 `GraphicRaycaster` 一起加上 |
 | 引用配置丢了 | 视图脚本没挂在预制体上，运行时被 `AddComponent` 兜底 | 脚本显式挂在预制体根，Inspector 拖好引用 |
 | 切关卡后上一关物体还在 | 玩法物体挂在了 `Game` 下，跟着 `DontDestroyOnLoad` 常驻 | 玩法物体放独立根节点 |
 | `NullReferenceException: GameApp.UIManager` | 在 `GameScene.Awake` 之前访问了框架 | 业务初始化一律从 `Controller.OnInit` 开始 |

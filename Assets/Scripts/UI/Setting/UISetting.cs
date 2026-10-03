@@ -33,7 +33,6 @@ namespace UI.Setting
         private Button _muteButton;
         private Button _closeButton;
         private Image _muteImage;
-        private bool _isRefreshing;
 
         protected override void OnInit()
         {
@@ -56,18 +55,12 @@ namespace UI.Setting
 
         private void handleMainVolumeChanged(float value)
         {
-            if (_isRefreshing)
-                return;
-
-            SoundManager.TotalVolume = value;
+            SoundManager.TotalVolume = _mainVolumeSlider.normalizedValue;
         }
 
         private void handleEffectVolumeChanged(float value)
         {
-            if (_isRefreshing)
-                return;
-
-            SoundManager.EffectVolume = value;
+            SoundManager.EffectVolume = _effectVolumeSlider.normalizedValue;
         }
 
         // 切换全局静音，SoundManager 同时暂停 BGM
@@ -85,11 +78,9 @@ namespace UI.Setting
         // 从 SoundManager 读回当前音量与静音状态，回填到控件
         private void refreshFromSoundManager()
         {
-            _isRefreshing = true;
-            _mainVolumeSlider.value = SoundManager.TotalVolume;
-            _effectVolumeSlider.value = SoundManager.EffectVolume;
+            _mainVolumeSlider.SetValueWithoutNotify(SoundManager.TotalVolume * _mainVolumeSlider.maxValue);
+            _effectVolumeSlider.SetValueWithoutNotify(SoundManager.EffectVolume * _effectVolumeSlider.maxValue);
             refreshMuteVisual();
-            _isRefreshing = false;
         }
 
         private void refreshMuteVisual()
