@@ -170,8 +170,10 @@ Combat + Hitbox = CombatHitbox
 | **SerializeField private** | PascalCase                          | `MoveSpeed`, `JumpForce`        |
 | **protected 字段**         | camelCase                           | `stats`, `config`, `animator`   |
 | 常量                       | UPPER_SNAKE_CASE                    | `MAX_HEALTH`, `DEFAULT_SPEED`   |
-| 静态只读                   | `S` + PascalCase                    | `S_DefaultSpawnPoint`           |
+| 静态字段                   | `m_` + camelCase                    | `m_events`, `m_clipDic`         |
 | 公共字段                   | 尽量避免，改用属性或 SerializeField | —                               |
+
+> 私有字段一律 `m_` + camelCase，`static`、`readonly`、`static readonly` 也不例外。早期的 `S_` + PascalCase 写法已废弃：工程内 `Singleton.cs` 的 `m_instance`、`EventManager.cs` 的 `m_events`、`SoundManager.cs` 的 `m_clipDic` 已全部统一。
 
 ```csharp
 // ✅ 纯私有字段 —— m_ 前缀

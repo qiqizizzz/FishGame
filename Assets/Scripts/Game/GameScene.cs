@@ -16,13 +16,13 @@ namespace Game
     {
         private const string UI_ROOT_NAME = "UIRoot";
 
-        private static GameScene S_instance;
+        private static GameScene m_instance;
 
         private Transform m_uiRoot;
 
         private void Awake()
         {
-            if (S_instance != null && S_instance != this)
+            if (m_instance != null && m_instance != this)
             {
                 Destroy(gameObject);
                 return;
@@ -37,7 +37,7 @@ namespace Game
                 return;
             }
 
-            S_instance = this;
+            m_instance = this;
             DontDestroyOnLoad(gameObject);
             DontDestroyOnLoad(m_uiRoot.gameObject);
             GameApp.Instance.Init();
@@ -46,7 +46,7 @@ namespace Game
 
         private void Start()
         {
-            if (S_instance != this)
+            if (m_instance != this)
                 return;
 
             RegisterModules();
@@ -54,7 +54,7 @@ namespace Game
 
         private void Update()
         {
-            if (S_instance != this)
+            if (m_instance != this)
                 return;
 
             GameApp.Instance.Tick(Time.deltaTime);
@@ -62,11 +62,11 @@ namespace Game
 
         private void OnDestroy()
         {
-            if (S_instance != this)
+            if (m_instance != this)
                 return;
 
             GameApp.Instance.Destroy();
-            S_instance = null;
+            m_instance = null;
         }
 
         // 注册游戏场景模块

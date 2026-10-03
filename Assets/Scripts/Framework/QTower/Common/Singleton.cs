@@ -12,11 +12,11 @@ namespace Framework.QTower.Common
 {
     public abstract class Singleton<T> where T : Singleton<T>, new()
     {
-        private static readonly Lazy<T> S_instance = new(() => new T());
+        private static readonly Lazy<T> m_instance = new(() => new T());
 
         private bool m_isInitialized;
 
-        public static T Instance => S_instance.Value;
+        public static T Instance => m_instance.Value;
         public bool IsInitialized => m_isInitialized;
 
         public void Init()

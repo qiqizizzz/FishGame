@@ -26,14 +26,14 @@ namespace Framework.QTower.View
         [Tooltip("相对全局音效音量的倍率")]
         [SerializeField, Range(0f, 2f)] private float VolumeScale = 1f;
 
-        private Button _button;
+        private Button m_button;
 
         private void Awake()
         {
             // Button 属可选依赖，允许挂在非按钮物体上只播悬停音
-            TryGetComponent(out _button);
-            if (_button != null)
-                _button.onClick.AddListener(handleClick);
+            TryGetComponent(out m_button);
+            if (m_button != null)
+                m_button.onClick.AddListener(handleClick);
         }
 
         public void OnPointerEnter(PointerEventData eventData)

@@ -28,24 +28,24 @@ namespace UI.Setting
         [Tooltip("已静音时显示的开关精灵")]
         [SerializeField] private Sprite MuteOnSprite;
 
-        private Slider _mainVolumeSlider;
-        private Slider _effectVolumeSlider;
-        private Button _muteButton;
-        private Button _closeButton;
-        private Image _muteImage;
+        private Slider m_mainVolumeSlider;
+        private Slider m_effectVolumeSlider;
+        private Button m_muteButton;
+        private Button m_closeButton;
+        private Image m_muteImage;
 
         protected override void OnInit()
         {
-            _mainVolumeSlider = FindComponent<Slider>(MAIN_VOLUME_SLIDER_PATH);
-            _effectVolumeSlider = FindComponent<Slider>(EFFECT_VOLUME_SLIDER_PATH);
-            _muteButton = FindComponent<Button>(MUTE_BUTTON_PATH);
-            _muteImage = FindComponent<Image>(MUTE_BUTTON_PATH);
-            _closeButton = FindComponent<Button>(CLOSE_BUTTON_PATH);
+            m_mainVolumeSlider = FindComponent<Slider>(MAIN_VOLUME_SLIDER_PATH);
+            m_effectVolumeSlider = FindComponent<Slider>(EFFECT_VOLUME_SLIDER_PATH);
+            m_muteButton = FindComponent<Button>(MUTE_BUTTON_PATH);
+            m_muteImage = FindComponent<Image>(MUTE_BUTTON_PATH);
+            m_closeButton = FindComponent<Button>(CLOSE_BUTTON_PATH);
 
-            _mainVolumeSlider.onValueChanged.AddListener(handleMainVolumeChanged);
-            _effectVolumeSlider.onValueChanged.AddListener(handleEffectVolumeChanged);
-            _muteButton.onClick.AddListener(handleMuteClicked);
-            _closeButton.onClick.AddListener(handleCloseClicked);
+            m_mainVolumeSlider.onValueChanged.AddListener(handleMainVolumeChanged);
+            m_effectVolumeSlider.onValueChanged.AddListener(handleEffectVolumeChanged);
+            m_muteButton.onClick.AddListener(handleMuteClicked);
+            m_closeButton.onClick.AddListener(handleCloseClicked);
         }
 
         protected override void OnOpen(params object[] args)
@@ -55,12 +55,12 @@ namespace UI.Setting
 
         private void handleMainVolumeChanged(float value)
         {
-            SoundManager.TotalVolume = _mainVolumeSlider.normalizedValue;
+            SoundManager.TotalVolume = m_mainVolumeSlider.normalizedValue;
         }
 
         private void handleEffectVolumeChanged(float value)
         {
-            SoundManager.EffectVolume = _effectVolumeSlider.normalizedValue;
+            SoundManager.EffectVolume = m_effectVolumeSlider.normalizedValue;
         }
 
         // 切换全局静音，SoundManager 同时暂停 BGM
@@ -78,14 +78,14 @@ namespace UI.Setting
         // 从 SoundManager 读回当前音量与静音状态，回填到控件
         private void refreshFromSoundManager()
         {
-            _mainVolumeSlider.SetValueWithoutNotify(SoundManager.TotalVolume * _mainVolumeSlider.maxValue);
-            _effectVolumeSlider.SetValueWithoutNotify(SoundManager.EffectVolume * _effectVolumeSlider.maxValue);
+            m_mainVolumeSlider.SetValueWithoutNotify(SoundManager.TotalVolume * m_mainVolumeSlider.maxValue);
+            m_effectVolumeSlider.SetValueWithoutNotify(SoundManager.EffectVolume * m_effectVolumeSlider.maxValue);
             refreshMuteVisual();
         }
 
         private void refreshMuteVisual()
         {
-            _muteImage.sprite = SoundManager.IsStop ? MuteOnSprite : MuteOffSprite;
+            m_muteImage.sprite = SoundManager.IsStop ? MuteOnSprite : MuteOffSprite;
         }
     }
 }

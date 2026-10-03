@@ -46,9 +46,12 @@ Assets/Scripts/Game/GameController.cs:33         Register<UISetting>
 Assets/Scripts/UI/MainMenu/UIMainMenu.cs:46      Btn_Setting → Open<UISetting>().Forget()
 Assets/AddressableAssetsData/AssetGroups/UI.asset  新增 address「UISetting」label「UI」
 Assets/Scripts/README.md                         订正 4 处 Canvas 指引 + 坑表新增 1 行
+Assets/Scripts/UI/Setting/UISetting.cs           私有字段 _ 前缀 -> m_（5 个字段）
+Assets/Scripts/Framework/QTower/MVC/View/UIAudio.cs        _button -> m_button
+Assets/Scripts/Framework/QTower/Common/Res/ResManager.cs   _pool/_prefabPool -> m_pool/m_prefabPool
 ```
 
-提交记录：`d63b172 设置界面初步` → `fe8e1b2 修复设置界面设置界面完成`。
+提交记录：`d63b172 设置界面初步` → `fe8e1b2 修复设置界面设置界面完成` → `7a102e3 归档`（本文件初版）。`m_` 前缀统一改动与本文件的这条修订**尚未提交**。
 
 ### 预制体层级
 
@@ -169,8 +172,9 @@ SFX 3 | Tackle 3 | UI 3（UIMainMenu + UISetting） | Water 3
 
 ## 六、当前需要注意的问题
 
-1. **私有字段前缀规范冲突，待用户裁决**
-   `.codex/work_init_CodexAI/04-编码规范-CSharp.md:169` 要求纯私有字段用 `m_` + camelCase（示例 `m_rigidbody`）；而会话内 AGENTS.md 要求 `_` + camelCase。实际代码两边都有：`UIMainMenu.cs` 用 `m_`（用户写的），`UISetting.cs` 用 `_`（本次写的）。**下次动 C# 前必须先定一个，别再混用**
+1. **私有字段前缀已定稿：统一 `m_` + camelCase**（以 `.codex/work_init_CodexAI/04-编码规范-CSharp.md:169` 为准）
+   工程内所有 `_` 前缀私有字段已改名，共 8 个字段 / 50 处引用：`UISetting.cs` 的 `m_mainVolumeSlider` / `m_effectVolumeSlider` / `m_muteButton` / `m_closeButton` / `m_muteImage`、`UIAudio.cs:29` 的 `m_button`、`ResManager.cs:36-37` 的 `m_pool` / `m_prefabPool`。`[SerializeField]` 保持 PascalCase、`const` 保持 UPPER_SNAKE 未动；非序列化私有字段不进预制体/场景 YAML，改名不影响已接线引用。Unity 重编译后 Console 零错误
+   **未处理的残留**：① 全局指令 `C:\Users\wuqian\.codex\AGENTS.md:102` 仍写着 `_` + camelCase（本次冲突的真正来源，属用户全局配置，未经确认不改）；② `SoundManager.cs:25-33` 用 `s_` 前缀的非只读静态字段、`ResManager.cs:35` 的 `caches`（裸 camelCase 静态只读）不在「纯私有字段」这一条内，是否一并统一待定
 2. **本机内存压到 89~93%**，Unity 反复报 `The system is running out of memory ... Discarding profiler frames data`。之后 Unity 主进程对 MCP `script-execute` 停止响应（`Failed to invoke after 10 retries`）。那次 Play Mode 里 `UISetting` 未实例化，但 `Editor.log`（`$env:LOCALAPPDATA\Unity\Editor\Editor.log`，约 46MB）**没有**「打开 UI 失败 / 未注册 / 资源加载失败」→ 判定是内存抖动卡住而非加载链路故障（用户此前截图能正常打开面板）。**做 Play Mode 验证前先关多余程序或重启 Unity**
 3. **`console_get_logs` 是有界缓存**，会被 OOM 日志刷掉。查真实日志请直接读 `Editor.log`
 4. **编辑模式做不了射线测试**：`GraphicRegistry` 在 edit mode 不建表，`GraphicRaycaster.Raycast` 恒返回 0 hits（连全屏图也是 0）。验证嵌套 Canvas 问题要改验 `graphic.canvas == rootCanvas`，或进 Play Mode
@@ -196,7 +200,7 @@ SFX 3 | Tackle 3 | UI 3（UIMainMenu + UISetting） | Water 3
 ## 八、下一步建议
 
 ```text
-1. 定夺 m_ 与 _ 私有字段前缀，统一后再动 C#（顺手把 04-编码规范-CSharp.md 或 AGENTS.md 改一致）
+1. 把全局 C:\Users\wuqian\.codex\AGENTS.md:102 的 _ 前缀规则改成 m_，顺手定夺 s_* / caches 这类静态字段前缀
 2. 补 M0 配置 SO：RarityTableSO → FishDataSO → HookConfigSO → FishingLevelConfigSO
 3. 立 IFishingStats（全常量实现也要立），作为表现层与数值层的唯一口子
 4. 开 M1：HookController 状态机 + 输入 + 下潜/回收 + LineRenderer
