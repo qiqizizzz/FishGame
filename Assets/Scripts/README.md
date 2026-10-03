@@ -236,7 +236,6 @@ using Framework.QTower.Common.Defines;
 using Framework.QTower.View;
 using TMPro;
 using UnityEngine;
-using Utils.Find;
 
 namespace UI
 {
@@ -246,14 +245,10 @@ namespace UI
         [Tooltip("当前深度文本")]
         [SerializeField] private TextMeshProUGUI Txt_Depth;
 
-        // 引用优先在预制体 Inspector 上拖好，这里演示用查找兜底
+        // FindComponent<T> 自带路径缓存，节点或组件缺失时在编辑器下主动报错
         protected override void OnInit()
         {
-            Txt_Depth = transform.FindChildComponent<TextMeshProUGUI>("Bg/Txt_Depth");
-
-#if UNITY_EDITOR
-            if (Txt_Depth == null) Debug.LogError($"[{nameof(UIMainHUD)}] Txt_Depth 未找到，请检查预制体层级");
-#endif
+            Txt_Depth = FindComponent<TextMeshProUGUI>("Bg/Txt_Depth");
         }
 
         protected override void OnOpen(params object[] args)
@@ -369,7 +364,8 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | --- | --- | --- | --- |
 | `Register<T>` | — | — | 只登记 `UIData`，不加载资源 |
 | `Open<T>(args)` 首次 | `OnInit` → `SubscribeViewEvents` → `OnOpen` | `OnViewLoaded` → `OnViewOpened` | 异步加载 + 实例化 + 缓存 |
-| `Open<T>(args)` 再次 | `OnOpen` | `OnViewOpened` | 命中缓存，仅 `SetActive(true)` |
+| `Open<T>(args)` 再次（面板当前**隐藏**） | `OnOpen` | `OnViewOpened` | 命中缓存，仅 `SetActive(true)` |
+| `Open<T>(args)` 再次（面板当前**已显示**） | — | — | **直接返回缓存实例，`OnOpen` 不触发、`args` 被丢弃** |
 | `Hide<T>()` | — | — | 只 `SetActive(false)` |
 | `Close<T>(args)` | `OnClose` → 隐藏 | `OnViewClosed` | **不销毁实例**，只是关掉 |
 | `UnregisterByController(c)` / `UIManager.Destroy()` | `OnDispose` | — | 走 `Addressables.ReleaseInstance` 真正释放 |
@@ -386,19 +382,23 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | `UIData`<br>(`Framework.QTower`) | `Address` / `Parent` / `Controller` / `SortingOrder` | 注册一条 UI 所需的全部信息 |
 | `BaseController`<br>(`Framework.QTower.Controller`) | `OnInit` / `Tick` / `OnDestroy` / `RegisterModuleEvent` / `OnViewLoaded` / `OnViewOpened` / `OnViewClosed` / `RegisterEvent` / `UnregisterEvent` | 业务控制器基类，事件自动反注册 |
 | `ControllerManager`<br>(`Framework.QTower.Controller`) | `Register<T>(controllerType, controller)` / `Register<T>(controller)` / `Get<T>` / `Unregister` / `Tick` / `Destroy` | 按类型登记并统一驱动控制器 |
-| `UIBase`<br>(`Framework.QTower.View`) | `OnInit` / `OnOpen` / `OnClose` / `SubscribeViewEvents` / `OnDispose` / `RegisterEvent` / `Controller` | 界面视图基类 |
-| `UIItemBase`<br>(`Framework.QTower.View`) | `FindNode` / `FindComponent<T>` / `SetVisible` | 列表子项基类，带节点缓存 |
+| `UIItemBase`<br>(`Framework.QTower.View`) | `FindNode(path)` → `Transform` / `FindComponent<T>(path)` → `T` / `SetVisible` | 节点缓存基类，同一 `path` 只 `transform.Find` 一次 |
+| `UIBase`<br>(`Framework.QTower.View`) | **继承 `UIItemBase`**；`OnInit` / `OnOpen` / `OnClose` / `SubscribeViewEvents` / `OnDispose` / `RegisterEvent` / `Controller` | 界面视图基类，直接用 `FindComponent<T>` 取子节点组件 |
+| `UIAudio`<br>(`Framework.QTower.View`) | `ClickClip` / `HoverClip` / `VolumeScale` | 挂到按钮上即生效的声明式音效组件，**不持有 `AudioSource`**，走 `SoundManager.PlayUIEffect` |
 | `Singleton<T>`<br>(`Framework.QTower.Common`) | `Instance` / `Init` / `Tick` / `Destroy` / `IsInitialized` | 纯 C# 单例基类，三段生命周期 |
 | `ResManager`<br>(`Common.Res`) | 见 5.2 | Addressables 封装 + 引用计数缓存 + 对象池 |
-| `SoundManager`<br>(`Framework.QTower.Common.Sound`) | `PlayBGM(res)` / `PlayEffect(res)` / `PlayEffect(res, pos)` / `PlayEffect(clip, pos, volumeScale, pitch, spatial)` / `PlayLoop(clip, parent, localPos, ...)` / `Stop(audioSource)` / `TotalVolume` / `BgmVolume` / `VoiceVolume` / `EffectVolume` | BGM、一次性音效、循环音效 |
+| `SoundManager`<br>(`Framework.QTower.Common.Sound`) | `PlayBGM(res)` / `PlayEffect(res)` / `PlayEffect(res, pos)` / `PlayUIEffect(clip, volumeScale = 1f)` / `PlayEffect(clip, pos, volumeScale, pitch, spatial)` / `PlayLoop(clip, parent, localPos, ...)` / `Stop(audioSource)` / `TotalVolume` / `BgmVolume` / `VoiceVolume` / `EffectVolume` / `IsStop` | BGM、一次性音效、循环音效。UI 音效走 `PlayUIEffect`，叠加在常驻源上 |
 
 > `ResManager` 的命名空间是 `Common.Res`，与其余框架类的 `Framework.QTower.*` 不一致，属于历史遗留。新代码建议统一，改动时注意 `GameApp.cs` 的 `using`。
+
+> `SoundManager` 首次使用时自动 `new GameObject("SoundManager")` 并 `DontDestroyOnLoad`，下挂常驻的 `BgmSource` 与 `Effects`（`s_effectSource`）两个播放源。**不需要在场景里手搭音频节点**。只有需要 3D 定位的玩法音效才走 `PlayEffect(clip, pos)`，那条路才会临时建源。
 
 ### 5.2 资源 `ResManager`
 
 | 分类 | 方法 | 备注 |
 | --- | --- | --- |
 | 资源加载 | `LoadAsset<T>(path)` / `LoadAssetAsync<T>(path)` / `PreLoadAssets(List<string>)` | 内部带引用计数缓存 |
+| 按标签 | `LoadAddressesByLabel<T>(label)` / `PreLoadAssetsByLabel<T>(label)`，均返回 `UniTask<List<string>>` | 标签 → 地址列表 → 逐个走引用计数缓存，与按地址加载共用同一份 `caches` |
 | 资源释放 | `ReleaseAsset(path)` / `ReleaseAllAssets()`（`Destroy` 时自动调用） | 计数归零才真正 `Addressables.Release` |
 | 实例化 | `Instantiate(key, parent)` / `InstantiateAsync(key, parent)` | 同步版走 `WaitForCompletion`，只适合启动期 |
 | 实例释放 | `UnLoadInstance(GameObject)` | 即 `Addressables.ReleaseInstance` |
@@ -424,7 +424,8 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | --- | --- | --- |
 | UI 预制体 | `Assets/Prefabs/UI/<视图类名>.prefab`，地址 = 类名 = `UIDefines` 常量 | **必须一致**，否则 `Open<T>` 加载失败 |
 | 普通预制体 | `Assets/Prefabs/<模块>/<名字>`，地址走各自 `Defines` 常量 | 建议 |
-| 音频 | `Assets/Audio/<BGM 或 Effect>/<名字>`，按地址播放 | 建议 |
+| 音频 | `Assets/Audio/<UI 或 SFX>/<名字>`，地址 = 文件名，并挂上与组同名的标签（如 `SFX`、`UI`） | 建议 |
+| UI 音效 | 按钮挂 `UIAudio` 直接拖 `AudioClip`，不写一行代码 | 建议 |
 | 场景 | `Assets/Scenes/Game.unity` 等 PascalCase | 建议 |
 | 常量类 | `EventDefines` 放跨模块事件名，`UIDefines` 放 UI 地址 | **不要**再往业务代码里散写字符串 |
 | `SortingOrder` | 0–99 常驻 HUD，100–999 功能面板，1000–1999 模态弹窗与结算，9000+ 全局 Loading | 团队内部保持一致即可 |
@@ -447,6 +448,11 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 | 迁移后编译报找不到 `Addressables` / `UniTask` | `QTower.asmdef` 用的是 GUID 引用，跨工程失配 | 改成按名字引用，见 1.3 |
 | 退出 Play 后报错、或音效还在响 | `Singleton<T>` 静态实例不随场景销毁 | 保证 `GameScene.OnDestroy` 正常触发；不要手动 `Destroy` `SoundManager` 节点 |
 | 计时器不生效 | `GameApp.TimeManager.Tick` 只由 `GameScene.Update` 驱动，`GameScene` 被禁用就没帧了 | 别禁用 `Game` 根节点；`Time.timeScale = 0` 时 `deltaTime` 也为 0 |
+| 已显示的面板重复 `Open` 不刷新 | `UIManager.Open` 缓存分支带 `if (!activeSelf)` 判断，面板开着时直接返回旧实例，`args` 被静默丢弃 | 先 `Close` / `Hide` 再 `Open`，或给 View 加显式 `Refresh` 方法 |
+| UI 音效第一次点击慢半拍、且每次点击都生成一个 GameObject | `SoundManager.PlayEffect(string)` 走 `await LoadClipAsync`，其最终实现每次 `new GameObject` + `AudioSource`，播完再 `Destroy` | UI 音效改用 `UIAudio`，它走 `PlayUIEffect` 叠加在常驻 `Effects` 源上，不建临时对象 |
+| 脚本改了 `entry.labels`，重启编辑器后回退 | `labels` 是普通 `HashSet`，改它**不会**把所属 group 标脏，`settings.SetDirty()` 也带不动 | 对每个被改的 `AddressableAssetGroup` 调 `EditorUtility.SetDirty(group)` 再 `SaveAssets` |
+| Groups 窗口标签下拉里找不到新加的标签 | Addressables 1.22 的 `LabelTable.AddLabelId` 不可访问 | `new SerializedObject(settings).FindProperty("m_LabelTable.m_LabelNames")` 直接增删，再 `ApplyModifiedPropertiesWithoutUndo()` |
+| `LoadAddressesByLabel<T>` 返回 null | 标签下没有能匹配 `T` 的资源。过滤判据是 `type.IsAssignableFrom(location.ResourceType)`，预制体的 `ResourceType` 是 `GameObject` | `T` 传准确类型：音效 `AudioClip`、预制体 `GameObject` |
 
 ---
 
@@ -476,6 +482,7 @@ GameApp.ControllerManager.Register(ControllerType.None, new UIMainController());
 [ ] 8. Build Settings 勾选 Game.unity，移除 SampleScene
 [ ] 9. 按项目取向设好 CanvasScaler 参考分辨率（竖屏就改成 1080x1920）
 [ ] 10. GameController 里注册第一个界面的 Register，跑通 Open → OnOpen
+[ ] 11. 要 UI 音效：建音频 Addressables 组 + 同名组标签，按钮挂 UIAudio 拖 AudioClip
 ```
 
 ---
@@ -502,7 +509,7 @@ Assets/Scripts
 │       │   ├── Type/ControllerType.cs         全局控制器类型标识（None / Game）
 │       │   ├── Data/UIData.cs                 UI 注册数据：Address / Parent / Controller / SortingOrder
 │       │   ├── Controller                     BaseController（生命周期 + 事件托管 + OnView* 回调）、ControllerManager（按类型注册、统一 Tick、逆序销毁）
-│       │   └── View                           UIBase（Init / Open / Hide / Close）、UIItemBase（节点缓存与显隐）
+│       │   └── View                           UIItemBase（节点缓存与显隐）→ UIBase（Init / Open / Hide / Close）、UIAudio（声明式 UI 音效组件）
 │       └── Editor                             编辑器层：仅编辑器编译，不进包体
 │           ├── QTower.Editor.asmdef           includePlatforms Editor，仅引用 QTower
 │           ├── Controller/BaseEditorController.cs   编辑器控制器基类，挂 EditorApplication.update / Selection / Undo / SceneView 回调
@@ -513,7 +520,7 @@ Assets/Scripts
 │   ├── GameScene.cs                           MonoBehaviour 入口，找 UIRoot、DontDestroyOnLoad、驱动 Tick
 │   ├── GameApp.cs                             组合根 Singleton，装配 Time / Controller / UI 三大管理器
 │   └── GameController.cs                      场景控制器，注册默认界面、订阅事件、销毁时反注册
-├── UI                                         业务界面层（当前为空，待玩法填充）
+├── UI                                         业务界面层，按界面建子目录（如 UI/MainMenu/UIMainMenu.cs）
 └── Utils                                      工具层：无状态扩展与轻量工具，零依赖
     ├── Utils.asmdef                           独立程序集，references 为空
     ├── log/QLog.cs                            日志封装，Release 构建自动抹除

@@ -53,6 +53,7 @@ namespace Framework.QTower.Common.Sound
             {
                 s_totalVolume = Mathf.Clamp01(value);
                 RefreshBgmVolume();
+                RefreshEffectVolume();
             }
         }
 
@@ -75,7 +76,11 @@ namespace Framework.QTower.Common.Sound
         public static float EffectVolume
         {
             get => s_effectVolume;
-            set => s_effectVolume = Mathf.Clamp01(value);
+            set
+            {
+                s_effectVolume = Mathf.Clamp01(value);
+                RefreshEffectVolume();
+            }
         }
 
         // 播放 Addressables 中配置的背景音乐
@@ -100,6 +105,16 @@ namespace Framework.QTower.Common.Sound
         public static void PlayEffect(string res)
         {
             PlayEffect(res, Vector3.zero);
+        }
+
+        // 在常驻音效源上叠加播放 UI 音效
+        public static void PlayUIEffect(AudioClip clip, float volumeScale = 1f)
+        {
+            if (s_isStop || clip == null)
+                return;
+
+            EnsureAudioSources();
+            s_effectSource.PlayOneShot(clip, Mathf.Max(0f, volumeScale));
         }
 
         // 在指定世界坐标播放一次性音效资源
@@ -224,6 +239,13 @@ namespace Framework.QTower.Common.Sound
         {
             EnsureAudioSources();
             s_bgmSource.volume = s_bgmVolume * s_totalVolume;
+        }
+
+        // 刷新音效最终音量
+        private static void RefreshEffectVolume()
+        {
+            EnsureAudioSources();
+            s_effectSource.volume = s_effectVolume * s_totalVolume;
         }
 
         // 创建一次性音效播放节点

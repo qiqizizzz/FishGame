@@ -33,7 +33,7 @@ MonoBehaviour:
     m_Address: Pufferfish
     m_ReadOnly: 0
     m_SerializedLabels:
-    - Hazard
+    - Rarity_Hazard
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 496711461307c7d43ac6cb21ff69e4b1
     m_Address: YellowBoxfish

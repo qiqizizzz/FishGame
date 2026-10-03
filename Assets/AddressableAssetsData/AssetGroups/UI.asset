@@ -20,7 +20,8 @@ MonoBehaviour:
   - m_GUID: f0da37e4f8b432c499dd8503bcd9b080
     m_Address: UIMainMenu
     m_ReadOnly: 0
-    m_SerializedLabels: []
+    m_SerializedLabels:
+    - UI
     FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 4f95dfdb2ffedf9438e073f0e008a823, type: 2}

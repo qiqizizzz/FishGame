@@ -13,6 +13,7 @@ using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.ResourceManagement.ResourceLocations;
 using Utils.log;
 
 namespace Common.Res
@@ -221,6 +222,46 @@ namespace Common.Res
         {
             foreach (string path in paths)
                 await AcquireAssetAsync<UnityEngine.Object>(path);
+        }
+
+        // 按 Addressables 标签解析出全部资源地址
+        public static async UniTask<List<string>> LoadAddressesByLabel<T>(string label) where T : UnityEngine.Object
+        {
+            if (string.IsNullOrEmpty(label))
+            {
+                QLog.Error("按标签解析资源地址失败：标签为空");
+                return null;
+            }
+
+            AsyncOperationHandle<IList<IResourceLocation>> handle = Addressables.LoadResourceLocationsAsync(label, typeof(T));
+            await handle.ToUniTask();
+
+            if (handle.Status != AsyncOperationStatus.Succeeded)
+            {
+                QLog.Error($"按标签解析资源地址失败：{label}");
+                Addressables.Release(handle);
+                return null;
+            }
+
+            List<string> addresses = new List<string>();
+            foreach (IResourceLocation location in handle.Result)
+                addresses.Add(location.PrimaryKey);
+
+            Addressables.Release(handle);
+            return addresses;
+        }
+
+        // 按 Addressables 标签预加载全部资源，返回已加载的地址列表
+        public static async UniTask<List<string>> PreLoadAssetsByLabel<T>(string label) where T : UnityEngine.Object
+        {
+            List<string> addresses = await LoadAddressesByLabel<T>(label);
+            if (addresses == null || addresses.Count == 0)
+                return null;
+
+            for (int i = 0; i < addresses.Count; i++)
+                await AcquireAssetAsync<T>(addresses[i]);
+
+            return addresses;
         }
 
         // 释放一次指定地址的资源引用
