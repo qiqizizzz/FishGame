@@ -11,6 +11,7 @@ using Framework.QTower;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Controller;
 using UI.MainMenu;
+using UI.Setting;
 
 namespace Game
 {
@@ -26,6 +27,15 @@ namespace Game
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = 0
+            });
+
+            // 注册功能面板：设置界面
+            GameApp.UIManager.Register<UISetting>(new UIData
+            {
+                Address = UIDefines.UISetting,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = 100
             });
         }
 

@@ -11,5 +11,6 @@ namespace Framework.QTower.Common.Defines
     public static class UIDefines
     {
         public const string UIMainMenu = "UIMainMenu";
+        public const string UISetting = "UISetting";
     }
 }

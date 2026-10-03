@@ -6,7 +6,10 @@
  * └──────────────────────────────────┘
  */
 
+using Cysharp.Threading.Tasks;
 using Framework.QTower.View;
+using Game;
+using UI.Setting;
 using UnityEngine;
 using UnityEngine.UI;
 using Utils.log;
@@ -40,7 +43,7 @@ namespace UI.MainMenu
 
         private void OnSettingButtonClicked()
         {
-            QLog.Info("Setting button clicked");
+            GameApp.UIManager.Open<UISetting>().Forget();
         }
         
         private void OnExitButtonClicked()
