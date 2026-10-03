@@ -8,6 +8,7 @@
 
 using System.Collections.Generic;
 using UnityEngine;
+using Utils.log;
 
 namespace Framework.QTower.View
 {
@@ -26,10 +27,20 @@ namespace Framework.QTower.View
             return node;
         }
 
-        // 获取并缓存子节点组件
+        // 获取并缓存子节点组件，节点或组件缺失时在编辑器下主动报错
         protected T FindComponent<T>(string path) where T : Component
         {
-            return FindNode(path).GetComponent<T>();
+            Transform node = FindNode(path);
+            if (node == null)
+            {
+                QLog.Error($"[{GetType().Name}] 子节点未找到：{path}，请检查层级路径");
+                return null;
+            }
+
+            T component = node.GetComponent<T>();
+            if (component == null)
+                QLog.Error($"[{GetType().Name}] 节点 {path} 上未挂载 {typeof(T).Name}");
+            return component;
         }
 
         // 设置子项显示状态

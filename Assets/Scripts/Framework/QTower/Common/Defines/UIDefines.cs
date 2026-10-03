@@ -10,7 +10,6 @@ namespace Framework.QTower.Common.Defines
 {
     public static class UIDefines
     {
-        public const string UICombatHUD = "UICombatHUD";
-        public const string UISummary = "UISummary";
+        public const string UIMainMenu = "UIMainMenu";
     }
 }

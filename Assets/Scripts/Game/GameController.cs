@@ -10,6 +10,7 @@ using Cysharp.Threading.Tasks;
 using Framework.QTower;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Controller;
+using UI.MainMenu;
 
 namespace Game
 {
@@ -19,33 +20,21 @@ namespace Game
         // 注册游戏场景默认 HUD
         public GameController()
         {
-            /*GameApp.UIManager.Register<UICombatHUD>(new UIData
+            GameApp.UIManager.Register<UIMainMenu>(new UIData
             {
-                Address = UIDefines.UICombatHUD,
+                Address = UIDefines.UIMainMenu,
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = 0
-            });*/
+            });
         }
 
         protected override void OnInit()
         {
-            
+            ShowMainMenu().Forget();
         }
-
+        
         protected override void RegisterModuleEvent()
-        {
-            
-        }
-
-        // 玩家死亡后打开结算界面
-        private void HandlePlayerDied()
-        {
-            
-        }
-
-        // 玩家重新挑战后关闭结算界面
-        private void HandlePlayerRetryRequested()
         {
             
         }
@@ -54,5 +43,12 @@ namespace Game
         {
             GameApp.UIManager.UnregisterByController(this);
         }
+
+        #region 事件
+        private async UniTaskVoid ShowMainMenu()
+        {
+            await GameApp.UIManager.Open<UIMainMenu>();
+        }
+        #endregion
     }
 }

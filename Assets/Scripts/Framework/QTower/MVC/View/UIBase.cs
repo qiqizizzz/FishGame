@@ -14,7 +14,7 @@ using UnityEngine;
 
 namespace Framework.QTower.View
 {
-    public abstract class UIBase : MonoBehaviour
+    public abstract class UIBase : UIItemBase
     {
         public BaseController Controller { get; internal set; }
 
@@ -48,25 +48,19 @@ namespace Framework.QTower.View
             OnClose(args);
             Hide();
         }
-
-        private void OnDestroy()
+        
+        protected override void OnDestroy()
         {
-            if (!m_isInitialized)
-                return;
+            if (m_isInitialized)
+            {
+                RemoveViewEvent();
+                OnDispose();
+                m_isInitialized = false;
+            }
 
-            RemoveViewEvent();
-            OnDispose();
-            m_isInitialized = false;
+            base.OnDestroy();
         }
         #endregion
-
-        private void SetVisible(bool isVisible)
-        {
-            if (gameObject.activeSelf == isVisible)
-                return;
-
-            gameObject.SetActive(isVisible);
-        }
 
         protected void RegisterEvent<TEvent>(string eventName, Action<TEvent> callback)
         {
@@ -102,12 +96,12 @@ namespace Framework.QTower.View
         protected virtual void OnClose(params object[] args)
         {
         }
-
-        protected virtual void SubscribeViewEvents()
+        
+        protected virtual void OnDispose()
         {
         }
-
-        protected virtual void OnDispose()
+        
+        protected virtual void SubscribeViewEvents()
         {
         }
 
