@@ -1,0 +1,52 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text;
+using Module.Fish.Data;
+using Module.Fish.Service;
+using UnityEditor;
+using UnityEngine;
+
+public class PrepareParallelProbe
+{
+    public static void Run()
+    {
+        StringBuilder sb = new StringBuilder();
+        FishFactory factory = new FishFactory();
+        MethodInfo collect = typeof(FishFactory).GetMethod("collectPending",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        if (collect == null)
+        {
+            Debug.LogError("[PrepareProbe] collectPending 未找到，说明改动没进编译产物");
+            return;
+        }
+
+        foreach (string guid in AssetDatabase.FindAssets("t:FishingSessionConfigSO", new[] { "Assets/Data" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            FishingSessionConfigSO config = AssetDatabase.LoadAssetAtPath<FishingSessionConfigSO>(path);
+            IList fishes = config != null ? config.Fishes as IList : null;
+
+            sb.AppendLine(path + " fishes=" + (fishes == null ? "null" : fishes.Count.ToString()));
+
+            if (fishes == null)
+                continue;
+
+            List<FishDataSO> pending = collect.Invoke(factory, new object[] { fishes }) as List<FishDataSO>;
+            sb.AppendLine("  pending(去重后待加载)=" + (pending == null ? 0 : pending.Count));
+
+            int index = 0;
+
+            foreach (FishDataSO data in pending)
+                sb.AppendLine("    [" + index++ + "] " + data.Id + " -> " + data.Address);
+
+            // 再跑一次应当全部命中缓存判定之外（prefab 未加载，仍会全量返回），验证幂等
+            List<FishDataSO> again = collect.Invoke(factory, new object[] { fishes }) as List<FishDataSO>;
+            sb.AppendLine("  第二次 pending=" + (again == null ? 0 : again.Count));
+        }
+
+        Debug.Log("[PrepareProbe]\n" + sb);
+    }
+}

@@ -1,0 +1,115 @@
+using System;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+public class LoadingRingSpriteBuilder
+{
+    private const string FOLDER_PATH = "Assets/Art/UI/Common";
+    private const string ASSET_PATH = "Assets/Art/UI/Common/Img_Loading_Ring.png";
+    private const int SIZE = 160;
+    private const float OUTER_RADIUS = 73.6f;
+    private const float INNER_RADIUS = 56f;
+    private const float SOFT_EDGE = 2f;
+    private const float ARC_DEGREES = 280f;
+    private const float TAIL_POW = 1.8f;
+
+    public static void Run()
+    {
+        if (!AssetDatabase.IsValidFolder(FOLDER_PATH))
+            AssetDatabase.CreateFolder("Assets/Art/UI", "Common");
+
+        float center = SIZE * 0.5f;
+        float fullCircle = 360f;
+        Color32[] pixels = new Color32[SIZE * SIZE];
+
+        for (int y = 0; y < SIZE; y++)
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                float dx = x + 0.5f - center;
+                float dy = y + 0.5f - center;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                float band = ringMask(dist);
+
+                if (band <= 0.001f)
+                {
+                    pixels[y * SIZE + x] = new Color32(255, 255, 255, 0);
+                    continue;
+                }
+
+                float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+                if (angle < 0f)
+                    angle += fullCircle;
+
+                float headWeight = 0.18f;
+                float alpha;
+
+                if (angle <= ARC_DEGREES)
+                {
+                    float t = 1f - angle / ARC_DEGREES;
+                    alpha = Mathf.Pow(t, TAIL_POW) * (1f - headWeight) + headWeight;
+                }
+                else
+                {
+                    float wrap = (angle - ARC_DEGREES) / (fullCircle - ARC_DEGREES);
+                    alpha = (1f - wrap) * headWeight;
+                }
+
+                alpha *= band;
+                byte a = (byte)Mathf.RoundToInt(Mathf.Clamp01(alpha) * 255f);
+                pixels[y * SIZE + x] = new Color32(255, 255, 255, a);
+            }
+        }
+
+        Texture2D texture = new Texture2D(SIZE, SIZE, TextureFormat.RGBA32, false);
+        texture.SetPixels32(pixels);
+        texture.Apply(false);
+
+        byte[] bytes = texture.EncodeToPNG();
+        UnityEngine.Object.DestroyImmediate(texture);
+
+        string projectRoot = Directory.GetCurrentDirectory();
+        string fullPath = Path.Combine(projectRoot, ASSET_PATH);
+        File.WriteAllBytes(fullPath, bytes);
+        AssetDatabase.ImportAsset(ASSET_PATH, ImportAssetOptions.ForceSynchronousImport);
+        ConfigureImporter();
+
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ASSET_PATH);
+        Debug.Log("[LoadingRing] bytes=" + bytes.Length + " sprite=" + (sprite == null ? "NULL" : sprite.name)
+            + " rect=" + (sprite == null ? "-" : sprite.rect.ToString()));
+    }
+
+    private static float ringMask(float dist)
+    {
+        if (dist > OUTER_RADIUS + SOFT_EDGE || dist < INNER_RADIUS - SOFT_EDGE)
+            return 0f;
+
+        float outer = Mathf.Clamp01((OUTER_RADIUS + SOFT_EDGE - dist) / SOFT_EDGE);
+        float inner = Mathf.Clamp01((dist - (INNER_RADIUS - SOFT_EDGE)) / SOFT_EDGE);
+        return Mathf.Min(outer, inner);
+    }
+
+    private static void ConfigureImporter()
+    {
+        TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(ASSET_PATH);
+
+        if (importer == null)
+        {
+            Debug.LogError("[LoadingRing] 导入器缺失：" + ASSET_PATH);
+            return;
+        }
+
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.spritePixelsPerUnit = 100f;
+        importer.alphaSource = TextureImporterAlphaSource.FromInput;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.npotScale = TextureImporterNPOTScale.None;
+        importer.SaveAndReimport();
+    }
+}

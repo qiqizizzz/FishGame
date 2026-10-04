@@ -1,0 +1,48 @@
+using System.IO;
+using UnityEngine;
+
+public class LoadingRingPreview
+{
+    public static void Run()
+    {
+        string projectRoot = Application.dataPath.Substring(0, Application.dataPath.LastIndexOf('/'));
+        string srcPath = Path.Combine(projectRoot, "Assets/Art/UI/Common/Img_Loading_Ring.png");
+        byte[] raw = File.ReadAllBytes(srcPath);
+        Texture2D src = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        ImageConversion.LoadImage(src, raw);
+
+        int w = src.width;
+        int h = src.height;
+        int pad = 24;
+        int stride = w + pad * 2;
+        Color32[] source = src.GetPixels32();
+        Color32[] outPixels = new Color32[stride * (h + pad * 2)];
+        Color32 bg = new Color32(10, 18, 32, 255);
+
+        for (int i = 0; i < outPixels.Length; i++)
+            outPixels[i] = bg;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                Color32 p = source[y * w + x];
+                float a = p.a / 255f;
+                outPixels[(y + pad) * stride + (x + pad)] = new Color32(
+                    (byte)Mathf.RoundToInt(Mathf.Lerp(bg.r, 235f, a)),
+                    (byte)Mathf.RoundToInt(Mathf.Lerp(bg.g, 245f, a)),
+                    (byte)Mathf.RoundToInt(Mathf.Lerp(bg.b, 255f, a)),
+                    255);
+            }
+        }
+
+        Texture2D preview = new Texture2D(stride, h + pad * 2, TextureFormat.RGBA32, false);
+        preview.SetPixels32(outPixels);
+        preview.Apply(false);
+        File.WriteAllBytes(Path.Combine(projectRoot, ".codex/tmp/m5-loading/ring-preview-02.png"),
+            preview.EncodeToPNG());
+        UnityEngine.Object.DestroyImmediate(src);
+        UnityEngine.Object.DestroyImmediate(preview);
+        Debug.Log("[LoadingRingPreview] written " + w + "x" + h);
+    }
+}

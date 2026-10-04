@@ -1,0 +1,128 @@
+using System.Text;
+using TMPro;
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class LoadingPanelVerify
+{
+    private const string PREFAB_PATH = "Assets/Prefabs/UI/UILoadingPanel.prefab";
+    private const string RING_ASSET = "Assets/Art/UI/Common/Img_Loading_Ring.png";
+    private const string FONT_PATH = "Assets/Font/MaoKenTangYuan-beta0.12 SDF.asset";
+
+    private static StringBuilder s_log = new StringBuilder();
+    private static int s_fail;
+
+    public static void Run()
+    {
+        s_log = new StringBuilder();
+        s_fail = 0;
+
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PREFAB_PATH);
+        check("prefab 存在", prefab != null);
+
+        if (prefab == null)
+        {
+            Debug.Log("[LoadingPanelVerify] FAIL\n" + s_log);
+            return;
+        }
+
+        check("根节点挂 UILoadingPanel", prefab.GetComponent("UI.Common.UILoadingPanel") != null);
+        Canvas canvas = prefab.GetComponent<Canvas>();
+        check("根节点带 Canvas（供 SortingOrder 生效）", canvas != null);
+        check("根节点无 Graphic", prefab.GetComponent<Graphic>() == null);
+
+        RectTransform rootRect = prefab.transform as RectTransform;
+        check("根 anchor 全屏", rootRect.anchorMin == Vector2.zero && rootRect.anchorMax == Vector2.one);
+
+        Image black = findImage(prefab, "Img_Black");
+        check("Img_Black 存在且为 Image", black != null);
+
+        if (black != null)
+        {
+            check("Img_Black 全不透明纯黑", black.color == new Color(0f, 0f, 0f, 1f));
+            check("Img_Black 拦截射线", black.raycastTarget);
+            RectTransform r = black.rectTransform;
+            check("Img_Black 铺满", r.anchorMin == Vector2.zero && r.anchorMax == Vector2.one);
+        }
+
+        Image ring = findImage(prefab, "Img_Ring");
+        check("Img_Ring 存在且为 Image", ring != null);
+
+        if (ring != null)
+        {
+            check("Img_Ring 有精灵", ring.sprite != null);
+            check("Img_Ring 精灵正确", ring.sprite != null && ring.sprite.texture.name == "Img_Loading_Ring");
+            check("Img_Ring 不拦截射线", !ring.raycastTarget);
+            check("Img_Ring 尺寸 120", ring.rectTransform.sizeDelta == new Vector2(120f, 120f));
+            check("Img_Ring 右下角锚点", ring.rectTransform.anchorMin == new Vector2(1f, 0f));
+        }
+
+        TextMeshProUGUI label = prefab.transform.Find("Txt_Loading")?.GetComponent<TextMeshProUGUI>();
+        check("Txt_Loading 存在", label != null);
+
+        if (label != null)
+        {
+            check("文案为 加载中...", label.text == "加载中...");
+            check("字体为猫坑汤圆", label.font != null && label.font.name == "MaoKenTangYuan-beta0.12 SDF");
+            check("右对齐", label.alignment == TextAlignmentOptions.Right);
+            check("文本不拦截射线", !label.raycastTarget);
+        }
+
+        GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        check("实例化成功", instance != null);
+
+        if (instance != null)
+        {
+            check("实例可 FindNode Img_Ring", instance.transform.Find("Img_Ring") != null);
+            Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(RING_ASSET);
+            check("环精灵可从资产加载", sprite != null);
+            TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FONT_PATH);
+            check("字体资产可加载", font != null);
+            Object.DestroyImmediate(instance);
+        }
+
+        verifyAddressable();
+
+        string verdict = s_fail == 0 ? "ALL PASS" : "FAILURES=" + s_fail;
+        Debug.Log("[LoadingPanelVerify] " + verdict + "\n" + s_log);
+    }
+
+    private static void verifyAddressable()
+    {
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
+        AddressableAssetGroup group = settings == null ? null : settings.FindGroup("UI");
+        check("UI 分组存在", group != null);
+
+        if (group == null)
+            return;
+
+        string expectedGuid = AssetDatabase.AssetPathToGUID(PREFAB_PATH);
+        AddressableAssetEntry match = null;
+
+        foreach (AddressableAssetEntry entry in group.entries)
+        {
+            if (entry.address == "UILoadingPanel")
+                match = entry;
+        }
+
+        check("地址 UILoadingPanel 已注册", match != null);
+        check("地址指向 prefab guid", match != null && match.guid == expectedGuid);
+    }
+
+    private static Image findImage(GameObject prefab, string path)
+    {
+        Transform t = prefab.transform.Find(path);
+        return t == null ? null : t.GetComponent<Image>();
+    }
+
+    private static void check(string name, bool ok)
+    {
+        if (!ok)
+            s_fail++;
+
+        s_log.AppendLine((ok ? "  ok  " : "  FAIL ") + name);
+    }
+}

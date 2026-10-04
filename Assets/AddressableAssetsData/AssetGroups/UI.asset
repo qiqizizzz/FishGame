@@ -17,6 +17,11 @@ MonoBehaviour:
     m_SerializedData: []
   m_GUID: fa91297c075f4a74e83f71923551f0fa
   m_SerializeEntries:
+  - m_GUID: 04465d09ee425bf4d89da5cba6c25bc3
+    m_Address: UILoadingPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5281e21b0e7c29947bd04118e74ba632
     m_Address: UISetting
     m_ReadOnly: 0

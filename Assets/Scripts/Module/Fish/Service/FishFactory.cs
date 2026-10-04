@@ -35,12 +35,22 @@ namespace Module.Fish.Service
             if (fishes == null)
                 return;
 
-            foreach (FishDataSO data in fishes)
-            {
-                if (data == null || m_prefabs.ContainsKey(data))
-                    continue;
+            List<FishDataSO> pending = collectPending(fishes);
 
-                GameObject prefab = await ResManager.LoadAssetAsync<GameObject>(data.Address);
+            if (pending.Count == 0)
+                return;
+
+            // 先把全部加载请求一次性发出去：句柄在调用时就已启动，
+            // 逐条 await 会把 N 个 prefab 的耗时串成一条长队
+            List<UniTask<GameObject>> loads = new(pending.Count);
+
+            foreach (FishDataSO data in pending)
+                loads.Add(ResManager.LoadAssetAsync<GameObject>(data.Address));
+
+            for (int index = 0; index < pending.Count; index++)
+            {
+                FishDataSO data = pending[index];
+                GameObject prefab = await loads[index];
 
                 if (prefab == null)
                 {
@@ -51,6 +61,22 @@ namespace Module.Fish.Service
                 m_prefabs.Add(data, prefab);
                 m_modelSizes.Add(data, measureSize(prefab));
             }
+        }
+
+        // 过滤掉已缓存与配置里重复的鱼种，保持原顺序
+        private List<FishDataSO> collectPending(IReadOnlyList<FishDataSO> fishes)
+        {
+            List<FishDataSO> pending = new();
+
+            foreach (FishDataSO data in fishes)
+            {
+                if (data == null || m_prefabs.ContainsKey(data) || pending.Contains(data))
+                    continue;
+
+                pending.Add(data);
+            }
+
+            return pending;
         }
 
         public bool CanSpawn(FishDataSO data)

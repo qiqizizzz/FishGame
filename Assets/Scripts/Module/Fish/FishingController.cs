@@ -57,6 +57,7 @@ namespace Module.Fish
         private float m_contactCooldown;
         private int m_totalCatch;
         private HookPhase m_lastPhase = HookPhase.Idle;
+        private bool m_disposed;
 
         public FishingController(FishingScene scene)
         {
@@ -85,7 +86,10 @@ namespace Module.Fish
         protected override void OnInit()
         {
             if (!validateReferences())
+            {
+                publishSceneReady();
                 return;
+            }
 
             registerViews();
 
@@ -107,6 +111,7 @@ namespace Module.Fish
 
         protected override void OnDestroy()
         {
+            m_disposed = true;
             m_running = false;
             m_spawn.EndSession();
             GameApp.UIManager.UnregisterByController(this);
@@ -176,14 +181,14 @@ namespace Module.Fish
 
         // ==================== Private Function ====================
         // 加载期间玩家可能已经 ESC 回主菜单，这时补一次注销，别把面板悬在主菜单上
-        private async UniTaskVoid showHud()
+        private async UniTask<UIFishingHUD> showHud()
         {
             UIFishingHUD hud = await GameApp.UIManager.Open<UIFishingHUD>();
 
-            if (hud == null || m_running)
-                return;
+            if (hud != null && m_disposed)
+                GameApp.UIManager.UnregisterByController(this);
 
-            GameApp.UIManager.UnregisterByController(this);
+            return hud;
         }
 
         // 视图跟着玩法控制器注册与注销，回主菜单时不会留下悬空面板
@@ -206,10 +211,19 @@ namespace Module.Fish
             });
         }
 
-        // prefab 预加载完成后才开局，避免第一次下潜时同步加载卡顿
+        // HUD 与鱼 prefab 同时发起，两条都完成才向遮罩放行，避免遮罩收了 HUD 才蹦出来
         private async UniTaskVoid startSession()
         {
+            UniTask<UIFishingHUD> hudTask = showHud();
+
             await m_factory.Prepare(m_scene.SessionConfig.Fishes);
+
+            if (m_disposed)
+            {
+                // 预加载途中被 ESC 打断也要放行遮罩，否则黑屏会一直等到超时
+                publishSceneReady();
+                return;
+            }
 
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
             m_result = new SessionResult(TargetCatchCount);
@@ -219,11 +233,18 @@ namespace Module.Fish
             m_machine.Start(m_hook);
             m_running = true;
 
-            showHud().Forget();
+            await hudTask;
+            publishSceneReady();
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
                       $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条，" +
                       $"携带容量 {m_stats.CarryCapacity} 点");
+        }
+
+        // 遮罩只认这一个信号：场景侧初始化结束，失败与中途中断同样要发
+        private void publishSceneReady()
+        {
+            EventManager.PublishEvent(EventDefines.FishingSceneReady);
         }
 
         // 阶段变化才广播，并在出水那一刻结算钩上的鱼

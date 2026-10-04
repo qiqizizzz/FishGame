@@ -6,14 +6,18 @@
  * └──────────────────────────────────┘
  */
 
+using System;
 using Cysharp.Threading.Tasks;
 using Framework.QTower;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Common.Scene;
 using Framework.QTower.Controller;
+using Framework.QTower.Event;
 using UI.Common;
 using UI.MainMenu;
 using UI.Setting;
+using UnityEngine;
+using Utils.log;
 
 namespace Game
 {
@@ -25,6 +29,15 @@ namespace Game
 
         // 遮罩要在场景切换完成后多等两帧再收，让新场景相机先出画
         private const int LOADING_SETTLE_FRAMES = 2;
+
+        // 遮罩最短显示时间：加载太快收掉，转圈根本来不及被看见
+        private const float LOADING_MIN_VISIBLE_SECONDS = 0.5f;
+
+        // 等场景就绪信号的兜底超时，初始化炸了也不该把玩家永久关在黑屏里
+        private const float LOADING_READY_TIMEOUT = 8f;
+
+        // 场景侧发来的就绪信号，切场景前复位
+        private bool m_sceneReady;
 
         // 注册游戏场景默认 HUD
         public GameController()
@@ -86,7 +99,7 @@ namespace Game
         {
             GameApp.UIManager.Close<UIMainMenu>();
 
-            if (await loadSceneWithLoading(SceneDefines.Fishing))
+            if (await loadSceneWithLoading(SceneDefines.Fishing, true))
                 return;
 
             await GameApp.UIManager.Open<UIMainMenu>();
@@ -100,19 +113,59 @@ namespace Game
             await GameApp.UIManager.Open<UIMainMenu>();
         }
 
-        // 黑屏遮罩盖住整段切场景空窗，避免新场景首帧露出默认天空盒
-        private async UniTask<bool> loadSceneWithLoading(string sceneName)
+        // 黑屏遮罩盖住整段空窗：开遮罩 → 加载 → 等场景就绪 → 补足最短显示 → 关遮罩
+        // 鱼 prefab 预加载发生在场景加载完成之后，不等就绪信号遮罩就会提前收，HUD 慢好几拍
+        private async UniTask<bool> loadSceneWithLoading(string sceneName, bool waitForSceneReady = false)
         {
+            m_sceneReady = false;
+
+            if (waitForSceneReady)
+                EventManager.RegisterEvent(EventDefines.FishingSceneReady, new Action(onSceneReady));
+
             await GameApp.UIManager.Open<UILoadingPanel>();
+            float visibleUntil = Time.unscaledTime + LOADING_MIN_VISIBLE_SECONDS;
 
             bool loaded = await SceneLoader.LoadAsync(sceneName);
+
+            if (waitForSceneReady)
+                await waitSceneReady();
+
+            await holdLoadingUntil(visibleUntil);
 
             for (int frame = 0; frame < LOADING_SETTLE_FRAMES; frame++)
                 await UniTask.Yield(PlayerLoopTiming.LastPostLateUpdate);
 
             GameApp.UIManager.Close<UILoadingPanel>();
+
+            if (waitForSceneReady)
+                EventManager.UnregisterEvent(EventDefines.FishingSceneReady, new Action(onSceneReady));
+
             return loaded;
         }
+
+        private void onSceneReady() => m_sceneReady = true;
+
+        // 等场景侧初始化信号，超时兜底，别让遮罩无限期挂着
+        private async UniTask waitSceneReady()
+        {
+            float deadline = Time.unscaledTime + LOADING_READY_TIMEOUT;
+
+            while (!m_sceneReady && Time.unscaledTime < deadline)
+                await UniTask.Yield(PlayerLoopTiming.Update);
+
+#if UNITY_EDITOR
+            if (!m_sceneReady)
+                QLog.Warning("等待场景就绪超时，直接关闭加载遮罩");
+#endif
+        }
+
+        // 补足最短显示时间，遮罩至少完整转一圈再收
+        private async UniTask holdLoadingUntil(float untilUnscaledTime)
+        {
+            while (Time.unscaledTime < untilUnscaledTime)
+                await UniTask.Yield(PlayerLoopTiming.Update);
+        }
+
         #endregion
     }
 }

@@ -1,0 +1,37 @@
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public class LoadingPanelStage
+{
+    public static void Run()
+    {
+        Scene previous = EditorSceneManager.GetActiveScene();
+        SessionState.SetString("FishGame.LoadingStage.Previous", previous.path);
+
+        Scene temp = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+        EditorSceneManager.SetActiveScene(temp);
+
+        Camera camera = new GameObject("PreviewCamera", typeof(Camera)).GetComponent<Camera>();
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.05f, 0.35f, 0.55f, 1f);
+        camera.orthographic = true;
+        camera.transform.position = new Vector3(0f, 0f, -10f);
+
+        GameObject canvasObject = new GameObject("PreviewCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/UILoadingPanel.prefab");
+        GameObject panel = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+        panel.transform.SetParent(canvasObject.transform, false);
+
+        Debug.Log("[LoadingPanelStage] staged panel=" + (panel != null));
+    }
+}
