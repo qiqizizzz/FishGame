@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df49d50f8acc1244b8b329a957acea30, type: 3}
+  m_Name: HookConfig
+  m_EditorClassIdentifier: 
+  DescendSpeedMeters: 6
+  LateralSpeedMeters: 4
+  LateralDampingRate: 8
+  HookRadiusMeters: 0.25
+  LineWidthMeters: 0.05
+  LineLengthMeters: 25
+  CapacityPoints: 4
+  ReelSpeedMeters: 3
+  TensionCeiling: 100
+  ReliefRatio: 0
+  FishPerHook: 1
+  LureWeightScale: 1
+  DetectRadiusMeters: 0.8
+  CoinBonusRatio: 0
+  TensionPerLoad: 12
+  TensionReliefPerSecond: 5
+  DetachChanceRatio: 0.35
+  TangledDurationSeconds: 1.2

@@ -46,13 +46,11 @@ namespace Framework.QTower.Common.Scene
                 return false;
             }
 
-#if UNITY_EDITOR
             if (getBuildScenePath(sceneName) == null)
             {
                 QLog.Error($"场景加载失败：{sceneName} 未以启用状态加入 Build Settings");
                 return false;
             }
-#endif
 
             IsLoading = true;
             try
@@ -79,8 +77,6 @@ namespace Framework.QTower.Common.Scene
             }
         }
 
-#if UNITY_EDITOR
-        // 查询场景是否已启用并加入 Build Settings，命中返回资源路径，否则返回 null
         private static string getBuildScenePath(string sceneName)
         {
             foreach (UnityEditor.EditorBuildSettingsScene scene in UnityEditor.EditorBuildSettings.scenes)
@@ -94,6 +90,5 @@ namespace Framework.QTower.Common.Scene
 
             return null;
         }
-#endif
     }
 }

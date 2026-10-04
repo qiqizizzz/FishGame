@@ -1,0 +1,29 @@
+/*
+ * ┌──────────────────────────────────┐
+ * │  描    述: 鱼种行为模板枚举，供 IFishBehavior 策略选择实现
+ * │  类    名: FishBehaviorType.cs
+ * │  创    建: By qiqizizzz
+ * └──────────────────────────────────┘
+ * 只描述鱼「平时怎么动」；惊散与逃逸是受事件触发的反应状态，由 M2 运行时叠加，不在此枚举内
+ */
+
+namespace Module.Fish.Type
+{
+    /// <summary>
+    /// 鱼种的行为模板
+    /// </summary>
+    public enum FishBehaviorType
+    {
+        /// <summary>巡游：单条在深度带内水平折返</summary>
+        Cruise = 0,
+
+        /// <summary>群游：成团跟随，密度由会话配置决定</summary>
+        School = 1,
+
+        /// <summary>飘动：带状身体随水流摆动，速度低但覆盖深度大</summary>
+        Drift = 2,
+
+        /// <summary>警戒漂行：障碍专用，几乎不位移，靠体积形成路线阻碍</summary>
+        Guard = 3
+    }
+}

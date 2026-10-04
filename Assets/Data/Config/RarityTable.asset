@@ -1,0 +1,87 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48bf1b964c8c786489cf35468616294e, type: 3}
+  m_Name: RarityTable
+  m_EditorClassIdentifier: 
+  Rows:
+  - Rarity: 0
+    PrimaryColor: {r: 0.7882353, g: 0.8039216, b: 0.8235294, a: 1}
+    RimColor: {r: 0.7882353, g: 0.8039216, b: 0.8235294, a: 1}
+    RimIntensity: 0
+    RimPulse: 0
+    StarCount: 1
+    ValueMultiplier: 1
+    SpawnWeight: 45
+    DepthBand:
+      MinDepth: 0
+      MaxDepth: 25
+    TensionLoad: 1
+  - Rarity: 1
+    PrimaryColor: {r: 0.29803923, g: 0.6862745, b: 0.49019608, a: 1}
+    RimColor: {r: 0.29803923, g: 0.6862745, b: 0.49019608, a: 1}
+    RimIntensity: 0.35
+    RimPulse: 0
+    StarCount: 2
+    ValueMultiplier: 1.8
+    SpawnWeight: 25
+    DepthBand:
+      MinDepth: 15
+      MaxDepth: 45
+    TensionLoad: 2
+  - Rarity: 2
+    PrimaryColor: {r: 0.24313726, g: 0.48235294, b: 0.98039216, a: 1}
+    RimColor: {r: 0.24313726, g: 0.48235294, b: 0.98039216, a: 1}
+    RimIntensity: 0.6
+    RimPulse: 0
+    StarCount: 3
+    ValueMultiplier: 3.5
+    SpawnWeight: 15
+    DepthBand:
+      MinDepth: 35
+      MaxDepth: 70
+    TensionLoad: 3
+  - Rarity: 3
+    PrimaryColor: {r: 0.54509807, g: 0.36078432, b: 0.9647059, a: 1}
+    RimColor: {r: 0.54509807, g: 0.36078432, b: 0.9647059, a: 1}
+    RimIntensity: 0.85
+    RimPulse: 0
+    StarCount: 4
+    ValueMultiplier: 7
+    SpawnWeight: 10
+    DepthBand:
+      MinDepth: 55
+      MaxDepth: 90
+    TensionLoad: 5
+  - Rarity: 4
+    PrimaryColor: {r: 0.9607843, g: 0.7254902, b: 0.23137255, a: 1}
+    RimColor: {r: 0.9607843, g: 0.7254902, b: 0.23137255, a: 1}
+    RimIntensity: 1.2
+    RimPulse: 1
+    StarCount: 5
+    ValueMultiplier: 15
+    SpawnWeight: 5
+    DepthBand:
+      MinDepth: 75
+      MaxDepth: 100
+    TensionLoad: 8
+  - Rarity: 5
+    PrimaryColor: {r: 0.22745098, g: 0.24705882, b: 0.2784314, a: 1}
+    RimColor: {r: 0.22745098, g: 0.24705882, b: 0.2784314, a: 1}
+    RimIntensity: 0
+    RimPulse: 0
+    StarCount: 0
+    ValueMultiplier: 0
+    SpawnWeight: 0
+    DepthBand:
+      MinDepth: 0
+      MaxDepth: 100
+    TensionLoad: 0
