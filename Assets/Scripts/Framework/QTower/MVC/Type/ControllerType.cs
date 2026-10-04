@@ -11,6 +11,7 @@ namespace Framework.QTower
     public enum ControllerType
     {
         None = 0,
-        Game = 1
+        Game = 1,
+        Fishing = 2
     }
 }

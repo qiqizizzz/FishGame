@@ -1,4 +1,4 @@
-﻿/*
+/*
  * ┌──────────────────────────────────┐
  * │  描    述: 全局事件定义/跨模块                      
  * │  类    名: EventDefines.cs       
@@ -13,5 +13,8 @@ namespace Framework.QTower.Common.Defines
         public const string PlayerLockOnStateChanged = "PlayerLockOnStateChanged";
         public const string PlayerDied = "PlayerDied";
         public const string PlayerRetryRequested = "PlayerRetryRequested";
+
+        public const string EnterFishingRequested = "EnterFishingRequested";
+        public const string ReturnToMainMenuRequested = "ReturnToMainMenuRequested";
     }
 }

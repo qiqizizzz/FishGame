@@ -9,6 +9,7 @@
 using Framework.QTower;
 using UnityEngine;
 using Utils.Find;
+using Utils.log;
 
 namespace Game
 {
@@ -24,6 +25,7 @@ namespace Game
         {
             if (m_instance != null && m_instance != this)
             {
+                destroyDuplicateUiRoot();
                 Destroy(gameObject);
                 return;
             }
@@ -31,9 +33,7 @@ namespace Game
             m_uiRoot = HierarchyFindTool.FindSceneRoot(UI_ROOT_NAME);
             if (m_uiRoot == null)
             {
-#if UNITY_EDITOR
-                Debug.LogError($"[{nameof(GameScene)}] {UI_ROOT_NAME} 未找到，GameApp 未初始化。请确认 {UI_ROOT_NAME} 是场景根节点且命名完全一致");
-#endif
+                QLog.Error($"[{nameof(GameScene)}] {UI_ROOT_NAME} 未找到，GameApp 未初始化。请确认 {UI_ROOT_NAME} 是场景根节点且命名完全一致");
                 return;
             }
 
@@ -73,6 +73,15 @@ namespace Game
         private void RegisterModules()
         {
             GameApp.ControllerManager.Register(ControllerType.Game, new GameController());
+        }
+
+        private void destroyDuplicateUiRoot()
+        {
+            foreach (GameObject rootObject in gameObject.scene.GetRootGameObjects())
+            {
+                if (rootObject.name == UI_ROOT_NAME)
+                    Destroy(rootObject);
+            }
         }
     }
 }
