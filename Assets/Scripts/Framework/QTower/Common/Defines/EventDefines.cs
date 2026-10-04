@@ -16,5 +16,6 @@ namespace Framework.QTower.Common.Defines
 
         public const string EnterFishingRequested = "EnterFishingRequested";
         public const string ReturnToMainMenuRequested = "ReturnToMainMenuRequested";
+        public const string FishingPhaseChanged = "FishingPhaseChanged";
     }
 }

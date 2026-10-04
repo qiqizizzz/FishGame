@@ -35,6 +35,10 @@ namespace Module.Fish.Data
         [SerializeField] private List<FishDataSO> FishPool = new();
         [Tooltip("横轴为归一化深度(0-1)，纵轴为密度倍率")]
         [SerializeField] private AnimationCurve DensityCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.4f);
+        [Tooltip("单个深度切片的基准鱼数，实际数量还要乘密度曲线")]
+        [SerializeField, Min(0f)] private float BaseFishCountPerSlice = 3f;
+        [Tooltip("每次生成判定为河豚的概率，仅在鱼池含 Hazard 档时生效")]
+        [SerializeField, Range(0f, 0.5f)] private float HazardSpawnChance = 0.15f;
 
         [Header("收益公式")]
         [Tooltip("单条收益基准值，乘稀有度倍率后得到 BaseValue(rarity)")]
@@ -50,6 +54,8 @@ namespace Module.Fish.Data
         public int ReelCount => ReelToleranceCount;
         public IReadOnlyList<FishDataSO> Fishes => FishPool;
         public AnimationCurve Density => DensityCurve;
+        public float BaseFishPerSlice => BaseFishCountPerSlice;
+        public float HazardChance => HazardSpawnChance;
         public float RewardBase => RewardBaseValue;
         public float DepthBonusScale => DepthBonusFactor;
         public float ComboStep => ComboStepPerCatch;
