@@ -51,7 +51,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  BaseFishCountPerSlice: 3
+  BaseFishCountPerSlice: 2
   HazardSpawnChance: 0.15
   RewardBaseValue: 10
   DepthBonusFactor: 1

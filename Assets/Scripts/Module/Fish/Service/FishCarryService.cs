@@ -6,6 +6,8 @@
 * └──────────────────────────────────┘
 * 挂上钩的鱼退出 AI 驱动，改由本服务排成鱼串贴在钩子下方
 * 脱钩一律从最外侧（最后挂上的）开始，先贪上去的最后掉，符合「贪心代价」的视觉
+* 鱼串按每条鱼的实测身高累加间距，再左右交替错位并给一点下垂角，
+* 等距 0.5 米排下去时大鱼会完全糊住小鱼，两条鱼看着像一条
 */
 
 using System.Collections.Generic;
@@ -17,7 +19,13 @@ namespace Module.Fish.Service
 {
     public sealed class FishCarryService
     {
+        // 实测身高缺失时的兜底间距（米）
         private const float CARRY_SPACING = 0.5f;
+        private const float HOOK_CLEARANCE = 0.3f;
+        private const float FISH_GAP = 0.18f;
+        private const float SWAY_RATIO = 0.34f;
+        private const float MAX_SWAY = 0.55f;
+        private const float HANG_TILT_DEGREES = 14f;
         private const int MAX_CARRIED = 6;
 
         private readonly List<CatchRecord> m_carried = new();
@@ -83,6 +91,9 @@ namespace Module.Fish.Service
         /// </summary>
         public void Follow(float x, float depth)
         {
+            float offset = HOOK_CLEARANCE;
+            float previousHeight = 0f;
+
             for (int i = 0; i < m_carried.Count; i++)
             {
                 FishInstance fish = m_carried[i].Fish;
@@ -90,9 +101,24 @@ namespace Module.Fish.Service
                 if (fish == null || !fish.IsAlive)
                     continue;
 
-                fish.X = x;
-                fish.Depth = depth + (i + 1) * CARRY_SPACING;
-                fish.Root.localPosition = new Vector3(x, -fish.Depth, fish.Root.localPosition.z);
+                float height = fish.DisplayHeight > 0f ? fish.DisplayHeight : CARRY_SPACING;
+                float length = fish.Data != null ? fish.Data.DisplayLength : height;
+
+                offset += i == 0
+                    ? height * 0.5f
+                    : (previousHeight + height) * 0.5f + FISH_GAP;
+                previousHeight = height;
+
+                int swaySign = i % 2 == 0 ? 1 : -1;
+                float sway = Mathf.Min(length * SWAY_RATIO, MAX_SWAY) * swaySign;
+
+                fish.X = x + sway;
+                fish.Depth = depth + offset;
+
+                Transform root = fish.Root;
+                root.localPosition = new Vector3(fish.X, -fish.Depth, root.localPosition.z);
+                root.localRotation = Quaternion.Euler(0f, 0f, HANG_TILT_DEGREES * swaySign)
+                    * Quaternion.Euler(0f, fish.Direction >= 0 ? 90f : -90f, 0f);
             }
         }
 

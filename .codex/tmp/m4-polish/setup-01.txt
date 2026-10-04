@@ -1,0 +1,296 @@
+using System.Text;
+using TMPro;
+using UI.Fishing;
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public class M4Setup
+{
+    private const string PANEL_PATH = "Assets/Prefabs/UI/UIResultPanel.prefab";
+    private const string FONT_PATH = "Assets/Font/MaoKenTangYuan-beta0.12 SDF.asset";
+    private const string MENU_PREFAB = "Assets/Prefabs/UI/UIMainMenu.prefab";
+    private const string SESSION_CONFIG = "Assets/Data/Config/FishingSession_Island1.asset";
+    private const string ADDRESS = "UIResultPanel";
+    private const string GROUP_NAME = "UI";
+
+    private static readonly Color TextMain = new Color(0.96f, 0.98f, 1f, 1f);
+    private static readonly Color TextSub = new Color(0.72f, 0.8f, 0.88f, 1f);
+    private static readonly Color TextGold = new Color(1f, 0.84f, 0.35f, 1f);
+    private static readonly Color DimColor = new Color(0.02f, 0.05f, 0.09f, 0.8f);
+    private static readonly Color RowColor = new Color(0.06f, 0.12f, 0.2f, 0.75f);
+
+    private static TMP_FontAsset s_font;
+    private static Sprite s_buttonSprite;
+    private static Image s_buttonSource;
+    private static StringBuilder s_log = new StringBuilder();
+
+    public static void Run()
+    {
+        s_log = new StringBuilder();
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FONT_PATH);
+
+        if (s_font == null)
+        {
+            Debug.LogError("[M4Setup] 字体缺失：" + FONT_PATH);
+            return;
+        }
+
+        copyButtonStyle();
+        tuneSessionDensity();
+        reorganizeModelFolder();
+
+        bool saved = buildPanel();
+        s_log.AppendLine("panel saved=" + saved);
+
+        if (saved)
+            registerAddressable();
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[M4Setup] " + s_log);
+    }
+
+    private static void copyButtonStyle()
+    {
+        GameObject menu = AssetDatabase.LoadAssetAtPath<GameObject>(MENU_PREFAB);
+
+        if (menu == null)
+        {
+            s_log.AppendLine("主菜单 prefab 缺失，按钮用纯色方块");
+            return;
+        }
+
+        foreach (Button button in menu.GetComponentsInChildren<Button>(true))
+        {
+            Image image = button.GetComponent<Image>();
+
+            if (image == null || image.sprite == null)
+                continue;
+
+            s_buttonSource = image;
+            s_buttonSprite = image.sprite;
+            break;
+        }
+
+        s_log.AppendLine("按钮精灵=" + (s_buttonSprite != null ? s_buttonSprite.name : "无"));
+    }
+
+    private static void tuneSessionDensity()
+    {
+        Object asset = AssetDatabase.LoadAssetAtPath<Object>(SESSION_CONFIG);
+
+        if (asset == null)
+        {
+            s_log.AppendLine("会话配置缺失：" + SESSION_CONFIG);
+            return;
+        }
+
+        SerializedObject serialized = new SerializedObject(asset);
+        SerializedProperty density = serialized.FindProperty("BaseFishCountPerSlice");
+
+        if (density == null)
+        {
+            s_log.AppendLine("没找到 BaseFishCountPerSlice 字段");
+            return;
+        }
+
+        density.floatValue = 2f;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(asset);
+        s_log.AppendLine("每切片鱼数 -> 2");
+    }
+
+    private static void reorganizeModelFolder()
+    {
+        string[] names = { "CatchRecord", "FishCaptureInfo" };
+
+        foreach (string name in names)
+        {
+            string from = "Assets/Scripts/Module/Fish/Model/" + name + ".cs";
+            string to = "Assets/Scripts/Module/Fish/Model/Session/" + name + ".cs";
+
+            if (AssetDatabase.LoadAssetAtPath<Object>(to) != null)
+                continue;
+
+            string error = AssetDatabase.MoveAsset(from, to);
+            s_log.AppendLine(string.IsNullOrEmpty(error) ? "移动 " + name + ".cs -> Model/Session/" : "移动失败 " + name + "：" + error);
+        }
+    }
+
+    private static bool buildPanel()
+    {
+        Scene previous = EditorSceneManager.GetActiveScene();
+        Scene temp = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+
+        RectTransform root = node("UIResultPanel", null, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        RectTransform bg = node("Bg", root, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+        Image bgImage = bg.gameObject.AddComponent<Image>();
+        bgImage.color = DimColor;
+        bgImage.raycastTarget = true;
+
+        makeText(bg, "Txt_Title", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -240f), new Vector2(760f, 100f), "本局结算", 72f, TextAlignmentOptions.Top, TextMain, FontStyles.Bold);
+        makeText(bg, "Txt_Summary", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -368f), new Vector2(900f, 64f), "捕获 0 / 10　·　最大下潜 0 米", 40f, TextAlignmentOptions.Center, TextSub, FontStyles.Normal);
+        makeText(bg, "Txt_Coins", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -448f), new Vector2(900f, 76f), "金币 +0", 54f, TextAlignmentOptions.Center, TextGold, FontStyles.Bold);
+
+        RectTransform content = node("Content_Rows", bg, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0f, -560f), new Vector2(840f, 780f));
+        VerticalLayoutGroup layout = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 12f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        makeRowTemplate(content);
+        makeButton(bg, "Btn_Again", new Vector2(-200f, 0f), "再来一局");
+        makeButton(bg, "Btn_Menu", new Vector2(200f, 0f), "回主菜单");
+
+        root.gameObject.AddComponent<UIResultPanel>();
+
+        GameObject prefabRoot = root.gameObject;
+        PrefabUtility.SaveAsPrefabAsset(prefabRoot, PANEL_PATH, out bool saved);
+
+        EditorSceneManager.CloseScene(temp, true);
+
+        if (previous.IsValid())
+            EditorSceneManager.SetActiveScene(previous);
+
+        return saved;
+    }
+
+    private static void makeRowTemplate(RectTransform content)
+    {
+        RectTransform row = node("Row_Template", content, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(800f, 84f));
+        Image rowImage = row.gameObject.AddComponent<Image>();
+        rowImage.color = RowColor;
+        rowImage.raycastTarget = false;
+        row.gameObject.AddComponent<UIResultFishItem>();
+
+        RectTransform mark = node("Img_Mark", row, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(26f, 58f));
+        Image markImage = mark.gameObject.AddComponent<Image>();
+        markImage.color = Color.white;
+        markImage.raycastTarget = false;
+
+        makeText(row, "Txt_Name", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(70f, 0f), new Vector2(430f, 60f), "示例鱼", 38f, TextAlignmentOptions.MidlineLeft, TextMain, FontStyles.Normal);
+        makeText(row, "Txt_Stars", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(530f, 0f), new Vector2(200f, 60f), "★", 34f, TextAlignmentOptions.Center, TextSub, FontStyles.Normal);
+        makeText(row, "Txt_Coins", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
+            new Vector2(-24f, 0f), new Vector2(180f, 64f), "+0", 42f, TextAlignmentOptions.MidlineRight, TextGold, FontStyles.Bold);
+
+        row.gameObject.SetActive(false);
+    }
+
+    private static void makeButton(RectTransform bg, string name, Vector2 position, string label)
+    {
+        RectTransform btns = bg.Find("Btns") as RectTransform;
+
+        if (btns == null)
+        {
+            btns = node("Btns", bg, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 150f), new Vector2(840f, 150f));
+        }
+
+        RectTransform button = node(name, btns, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f), position, new Vector2(360f, 130f));
+        Image image = button.gameObject.AddComponent<Image>();
+        image.raycastTarget = true;
+
+        if (s_buttonSource != null)
+        {
+            image.sprite = s_buttonSprite;
+            image.type = s_buttonSource.type;
+            image.color = s_buttonSource.color;
+            image.preserveAspect = s_buttonSource.preserveAspect;
+        }
+        else
+        {
+            image.color = new Color(0.2f, 0.45f, 0.62f, 1f);
+        }
+
+        button.gameObject.AddComponent<Button>();
+
+        RectTransform text = node("Text", button, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+        makeText(text, label, 42f, TextAlignmentOptions.Center, TextMain, FontStyles.Bold);
+    }
+
+    private static void makeText(RectTransform parent, string name, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta, string content, float size,
+        TextAlignmentOptions alignment, Color color, FontStyles style)
+    {
+        RectTransform rect = name == null ? parent : node(name, parent, anchorMin, anchorMax, pivot, anchoredPosition, sizeDelta);
+        makeText(rect, content, size, alignment, color, style);
+    }
+
+    private static void makeText(RectTransform rect, string content, float size,
+        TextAlignmentOptions alignment, Color color, FontStyles style)
+    {
+        TextMeshProUGUI text = rect.gameObject.AddComponent<TextMeshProUGUI>();
+        text.font = s_font;
+        text.text = content;
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = color;
+        text.fontStyle = style;
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.raycastTarget = false;
+    }
+
+    private static RectTransform node(string name, RectTransform parent, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        RectTransform rect = (RectTransform)go.transform;
+
+        if (parent != null)
+            rect.SetParent(parent, false);
+
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+        return rect;
+    }
+
+    private static void registerAddressable()
+    {
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
+        AddressableAssetGroup group = settings == null ? null : settings.FindGroup(GROUP_NAME);
+
+        if (group == null)
+        {
+            s_log.AppendLine("未找到分组 " + GROUP_NAME);
+            return;
+        }
+
+        string guid = AssetDatabase.AssetPathToGUID(PANEL_PATH);
+
+        if (string.IsNullOrEmpty(guid))
+        {
+            s_log.AppendLine("面板资产未导入，注册跳过");
+            return;
+        }
+
+        AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
+        entry.address = ADDRESS;
+        settings.SetDirty(AddressableAssetSettings.ModificationEvent.EntryCreated, entry, true, true);
+        s_log.AppendLine("addressable ok address=" + ADDRESS + " group=" + group.name);
+    }
+}

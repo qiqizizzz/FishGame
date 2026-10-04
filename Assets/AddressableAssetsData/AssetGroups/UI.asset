@@ -28,6 +28,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: b910ce0948554f4459d88d97fc542fed
+    m_Address: UIResultPanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f0da37e4f8b432c499dd8503bcd9b080
     m_Address: UIMainMenu
     m_ReadOnly: 0

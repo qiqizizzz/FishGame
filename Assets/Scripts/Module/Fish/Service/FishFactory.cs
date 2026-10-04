@@ -7,6 +7,7 @@
 * 工厂模式：生成逻辑只认 FishDataSO，不关心 prefab 从哪来、实例是新建还是复用
 * 尺寸按「实测模型长度」折算，让 FishDataSO.DisplayLengthMeters 成为屏幕大小的唯一真源
 * （SizeRatio 假设模型按 1 单位=1 米导出，实测各 prefab 根缩放不统一，直接用会走样）
+* 顺带实测模型高度，鱼串间距与防重叠判定要用真实的屏幕占位，不能拿体长凑
 */
 
 using System.Collections.Generic;
@@ -20,8 +21,11 @@ namespace Module.Fish.Service
 {
     public sealed class FishFactory
     {
+        // 实测失败时按体长的三成估高度，鱼串间距不至于塌成一条线
+        private const float FALLBACK_HEIGHT_RATIO = 0.3f;
+
         private readonly Dictionary<FishDataSO, GameObject> m_prefabs = new();
-        private readonly Dictionary<FishDataSO, float> m_modelLengths = new();
+        private readonly Dictionary<FishDataSO, Vector2> m_modelSizes = new();
 
         /// <summary>
         /// 预加载鱼池全部 prefab 并实测模型长度，避免生成瞬间同步加载卡顿
@@ -45,7 +49,7 @@ namespace Module.Fish.Service
                 }
 
                 m_prefabs.Add(data, prefab);
-                m_modelLengths.Add(data, measureLength(prefab));
+                m_modelSizes.Add(data, measureSize(prefab));
             }
         }
 
@@ -76,6 +80,21 @@ namespace Module.Fish.Service
             return view;
         }
 
+
+        /// <summary>缩放后的屏幕显示高度（米），鱼串间距与防重叠按这个值留位</summary>
+        public float DisplayHeight(FishDataSO data)
+        {
+            if (data == null)
+                return 0f;
+
+            Vector2 size = m_modelSizes.TryGetValue(data, out Vector2 measured) ? measured : Vector2.zero;
+
+            if (size.x <= 0f)
+                return data.DisplayLength * FALLBACK_HEIGHT_RATIO;
+
+            return size.y * (data.DisplayLength / size.x);
+        }
+
         /// <summary>
         /// 回收鱼实例到对象池
         /// </summary>
@@ -91,23 +110,23 @@ namespace Module.Fish.Service
         }
 
         // 模型长轴在世界 Z 上（glTF 的 Rx(-90) 已烘进子节点），转身前实测一次
-        private static float measureLength(GameObject prefab)
+        private static Vector2 measureSize(GameObject prefab)
         {
             GameObject temp = Object.Instantiate(prefab);
             temp.transform.position = Vector3.zero;
             temp.transform.rotation = Quaternion.identity;
 
             Renderer renderer = temp.GetComponentInChildren<Renderer>();
-            float length = renderer != null ? renderer.bounds.size.z : 0f;
+            Vector3 bounds = renderer != null ? renderer.bounds.size : Vector3.zero;
 
             Object.Destroy(temp);
 
-            return length > 0f ? length : 1f;
+            return bounds.z > 0f ? new Vector2(bounds.z, bounds.y) : Vector2.one;
         }
 
         private float displayScale(FishDataSO data)
         {
-            float modelLength = m_modelLengths.TryGetValue(data, out float length) ? length : 1f;
+            float modelLength = m_modelSizes.TryGetValue(data, out Vector2 size) ? size.x : 1f;
 
             return data.DisplayLength > 0f ? data.DisplayLength / modelLength : 1f;
         }

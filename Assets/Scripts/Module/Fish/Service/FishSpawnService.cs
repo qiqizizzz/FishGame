@@ -7,6 +7,8 @@
 * 每 5 米一个深度切片建一张加权表，表内每个档位的权重总和等于该档位基准权重，
 * 这样同档位有多条鱼时不会把档位权重翻倍；稀有度放大系数按档位次数叠加，
 * 于是钓竿属性只影响“抽到高档鱼的概率”，不改动深度带本身
+* 落点要做避让：鱼是按体长/身高占屏的，位置撞在一起就变成一坨看不清的东西，
+* 所以群游偏移按鱼自身尺寸放大，生成前再在附近小范围试探几个空位
 */
 
 using System.Collections.Generic;
@@ -32,12 +34,21 @@ namespace Module.Fish.Service
         private const float MIN_FISH_DEPTH = 1.2f;
         private const float SPEED_JITTER_MIN = 0.85f;
         private const float SPEED_JITTER_MAX = 1.15f;
-        private const int MAX_ALIVE = 28;
+        private const int MAX_ALIVE = 18;
         private const int MAX_BATCH_PER_SLICE = 4;
-        private const int SCHOOL_MIN = 3;
-        private const int SCHOOL_MAX = 6;
-        private const float SCHOOL_OFFSET_X = 0.6f;
-        private const float SCHOOL_OFFSET_Y = 0.4f;
+        private const int SCHOOL_MIN = 2;
+        private const int SCHOOL_MAX = 4;
+
+        // 群游编组的散布半径按鱼自身尺寸放大，小鱼成团紧凑、大鱼自动拉开
+        private const float SCHOOL_SPREAD_X_RATIO = 0.9f;
+        private const float SCHOOL_SPREAD_Y_RATIO = 1.6f;
+
+        // 落点避让：以目标点为中心的小范围试探，宽度按两条鱼的合成尺寸判定
+        private const int SPOT_JITTER_TRIES = 4;
+        private const float SPOT_JITTER_X = 1.1f;
+        private const float SPOT_JITTER_DEPTH = 1.2f;
+        private const float MIN_GAP_X_RATIO = 0.62f;
+        private const float MIN_GAP_Y_RATIO = 0.6f;
 
         private readonly List<FishInstance> m_alive = new();
         private readonly List<FishDataSO> m_hazards = new();
@@ -262,10 +273,14 @@ namespace Module.Fish.Service
             int schoolId = isSchool ? ++m_schoolSerial : 0;
             int spawned = 0;
 
+            float memberLength = data.DisplayLength;
+            float memberHeight = m_factory.DisplayHeight(data);
+
             for (int i = 0; i < count; i++)
             {
                 Vector2 offset = isSchool
-                    ? new Vector2(Random.Range(-SCHOOL_OFFSET_X, SCHOOL_OFFSET_X), Random.Range(-SCHOOL_OFFSET_Y, SCHOOL_OFFSET_Y))
+                    ? new Vector2(Random.Range(-memberLength, memberLength) * SCHOOL_SPREAD_X_RATIO,
+                        Random.Range(-memberHeight, memberHeight) * SCHOOL_SPREAD_Y_RATIO)
                     : Vector2.zero;
 
                 if (spawnOne(data, centerX + offset.x, depth, offset, direction, speed, schoolId))
@@ -277,6 +292,12 @@ namespace Module.Fish.Service
 
         private bool spawnOne(FishDataSO data, float x, float depth, Vector2 offset, int direction, float speed, int schoolId)
         {
+            float length = data.DisplayLength;
+            float height = m_factory.DisplayHeight(data);
+
+            if (!resolveFreeSpot(ref x, ref depth, offset.y, length, height))
+                return false;
+
             GameObject view = m_factory.Spawn(data, m_root, new Vector3(x, -depth, 0f), direction);
 
             if (view == null)
@@ -289,6 +310,7 @@ namespace Module.Fish.Service
                 Root = view.transform,
                 Behavior = data.Behavior,
                 BaseDepth = depth,
+                DisplayHeight = height,
                 X = x,
                 Depth = depth,
                 Direction = direction,
@@ -299,6 +321,45 @@ namespace Module.Fish.Service
             };
 
             m_alive.Add(fish);
+            return true;
+        }
+
+        // 行为每帧把 Offset.y 叠加到 BaseDepth 上，所以判空位要用「基准深度 + 群游纵深偏移」
+        private bool resolveFreeSpot(ref float x, ref float depth, float offsetY, float length, float height)
+        {
+            for (int attempt = 0; attempt < SPOT_JITTER_TRIES; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    x = Mathf.Clamp(x + Random.Range(-SPOT_JITTER_X, SPOT_JITTER_X), -SwimHalfWidth, SwimHalfWidth);
+                    depth = Mathf.Clamp(depth + Random.Range(-SPOT_JITTER_DEPTH, SPOT_JITTER_DEPTH),
+                        MIN_FISH_DEPTH, m_reachableDepth);
+                }
+
+                if (isSpotFree(x, depth + offsetY, length, height))
+                    return true;
+            }
+
+            return false;
+        }
+
+        // 横向按体长留位、纵深按身高留位，两个方向同时挤在一起才算重叠
+        private bool isSpotFree(float x, float depth, float length, float height)
+        {
+            for (int i = 0; i < m_alive.Count; i++)
+            {
+                FishInstance other = m_alive[i];
+
+                if (other == null || !other.IsAlive || other.IsHooked || other.Data == null)
+                    continue;
+
+                float gapX = (length + other.Data.DisplayLength) * MIN_GAP_X_RATIO;
+                float gapDepth = (height + other.DisplayHeight) * MIN_GAP_Y_RATIO;
+
+                if (Mathf.Abs(x - other.X) < gapX && Mathf.Abs(depth - other.Depth) < gapDepth)
+                    return false;
+            }
+
             return true;
         }
 

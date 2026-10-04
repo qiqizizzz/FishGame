@@ -35,6 +35,7 @@ namespace Module.Fish
 
         // 低于结算面板（100），高于场景内一切表现
         private const int HUD_SORTING_ORDER = 10;
+        private const int RESULT_SORTING_ORDER = 100;
 
         // ==================== 字段[私有] ====================
         private readonly FishingScene m_scene;
@@ -49,7 +50,9 @@ namespace Module.Fish
         private HookStateMachine m_machine;
         private IFishingStats m_stats;
         private HookViewController m_hook;
+        private SessionResult m_result;
         private bool m_running;
+        private float m_maxDepth;
         private bool m_phasePublished;
         private float m_contactCooldown;
         private int m_totalCatch;
@@ -84,7 +87,7 @@ namespace Module.Fish
             if (!validateReferences())
                 return;
 
-            registerHud();
+            registerViews();
 
             m_hook = m_scene.Hook;
             m_stats = new DefaultFishingStats(m_scene.HookConfig);
@@ -109,9 +112,14 @@ namespace Module.Fish
             GameApp.UIManager.UnregisterByController(this);
         }
 
+        protected override void RegisterModuleEvent()
+        {
+            RegisterEvent(EventDefines.FishingSessionRestartRequested, restartSession);
+        }
+
         public override void Tick(float deltaTime)
         {
-            // 临时退出入口，M3 结算面板的「退出」按钮接上后改由按钮事件驱动
+            // 快捷退出入口，正式退出走结算面板的「回主菜单」
             if (Input.GetKeyDown(EXIT_TO_MENU_KEY))
                 EventManager.PublishEvent(EventDefines.ReturnToMainMenuRequested);
 
@@ -127,6 +135,7 @@ namespace Module.Fish
             m_detection.Rebuild(m_spawn.Alive);
             m_machine.Update(m_hook, deltaTime);
             publishPhaseChanged();
+            m_maxDepth = Mathf.Max(m_maxDepth, m_hook.Depth);
 
             m_carry.Follow(m_hook.Horizontal, m_hook.Depth);
             m_spawn.Stream(m_hook.Depth);
@@ -177,8 +186,8 @@ namespace Module.Fish
             GameApp.UIManager.UnregisterByController(this);
         }
 
-        // HUD 跟着玩法控制器注册与注销，回主菜单时不会留下悬空面板
-        private void registerHud()
+        // 视图跟着玩法控制器注册与注销，回主菜单时不会留下悬空面板
+        private void registerViews()
         {
             GameApp.UIManager.Register<UIFishingHUD>(new UIData
             {
@@ -186,6 +195,14 @@ namespace Module.Fish
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = HUD_SORTING_ORDER
+            });
+
+            GameApp.UIManager.Register<UIResultPanel>(new UIData
+            {
+                Address = UIDefines.UIResultPanel,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = RESULT_SORTING_ORDER
             });
         }
 
@@ -195,6 +212,7 @@ namespace Module.Fish
             await m_factory.Prepare(m_scene.SessionConfig.Fishes);
 
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
+            m_result = new SessionResult(TargetCatchCount);
             m_spawn.BeginSession(m_scene.SessionConfig, m_scene.RarityTable, m_stats, m_factory,
                 m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
 
@@ -261,7 +279,7 @@ namespace Module.Fish
             EventManager.PublishEvent(EventDefines.FishingPenaltyApplied, PenaltyType.Pufferfish);
         }
 
-        // 出水：钩上的鱼计入本局收获并回池，脱钩的鱼已经自行游走
+        // 出水：先算收益再回池，钩上的鱼计入本局收获，脱钩的鱼已经自行游走
         private void settleLanded()
         {
             m_carry.Unload(m_buffer);
@@ -269,10 +287,57 @@ namespace Module.Fish
             if (m_buffer.Count == 0)
                 return;
 
+            scoreLandedFish();
+            recycleLandedFish();
+
+            m_totalCatch += m_buffer.Count;
+            QLog.Info($"[{nameof(FishingController)}] 本次出水带回 {m_buffer.Count} 条，累计 {m_totalCatch} 条");
+            m_buffer.Clear();
+
+            if (m_totalCatch >= TargetCatchCount)
+                finishSession();
+        }
+
+        // 收益公式见 01 篇 3.5：档位倍率 × 深度加成 × 同一次回收的连击倍率
+        // Unload 是从最外侧往回塞的，倒着遍历才拿到真实的入钩顺序
+        private void scoreLandedFish()
+        {
+            FishingSessionConfigSO session = m_scene.SessionConfig;
+            float depthNorm = session.ShaftDepth > 0f ? 1f / session.ShaftDepth : 0f;
+
             for (int i = m_buffer.Count - 1; i >= 0; i--)
             {
                 CatchRecord record = m_buffer[i];
                 FishInstance fish = record.Fish;
+                FishDataSO data = fish != null ? fish.Data : null;
+
+                if (data == null)
+                    continue;
+
+                RarityRow row = m_scene.RarityTable.Get(data.Rarity);
+                int comboIndex = m_buffer.Count - 1 - i;
+                float combo = 1f + comboIndex * session.ComboStep;
+                float depthBonus = 1f + Mathf.Clamp01(record.AttachedDepth * depthNorm) * session.DepthBonusScale;
+                float valueMultiplier = row != null ? row.ValueMultiplier : 1f;
+
+                m_result.Add(new FishScoreItem
+                {
+                    Id = data.Id,
+                    DisplayName = data.DisplayName,
+                    Rarity = data.Rarity,
+                    Stars = row != null ? row.StarCount : 0,
+                    Coins = Mathf.RoundToInt(session.RewardBase * valueMultiplier * depthBonus * combo),
+                    CatchDepth = record.AttachedDepth,
+                    PrimaryColor = row != null ? row.PrimaryColor : Color.white
+                });
+            }
+        }
+
+        private void recycleLandedFish()
+        {
+            for (int i = m_buffer.Count - 1; i >= 0; i--)
+            {
+                FishInstance fish = m_buffer[i].Fish;
 
                 if (fish == null)
                     continue;
@@ -283,10 +348,41 @@ namespace Module.Fish
                 fish.IsHooked = false;
                 m_spawn.Remove(fish);
             }
+        }
 
-            m_totalCatch += m_buffer.Count;
-            QLog.Info($"[{nameof(FishingController)}] 本次出水带回 {m_buffer.Count} 条，累计 {m_totalCatch} 条");
+        // 封盘：捕获数达标就停掉玩法驱动，把结果交给结算面板
+        private void finishSession()
+        {
+            m_running = false;
+            m_result.Finish(m_totalCatch, m_maxDepth);
+
+            EventManager.PublishEvent(EventDefines.FishingSessionEnded, m_result);
+            GameApp.UIManager.Open<UIResultPanel>(m_result).Forget();
+
+            QLog.Info($"[{nameof(FishingController)}] 本局钓满 {m_totalCatch} 条，" +
+                      $"收益 {m_result.TotalCoins} 金币，最大下潜 {m_maxDepth:0} 米");
+        }
+
+        // 再来一局：清空计数与鱼群重新开局，视图与控制器都不必重建
+        private void restartSession()
+        {
+            GameApp.UIManager.Close<UIResultPanel>();
+
+            m_totalCatch = 0;
+            m_maxDepth = 0f;
+            m_contactCooldown = 0f;
             m_buffer.Clear();
+            m_result = new SessionResult(TargetCatchCount);
+
+            m_spawn.EndSession();
+            m_carry.BeginSession(m_stats, m_scene.RarityTable);
+            m_spawn.BeginSession(m_scene.SessionConfig, m_scene.RarityTable, m_stats, m_factory,
+                m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
+
+            m_machine.Start(m_hook);
+            m_running = true;
+
+            QLog.Info($"[{nameof(FishingController)}] 开新一局，目标 {TargetCatchCount} 条，在场鱼 {m_spawn.Alive.Count} 条");
         }
 
         private static FishCaptureInfo captureInfo(FishInstance fish, float depth)

@@ -36,7 +36,7 @@ namespace Module.Fish.Data
         [Tooltip("横轴为归一化深度(0-1)，纵轴为密度倍率")]
         [SerializeField] private AnimationCurve DensityCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.4f);
         [Tooltip("单个深度切片的基准鱼数，实际数量还要乘密度曲线")]
-        [SerializeField, Min(0f)] private float BaseFishCountPerSlice = 3f;
+        [SerializeField, Min(0f)] private float BaseFishCountPerSlice = 2f;
         [Tooltip("每次生成判定为河豚的概率，仅在鱼池含 Hazard 档时生效")]
         [SerializeField, Range(0f, 0.5f)] private float HazardSpawnChance = 0.15f;
 

@@ -24,6 +24,8 @@ namespace Module.Fish.Model
 
         /// <summary>生成时锁定的深度（米），巡游在此深度附近起伏</summary>
         public float BaseDepth;
+        /// <summary>缩放后的屏幕显示高度（米），鱼串间距与防重叠判定用</summary>
+        public float DisplayHeight;
 
         /// <summary>当前横向坐标（米）</summary>
         public float X;
