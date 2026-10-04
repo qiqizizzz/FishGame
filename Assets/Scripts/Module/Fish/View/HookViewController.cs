@@ -32,6 +32,8 @@ namespace Module.Fish.View
 
         public IFishingStats Stats => m_stats;
 
+        public IFishingEncounter Encounter => m_encounter;
+
         public float ShaftDepth => m_session != null ? m_session.ShaftDepth : 0f;
 
         public float ShaftHalfWidth => m_session != null ? m_session.ShaftHalfWidth : 0f;
@@ -58,6 +60,7 @@ namespace Module.Fish.View
         private HookConfigSO m_hookConfig;
         private FishingSessionConfigSO m_session;
         private IFishingStats m_stats;
+        private IFishingEncounter m_encounter;
         private HookStateMachine m_machine;
         private float m_pixelsToMeters = 1f;
         private bool m_isPressing;
@@ -73,12 +76,13 @@ namespace Module.Fish.View
         /// <summary>
         /// 注入配置、属性包与状态机，全部引用由 FishingScene 上的配置统一提供
         /// </summary>
-        public void Initialize(HookConfigSO hookConfig, FishingSessionConfigSO session, IFishingStats stats, HookStateMachine machine)
+        public void Initialize(HookConfigSO hookConfig, FishingSessionConfigSO session, IFishingStats stats, HookStateMachine machine, IFishingEncounter encounter)
         {
             m_hookConfig = hookConfig;
             m_session = session;
             m_stats = stats;
             m_machine = machine;
+            m_encounter = encounter;
 
             if (hookConfig == null)
                 QLog.Error($"[{nameof(HookViewController)}] 钓竿配置未注入，下潜与横向速度会取不到");
@@ -91,6 +95,9 @@ namespace Module.Fish.View
 
             if (machine == null)
                 QLog.Error($"[{nameof(HookViewController)}] 状态机未绑定，钩子不会响应输入");
+
+            if (encounter == null)
+                QLog.Error($"[{nameof(HookViewController)}] 接触裁决未注入，碰鱼不会有任何反馈");
         }
 
         /// <summary>

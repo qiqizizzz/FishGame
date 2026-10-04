@@ -18,6 +18,9 @@ namespace Module.Fish.Model
         HookConfigSO HookConfig { get; }
         IFishingStats Stats { get; }
 
+        /// <summary>接触裁决入口，由玩法控制器实现</summary>
+        IFishingEncounter Encounter { get; }
+
         /// <summary>井道总深度（米），世界几何边界</summary>
         float ShaftDepth { get; }
 

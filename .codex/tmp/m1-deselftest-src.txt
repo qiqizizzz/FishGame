@@ -1,0 +1,209 @@
+using System.Collections.Generic;
+using System.Text;
+using Module.Fish.Data;
+using Module.Fish.Model;
+using Module.Fish.Service;
+using Module.Fish.Type;
+using UnityEditor;
+using UnityEngine;
+
+public class TestHook : IHookRuntime
+{
+    public HookConfigSO Config;
+    public FishingSessionConfigSO Session;
+    public IFishingStats Stats { get; set; }
+    public IFishingEncounter Encounter { get; set; }
+    public HookStateMachine Machine;
+
+    private readonly List<string> m_transitions = new List<string>();
+    private float m_x;
+    private float m_depth;
+
+    public HookConfigSO HookConfig { get { return Config; } }
+    public float ShaftDepth { get { return Session.ShaftDepth; } }
+    public float ShaftHalfWidth { get { return Session.ShaftHalfWidth; } }
+    public float MaxDepth { get { return Mathf.Min(ShaftDepth, Stats.LineLength); } }
+    public float Depth { get { return m_depth; } }
+    public float Horizontal { get { return m_x; } }
+    public Vector3 HolePosition { get { return new Vector3(0f, 0f, -1.5f); } }
+    public float LateralVelocity { get; set; }
+    public float LateralInput { get; set; }
+    public bool IsPressing { get; set; }
+
+    public void MoveTo(float x, float depth) { m_x = x; m_depth = depth; }
+
+    public void TransitionTo(HookPhase phase)
+    {
+        m_transitions.Add(phase.ToString());
+        Machine.Change(phase, this);
+    }
+
+    public string Transitions { get { return string.Join(">", m_transitions); } }
+}
+
+public class FishM2SelfTest
+{
+    private static StringBuilder s_log = new StringBuilder();
+    private static int s_failed;
+
+    private static void Check(string label, bool ok, string detail)
+    {
+        s_log.AppendLine((ok ? "PASS  " : "FAIL  ") + label + " :: " + detail);
+        if (!ok) s_failed++;
+    }
+
+    public static void Run()
+    {
+        s_log = new StringBuilder();
+        s_failed = 0;
+
+        HookConfigSO config = AssetDatabase.LoadAssetAtPath<HookConfigSO>("Assets/Data/Config/HookConfig.asset");
+        FishingSessionConfigSO session = AssetDatabase.LoadAssetAtPath<FishingSessionConfigSO>("Assets/Data/Config/FishingSession_Island1.asset");
+        RarityTableSO table = AssetDatabase.LoadAssetAtPath<RarityTableSO>("Assets/Data/Config/RarityTable.asset");
+        FishDataSO clown = AssetDatabase.LoadAssetAtPath<FishDataSO>("Assets/Data/Fish/Clownfish.asset");
+        FishDataSO puffer = AssetDatabase.LoadAssetAtPath<FishDataSO>("Assets/Data/Fish/Pufferfish.asset");
+
+        TestHook hook = new TestHook
+        {
+            Config = config,
+            Session = session,
+            Stats = new DefaultFishingStats(config)
+        };
+
+        HookStateMachine machine = new HookStateMachine(
+            new IdleHookState(), new DescendingHookState(), new ReelingHookState(),
+            new TangledHookState(), new LandedHookState());
+        hook.Machine = machine;
+        machine.Start(hook);
+
+        const float DT = 1f / 60f;
+
+        hook.IsPressing = true;
+        hook.LateralInput = 0.06f;
+        for (int i = 0; i < 60; i++) machine.Update(hook, DT);
+        Check("下潜 1 秒", hook.Depth > 5f && hook.Depth < 7f, "depth=" + hook.Depth.ToString("0.00") + " 期望约 6");
+        Check("下潜可横移", Mathf.Abs(hook.Horizontal) > 0.05f, "x=" + hook.Horizontal.ToString("0.000"));
+
+        hook.IsPressing = false;
+        float xBefore = hook.Horizontal;
+        hook.LateralInput = -0.08f;
+        float depthBefore = hook.Depth;
+        for (int i = 0; i < 30; i++) machine.Update(hook, DT);
+        Check("松手转回收", hook.Transitions.Contains("Reeling"), hook.Transitions);
+        Check("回收速度已提", depthBefore - hook.Depth > 2.0f, "0.5 秒收了 " + (depthBefore - hook.Depth).ToString("0.00") + " 米 期望大于 2.0");
+        Check("回收仍可横移", Mathf.Abs(hook.Horizontal - xBefore) > 0.05f,
+              "x " + xBefore.ToString("0.000") + " -> " + hook.Horizontal.ToString("0.000"));
+        Check("回收横移夹在井道内", Mathf.Abs(hook.Horizontal) <= session.ShaftHalfWidth + 0.001f,
+              "x=" + hook.Horizontal.ToString("0.000") + " 半宽=" + session.ShaftHalfWidth);
+
+        hook.LateralInput = 0f;
+        hook.LateralVelocity = 0f;
+        float xStatic = hook.Horizontal;
+        for (int i = 0; i < 10; i++) machine.Update(hook, DT);
+        Check("无输入时不漂移", Mathf.Abs(hook.Horizontal - xStatic) < 0.001f, "x=" + hook.Horizontal.ToString("0.000"));
+
+        for (int i = 0; i < 600 && machine.Phase != HookPhase.Landed; i++)
+            machine.Update(hook, DT);
+        Check("到底自动出水", machine.Phase == HookPhase.Landed, "phase=" + machine.Phase);
+
+        FishDetectionService detection = new FishDetectionService();
+        FishAiService ai = new FishAiService();
+        FishCarryService carry = new FishCarryService();
+        carry.BeginSession(hook.Stats, table);
+
+        List<FishInstance> fishes = new List<FishInstance>();
+        List<GameObject> trash = new List<GameObject>();
+
+        FishInstance headRight = makeFish(clown, 1.0f, 10f, 1, trash, fishes);
+        FishInstance pufferFish = makeFish(puffer, 0f, 14f, -1, trash, fishes);
+
+        detection.Rebuild(fishes);
+
+        float headX = headRight.X + headRight.Direction * clown.DisplayLength * 0.5f;
+        FishInstance found;
+        bool hitHead = detection.TryFindTouched(headX, 10f, config.HookRadius, true, out found);
+        Check("蹭到鱼头算捕获", hitHead && found == headRight, "hit=" + hitHead);
+
+        FishInstance tailFound;
+        float tailX = headRight.X - headRight.Direction * clown.DisplayLength * 0.5f;
+        bool hitTail = detection.TryFindTouched(tailX, 10f, config.HookRadius, true, out tailFound);
+        Check("只认鱼头：尾部不触发", !hitTail, "hit=" + hitTail);
+
+        bool hitBody = detection.TryFindTouched(headRight.X, 10f, config.HookRadius, false, out tailFound);
+        Check("鱼身任意接触可检出", hitBody, "hit=" + hitBody);
+
+        FishInstance hazardFound;
+        bool hitHazard = detection.TryFindTouched(0f, 14f, config.HookRadius, false, out hazardFound);
+        Check("河豚可检出", hitHazard && hazardFound == pufferFish, "hit=" + hitHazard);
+
+        int attached = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            FishInstance fake = makeFish(clown, 2f + i, 10f, 1, trash, fishes);
+            if (carry.Attach(fake) != null) attached++;
+        }
+        Check("携带容量封顶", attached > 0 && carry.UsedPoints <= config.CarryCapacity,
+              "挂了 " + carry.Count + " 条 / 容量 " + config.CarryCapacity + " 点，占用 " + carry.UsedPoints);
+
+        detection.Rebuild(fishes);
+        FishInstance hookedFound;
+        bool hitHooked = detection.TryFindTouched(2f, 10f, config.HookRadius, false, out hookedFound);
+        Check("钩上的鱼不再参与判定", !hitHooked, "hit=" + hitHooked);
+
+        carry.Follow(0.5f, 6f);
+        CatchRecord first = carry.Carried[carry.Carried.Count - 1];
+        Check("钩上鱼贴在钩下", first.Fish.Depth > 6f && Mathf.Abs(first.Fish.X - 0.5f) < 0.001f,
+              "最近一条 depth=" + first.Fish.Depth.ToString("0.00") + " x=" + first.Fish.X.ToString("0.00"));
+
+        List<CatchRecord> released = new List<CatchRecord>();
+        carry.DetachByChance(1f, released);
+        Check("受罚全脱钩", released.Count == attached && carry.Count == 0 && carry.UsedPoints == 0,
+              "脱 " + released.Count + " 条，剩余 " + carry.Count);
+
+        FishInstance victim = fishes[0];
+        victim.X = -0.4f;
+        ai.Scatter(victim, 0.4f);
+        Check("惊散方向背离钩子", victim.Direction < 0 && victim.FleeTimer > 0f,
+              "dir=" + victim.Direction + " timer=" + victim.FleeTimer.ToString("0.00"));
+        float fleeFrom = victim.X;
+        for (int i = 0; i < 30; i++) ai.Advance(fishes, DT, 2.83f);
+        Check("惊散位移明显", victim.X < fleeFrom - 0.3f, "x " + fleeFrom.ToString("0.00") + " -> " + victim.X.ToString("0.00"));
+
+        List<CatchRecord> landed = new List<CatchRecord>();
+        FishInstance prize = makeFish(clown, 0f, 5f, 1, trash, fishes);
+        carry.Attach(prize);
+        carry.Unload(landed);
+        Check("出水结算清空负载", landed.Count == 1 && carry.Count == 0, "landed=" + landed.Count);
+
+        for (int i = 0; i < trash.Count; i++) Object.DestroyImmediate(trash[i]);
+
+        s_log.AppendLine(s_failed == 0 ? "ALL PASS" : s_failed + " FAILED");
+        Debug.Log("[FishM2SelfTest]\n" + s_log);
+    }
+
+    private static FishInstance makeFish(FishDataSO data, float x, float depth, int direction,
+        List<GameObject> trash, List<FishInstance> fishes)
+    {
+        GameObject go = new GameObject("test_fish");
+        go.hideFlags = HideFlags.DontSave;
+        go.transform.localPosition = new Vector3(x, -depth, 0f);
+        trash.Add(go);
+
+        FishInstance fish = new FishInstance
+        {
+            Data = data,
+            View = go,
+            Root = go.transform,
+            Behavior = data.Behavior,
+            BaseDepth = depth,
+            X = x,
+            Depth = depth,
+            Direction = direction,
+            Speed = 1f,
+            Phase = 0f
+        };
+
+        fishes.Add(fish);
+        return fish;
+    }
+}

@@ -27,7 +27,7 @@ namespace Module.Fish.Data
         [Tooltip("钩头碰撞半径（米）")]
         [SerializeField] private float HookRadiusMeters = 0.15f;
         [Tooltip("鱼线绘制宽度（米）")]
-        [SerializeField] private float LineWidthMeters = 0.05f;
+        [SerializeField] private float LineWidthMeters = 0.02f;
 
         [Header("能力基线（IFishingStats 的 P0 默认值）")]
         [Tooltip("线长上限（米），钩子能到的最深处")]
@@ -35,7 +35,7 @@ namespace Module.Fish.Data
         [Tooltip("携带容量点数")]
         [SerializeField] private int CapacityPoints = 4;
         [Tooltip("收线速度（米/秒）")]
-        [SerializeField] private float ReelSpeedMeters = 3f;
+        [SerializeField] private float ReelSpeedMeters = 4.5f;
         [Tooltip("张力上限，超过即断线")]
         [SerializeField] private float TensionCeiling = 100f;
         [Tooltip("断线前的缓冲窗口比例（0-1）")]

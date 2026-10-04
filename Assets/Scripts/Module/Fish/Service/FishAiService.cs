@@ -17,6 +17,9 @@ namespace Module.Fish.Service
 {
     public sealed class FishAiService
     {
+        private const float FLEE_SPEED_MULTIPLIER = 3.5f;
+        private const float FLEE_DURATION = 1.1f;
+
         private readonly Dictionary<FishBehaviorType, IFishBehavior> m_behaviors = new();
 
         public FishAiService()
@@ -53,22 +56,55 @@ namespace Module.Fish.Service
             {
                 FishInstance fish = fishes[i];
 
-                if (fish == null || !fish.IsAlive)
+                // 钩上的鱼由 FishCarryService 定位，这里不能再去驱动它
+                if (fish == null || !fish.IsAlive || fish.IsHooked)
                     continue;
 
-                if (!m_behaviors.TryGetValue(fish.Behavior, out IFishBehavior behavior))
+                if (fish.FleeTimer > 0f)
+                {
+                    advanceFlee(fish, deltaTime, swimHalfWidth);
+                }
+                else if (!m_behaviors.TryGetValue(fish.Behavior, out IFishBehavior behavior))
                 {
                     QLog.Error($"[{nameof(FishAiService)}] 未注册行为 {fish.Behavior}，鱼 {fish.Data.Id} 回退为巡游");
                     behavior = m_behaviors[FishBehaviorType.Cruise];
                     fish.Behavior = FishBehaviorType.Cruise;
+                    behavior.Advance(fish, deltaTime, swimHalfWidth);
                 }
-
-                behavior.Advance(fish, deltaTime, swimHalfWidth);
+                else
+                {
+                    behavior.Advance(fish, deltaTime, swimHalfWidth);
+                }
 
                 Transform root = fish.Root;
                 root.localPosition = new Vector3(fish.X, -fish.Depth, root.localPosition.z);
                 root.localRotation = Quaternion.Euler(0f, fish.Direction >= 0 ? 90f : -90f, 0f);
             }
+        }
+
+        /// <summary>
+        /// 惊散一条鱼：朝背离钩子的方向高速窜出，时长结束后自动恢复原行为
+        /// </summary>
+        public void Scatter(FishInstance fish, float fromX)
+        {
+            if (fish == null || fish.IsHooked)
+                return;
+
+            fish.Direction = fish.X >= fromX ? 1 : -1;
+            fish.FleeTimer = FLEE_DURATION;
+        }
+
+        // 惊散只改横向，深度仍由原行为决定，避免逃完瞬间弹回原深度带
+        private static void advanceFlee(FishInstance fish, float deltaTime, float swimHalfWidth)
+        {
+            fish.FleeTimer = Mathf.Max(0f, fish.FleeTimer - deltaTime);
+            fish.X += fish.Direction * fish.Speed * FLEE_SPEED_MULTIPLIER * deltaTime;
+
+            if (Mathf.Abs(fish.X) < swimHalfWidth)
+                return;
+
+            fish.X = Mathf.Clamp(fish.X, -swimHalfWidth, swimHalfWidth);
+            fish.Direction = -fish.Direction;
         }
     }
 }

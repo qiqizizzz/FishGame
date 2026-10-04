@@ -46,6 +46,12 @@ namespace Module.Fish.Model
         /// <summary>群游成员相对编组中心的固定偏移（米），保证成团不散</summary>
         public Vector2 Offset;
 
+        /// <summary>是否已挂在钩子上，为真时退出 AI 驱动，改由携带服务定位</summary>
+        public bool IsHooked;
+
+        /// <summary>惊散剩余秒数，大于 0 时高速逃离，结束后恢复原行为</summary>
+        public float FleeTimer;
+
         public bool IsAlive => View != null;
     }
 }

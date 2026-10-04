@@ -4,11 +4,10 @@
 * │  类    名: DescendingHookState.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 横向带轻微惯性：把本帧拖拽位移折算成期望速度，再按 LateralDamping 指数逼近
-* 指数插值用 1-exp(-k*dt) 而非 Mathf.Lerp，保证不同帧率下手感一致
+* 下潜阶段碰到任何鱼都算失误（见 01 篇 3.3），所以这里用 catching=false 让裁决按鱼身接触判
+* 松手即回收是文档没写死的假设，已在校准问题清单里挂着
 */
 
-using Module.Fish.Data;
 using Module.Fish.Type;
 using UnityEngine;
 
@@ -28,24 +27,19 @@ namespace Module.Fish.Model
             if (deltaTime <= 0f)
                 return;
 
-            // 松手即开始回收，触底与首次捕获是另外两个回收触发点（见 01 篇 3.1）
             if (!runtime.IsPressing)
             {
                 runtime.TransitionTo(HookPhase.Reeling);
                 return;
             }
 
-            HookConfigSO config = runtime.HookConfig;
-            float desiredSpeed = Mathf.Clamp(runtime.LateralInput / deltaTime, -config.LateralSpeed, config.LateralSpeed);
-            float blend = 1f - Mathf.Exp(-config.LateralDamping * deltaTime);
-
-            runtime.LateralVelocity = Mathf.Lerp(runtime.LateralVelocity, desiredSpeed, blend);
-
-            float x = Mathf.Clamp(runtime.Horizontal + runtime.LateralVelocity * deltaTime,
-                -runtime.ShaftHalfWidth, runtime.ShaftHalfWidth);
-            float depth = Mathf.Min(runtime.Depth + config.DescendSpeed * deltaTime, runtime.MaxDepth);
+            float x = HookLateralMover.Advance(runtime, deltaTime);
+            float depth = Mathf.Min(runtime.Depth + runtime.HookConfig.DescendSpeed * deltaTime, runtime.MaxDepth);
 
             runtime.MoveTo(x, depth);
+
+            if (runtime.Encounter != null && runtime.Encounter.ResolveContact(runtime, false))
+                runtime.TransitionTo(HookPhase.Tangled);
 
             if (depth >= runtime.MaxDepth)
                 runtime.TransitionTo(HookPhase.Reeling);

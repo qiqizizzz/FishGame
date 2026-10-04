@@ -116,6 +116,15 @@ namespace Module.Fish.Service
         }
 
         /// <summary>
+        /// 把已经离场的鱼（被钓走）从在场列表摘掉，视图回收由调用方负责
+        /// </summary>
+        public void Remove(FishInstance fish)
+        {
+            if (fish != null)
+                m_alive.Remove(fish);
+        }
+
+        /// <summary>
         /// 结束一局：全部鱼回池并清空切片表
         /// </summary>
         public void EndSession()
@@ -333,6 +342,10 @@ namespace Module.Fish.Service
             for (int i = m_alive.Count - 1; i >= 0; i--)
             {
                 FishInstance fish = m_alive[i];
+
+                // 钩上的鱼深度由携带服务决定，可能压到可达范围之外，不能按窗口回收
+                if (fish.IsHooked)
+                    continue;
 
                 if (fish.View == null || fish.Depth < minDepth || fish.Depth > maxDepth)
                     recycleAt(i);

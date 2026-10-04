@@ -19,7 +19,7 @@ MonoBehaviour:
   LineWidthMeters: 0.02
   LineLengthMeters: 25
   CapacityPoints: 4
-  ReelSpeedMeters: 3
+  ReelSpeedMeters: 4.5
   TensionCeiling: 100
   ReliefRatio: 0
   FishPerHook: 1
