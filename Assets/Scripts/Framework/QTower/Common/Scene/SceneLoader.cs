@@ -9,6 +9,7 @@
  */
 
 using System;
+using System.IO;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -46,7 +47,7 @@ namespace Framework.QTower.Common.Scene
                 return false;
             }
 
-            if (getBuildScenePath(sceneName) == null)
+            if (!isInBuildSettings(sceneName))
             {
                 QLog.Error($"场景加载失败：{sceneName} 未以启用状态加入 Build Settings");
                 return false;
@@ -77,18 +78,19 @@ namespace Framework.QTower.Common.Scene
             }
         }
 
-        private static string getBuildScenePath(string sceneName)
+        // 校验场景是否收录在 Build Settings，改用运行期 API：编辑器与真机同一套判定
+        // UnityEditor 程序集不会进 Player 构建，直接引用它会让 APK 编译失败
+        private static bool isInBuildSettings(string sceneName)
         {
-            foreach (UnityEditor.EditorBuildSettingsScene scene in UnityEditor.EditorBuildSettings.scenes)
+            for (int index = 0; index < SceneManager.sceneCountInBuildSettings; index++)
             {
-                if (!scene.enabled)
-                    continue;
+                string path = SceneUtility.GetScenePathByBuildIndex(index);
 
-                if (System.IO.Path.GetFileNameWithoutExtension(scene.path) == sceneName)
-                    return scene.path;
+                if (Path.GetFileNameWithoutExtension(path) == sceneName)
+                    return true;
             }
 
-            return null;
+            return false;
         }
     }
 }

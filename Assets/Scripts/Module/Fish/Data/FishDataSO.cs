@@ -33,6 +33,8 @@ namespace Module.Fish.Data
         [Header("体型与容量")]
         [Tooltip("实测体长（米）")]
         [SerializeField] private float LengthMeters;
+        [Tooltip("世界显示长度（米），生成时按 SizeRatio 等比缩放")]
+        [SerializeField] private float DisplayLengthMeters;
         [Tooltip("携带占用的容量点数")]
         [SerializeField] private int CapacityCost;
 
@@ -48,6 +50,13 @@ namespace Module.Fish.Data
         public FishRarity Rarity => ValueRarity;
         public FishBehaviorType Behavior => MovementBehavior;
         public float BodyLength => LengthMeters;
+        public float DisplayLength => DisplayLengthMeters;
+
+        /// <summary>
+        /// 生成时施加到根节点的等比缩放系数，把真实体长折算成世界显示长度
+        /// </summary>
+        public float SizeRatio => LengthMeters > 0f ? DisplayLengthMeters / LengthMeters : 1f;
+
         public int CarryCost => CapacityCost;
         public bool HasWeightOverride => WeightOverride > 0f;
 
@@ -128,6 +137,9 @@ namespace Module.Fish.Data
 
             if (ValueRarity != FishRarity.Hazard && CapacityCost <= 0)
                 QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 可捕获鱼的容量点数必须大于 0");
+
+            if (DisplayLengthMeters <= 0f)
+                QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 未配置世界显示长度，生成时会缩成 0");
         }
     }
 }

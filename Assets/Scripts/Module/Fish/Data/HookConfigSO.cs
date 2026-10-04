@@ -25,7 +25,7 @@ namespace Module.Fish.Data
         [Tooltip("横向惯性收敛系数，越大越跟手")]
         [SerializeField] private float LateralDampingRate = 8f;
         [Tooltip("钩头碰撞半径（米）")]
-        [SerializeField] private float HookRadiusMeters = 0.25f;
+        [SerializeField] private float HookRadiusMeters = 0.15f;
         [Tooltip("鱼线绘制宽度（米）")]
         [SerializeField] private float LineWidthMeters = 0.05f;
 
