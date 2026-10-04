@@ -1,0 +1,186 @@
+using System.Collections.Generic;
+using System.Text;
+using TMPro;
+using UI.Fishing;
+using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public class HudPrefabBuilder
+{
+    private const string PREFAB_PATH = "Assets/Prefabs/UI/UIFishingHUD.prefab";
+    private const string FONT_PATH = "Assets/Font/MaoKenTangYuan-beta0.12 SDF.asset";
+    private const string ADDRESS = "UIFishingHUD";
+    private const string GROUP_NAME = "UI";
+
+    private static readonly Color LabelColor = new Color(0.72f, 0.8f, 0.88f, 1f);
+    private static readonly Color ValueColor = new Color(0.96f, 0.98f, 1f, 1f);
+    private static readonly Color PanelColor = new Color(0.043f, 0.094f, 0.157f, 0.62f);
+    private static readonly Color PhaseColor = new Color(0.62f, 0.78f, 0.92f, 1f);
+
+    private static TMP_FontAsset s_font;
+    private static StringBuilder s_log = new StringBuilder();
+
+    public static void Run()
+    {
+        s_log = new StringBuilder();
+        s_font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FONT_PATH);
+
+        if (s_font == null)
+        {
+            Debug.LogError("[HudPrefabBuilder] 字体资产缺失：" + FONT_PATH);
+            return;
+        }
+
+        Scene previous = EditorSceneManager.GetActiveScene();
+        Scene temp = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+
+        RectTransform root = buildHierarchy();
+        GameObject prefabRoot = root.gameObject;
+
+        PrefabUtility.SaveAsPrefabAsset(prefabRoot, PREFAB_PATH, out bool saved);
+        s_log.AppendLine("saved=" + saved + " path=" + PREFAB_PATH);
+
+        EditorSceneManager.CloseScene(temp, true);
+
+        if (previous.IsValid())
+            EditorSceneManager.SetActiveScene(previous);
+
+        if (saved)
+            registerAddressable();
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[HudPrefabBuilder]\n" + s_log);
+    }
+
+    private static RectTransform buildHierarchy()
+    {
+        RectTransform root = node("UIFishingHUD", null, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        RectTransform panel = node("Panel_Counters", root, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(36f, -36f), new Vector2(300f, 212f));
+        Image bg = panel.gameObject.AddComponent<Image>();
+        bg.color = PanelColor;
+        bg.raycastTarget = false;
+
+        makeRow(panel, "Row_Hook", 0, "鱼钩", "0 / 10");
+        makeRow(panel, "Row_Line", 1, "鱼线", "0 m");
+        makeRow(panel, "Row_Load", 2, "负载", "0 / 4");
+
+        RectTransform phase = node("Txt_Phase", root, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(44f, -258f), new Vector2(300f, 44f));
+        makeText(phase, "待命", 30f, TextAlignmentOptions.MidlineLeft, PhaseColor, FontStyles.Normal);
+
+        root.gameObject.AddComponent<UIFishingHUD>();
+        return root;
+    }
+
+    private static void makeRow(RectTransform panel, string rowName, int index, string label, string sample)
+    {
+        float top = -14f - index * 64f;
+        RectTransform row = node(rowName, panel, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), new Vector2(14f, top), new Vector2(272f, 56f));
+        row.gameObject.AddComponent<UIHudCounterItem>();
+
+        RectTransform labelRect = node("Txt_Label", row, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(120f, 44f));
+        makeText(labelRect, label, 32f, TextAlignmentOptions.MidlineLeft, LabelColor, FontStyles.Normal);
+
+        RectTransform valueRect = node("Txt_Value", row, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f),
+            new Vector2(1f, 0.5f), new Vector2(-12f, 0f), new Vector2(150f, 50f));
+        makeText(valueRect, sample, 40f, TextAlignmentOptions.MidlineRight, ValueColor, FontStyles.Bold);
+    }
+
+    private static void makeText(RectTransform rect, string content, float size,
+        TextAlignmentOptions alignment, Color color, FontStyles style)
+    {
+        TextMeshProUGUI text = rect.gameObject.AddComponent<TextMeshProUGUI>();
+        text.font = s_font;
+        text.text = content;
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = color;
+        text.fontStyle = style;
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.raycastTarget = false;
+    }
+
+    private static RectTransform node(string name, RectTransform parent, Vector2 anchorMin, Vector2 anchorMax,
+        Vector2 pivot, Vector2 anchoredPosition, Vector2 sizeDelta)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        RectTransform rect = (RectTransform)go.transform;
+
+        if (parent != null)
+            rect.SetParent(parent, false);
+
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+        return rect;
+    }
+
+    private static void registerAddressable()
+    {
+        AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.Settings;
+
+        if (settings == null)
+        {
+            s_log.AppendLine("AddressableAssetSettings 为空，跳过注册");
+            return;
+        }
+
+        AddressableAssetGroup group = settings.FindGroup(GROUP_NAME);
+
+        if (group == null)
+        {
+            s_log.AppendLine("未找到分组 " + GROUP_NAME);
+            return;
+        }
+
+        removeOrphanEntries(settings, group);
+
+        string guid = AssetDatabase.AssetPathToGUID(PREFAB_PATH);
+        s_log.AppendLine("prefab guid=" + guid);
+
+        if (string.IsNullOrEmpty(guid))
+        {
+            s_log.AppendLine("资产还没导入完，稍后重跑一次注册");
+            return;
+        }
+
+        AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, false);
+        entry.address = ADDRESS;
+        settings.SetDirty(AddressableAssetSettings.ModificationEvent.EntryCreated, entry, true, true);
+        s_log.AppendLine("addressable ok address=" + ADDRESS + " group=" + group.name);
+    }
+
+    // 上一次失败的安装会留下指向空路径的条目，不清掉会在构建时报 missing
+    private static void removeOrphanEntries(AddressableAssetSettings settings, AddressableAssetGroup group)
+    {
+        List<string> orphans = new List<string>();
+
+        foreach (AddressableAssetEntry entry in group.entries)
+        {
+            if (!string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(entry.guid)))
+                continue;
+
+            orphans.Add(entry.guid);
+        }
+
+        foreach (string guid in orphans)
+        {
+            settings.RemoveAssetEntry(guid);
+            s_log.AppendLine("清理孤立条目 guid=" + guid);
+        }
+    }
+}

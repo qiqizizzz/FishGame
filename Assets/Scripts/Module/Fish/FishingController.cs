@@ -10,14 +10,17 @@
 
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using Framework.QTower;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Controller;
 using Framework.QTower.Event;
+using Game;
 using Module.Fish.Data;
 using Module.Fish.Model;
 using Module.Fish.Service;
 using Module.Fish.Type;
 using Module.Fish.View;
+using UI.Fishing;
 using UnityEngine;
 using Utils.log;
 
@@ -29,6 +32,9 @@ namespace Module.Fish
 
         // 一次接触裁决后的免疫窗口，防止同一条鱼在相邻帧反复触发缠绕
         private const float CONTACT_COOLDOWN = 0.3f;
+
+        // 低于结算面板（100），高于场景内一切表现
+        private const int HUD_SORTING_ORDER = 10;
 
         // ==================== 字段[私有] ====================
         private readonly FishingScene m_scene;
@@ -60,11 +66,25 @@ namespace Module.Fish
         /// <summary>当前钩上负载，HUD 画鱼串与容量条取这里</summary>
         public IReadOnlyList<CatchRecord> Carried => m_carry.Carried;
 
+        /// <summary>当前放线深度（米），HUD 的鱼线行</summary>
+        public float Depth => m_hook != null ? m_hook.Depth : 0f;
+
+        /// <summary>钩上已占用的容量点数，HUD 的负载行</summary>
+        public int CarriedPoints => m_carry.UsedPoints;
+
+        /// <summary>本局容量上限，来自下潜属性包</summary>
+        public int CarryCapacity => m_stats != null ? m_stats.CarryCapacity : 0;
+
+        /// <summary>本局目标捕获数，HUD 计数的分母</summary>
+        public int TargetCatchCount => m_scene != null ? m_scene.SessionConfig.TargetCatchCount : 0;
+
         // ==================== 生命周期 ====================
         protected override void OnInit()
         {
             if (!validateReferences())
                 return;
+
+            registerHud();
 
             m_hook = m_scene.Hook;
             m_stats = new DefaultFishingStats(m_scene.HookConfig);
@@ -86,6 +106,7 @@ namespace Module.Fish
         {
             m_running = false;
             m_spawn.EndSession();
+            GameApp.UIManager.UnregisterByController(this);
         }
 
         public override void Tick(float deltaTime)
@@ -145,6 +166,29 @@ namespace Module.Fish
         }
 
         // ==================== Private Function ====================
+        // 加载期间玩家可能已经 ESC 回主菜单，这时补一次注销，别把面板悬在主菜单上
+        private async UniTaskVoid showHud()
+        {
+            UIFishingHUD hud = await GameApp.UIManager.Open<UIFishingHUD>();
+
+            if (hud == null || m_running)
+                return;
+
+            GameApp.UIManager.UnregisterByController(this);
+        }
+
+        // HUD 跟着玩法控制器注册与注销，回主菜单时不会留下悬空面板
+        private void registerHud()
+        {
+            GameApp.UIManager.Register<UIFishingHUD>(new UIData
+            {
+                Address = UIDefines.UIFishingHUD,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = HUD_SORTING_ORDER
+            });
+        }
+
         // prefab 预加载完成后才开局，避免第一次下潜时同步加载卡顿
         private async UniTaskVoid startSession()
         {
@@ -156,6 +200,8 @@ namespace Module.Fish
 
             m_machine.Start(m_hook);
             m_running = true;
+
+            showHud().Forget();
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
                       $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条，" +
