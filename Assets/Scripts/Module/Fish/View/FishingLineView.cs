@@ -17,7 +17,7 @@ namespace Module.Fish.View
     [RequireComponent(typeof(LineRenderer))]
     public sealed class FishingLineView : MonoBehaviour
     {
-        private const float DEFAULT_LINE_WIDTH = 0.05f;
+        private const float DEFAULT_LINE_WIDTH = 0.02f;
 
         // ==================== 字段[外部设置] ====================
         [Header("端点")]
@@ -48,10 +48,12 @@ namespace Module.Fish.View
 
             m_line.positionCount = 2;
             m_line.useWorldSpace = true;
-            m_line.startWidth = 1f;
-            m_line.endWidth = 1f;
+            // 宽度必须显式写成平坦曲线再乘倍率：startWidth 与 widthMultiplier 互相换算，
+            // 只设其一会被场景里已有的曲线值反算放大，线宽直接失控
+            m_line.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 1f));
             m_line.widthMultiplier = HookConfigAsset != null ? HookConfigAsset.LineWidth : DEFAULT_LINE_WIDTH;
-            m_line.numCapVertices = 2;
+            m_line.numCapVertices = 0;
+            m_line.numCornerVertices = 0;
             m_line.receiveShadows = false;
             m_line.shadowCastingMode = ShadowCastingMode.Off;
             m_line.lightProbeUsage = LightProbeUsage.Off;

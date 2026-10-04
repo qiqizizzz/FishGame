@@ -16,7 +16,7 @@ MonoBehaviour:
   LateralSpeedMeters: 4
   LateralDampingRate: 8
   HookRadiusMeters: 0.15
-  LineWidthMeters: 0.05
+  LineWidthMeters: 0.02
   LineLengthMeters: 25
   CapacityPoints: 4
   ReelSpeedMeters: 3
