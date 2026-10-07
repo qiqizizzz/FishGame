@@ -28,8 +28,6 @@ namespace Module.Fish.Data
 
         [Header("结算展示")]
         [Range(0, 5)] public int StarCount;
-        [Tooltip("单条收益的价值倍率")]
-        public float ValueMultiplier = 1f;
 
         [Header("生成与负载")]
         [Tooltip("加权随机表的基准权重，Hazard 填 0，其密度由会话配置接管")]

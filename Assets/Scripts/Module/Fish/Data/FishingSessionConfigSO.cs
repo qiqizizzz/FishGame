@@ -4,9 +4,10 @@
  * │  类    名: FishingSessionConfigSO.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
+ * 结束条件看累计渔获价值，不看条数，钩满一串杂鱼也顶不上几条高价值鱼
  * 井道总深度是世界几何边界，与 IFishingStats.LineLength 是两回事：
  * 钩子触底深度取二者较小值，线不够长而下方仍有鱼正是核心挫败感来源
- * 收益公式：单条收益 = RewardBase × 稀有度倍率 × DepthBonus × ComboMultiplier
+ * 收益公式：单条收益 = 鱼种标价（FishDataSO）× DepthBonus × ComboMultiplier
  */
 
 using System.Collections.Generic;
@@ -25,8 +26,8 @@ namespace Module.Fish.Data
         [SerializeField] private float ShaftHalfWidthMeters = 3f;
 
         [Header("结束条件")]
-        [Tooltip("目标捕获数，达到即结束本局")]
-        [SerializeField] private int TargetCount = 10;
+        [Tooltip("目标渔获价值（金币），累计收益达到即结束本局")]
+        [SerializeField, Min(1)] private int TargetCoinValue = 500;
         [Tooltip("卷线器容错次数，归零后再次受罚即结束")]
         [SerializeField] private int ReelToleranceCount = 3;
 
@@ -41,8 +42,6 @@ namespace Module.Fish.Data
         [SerializeField, Range(0f, 0.5f)] private float HazardSpawnChance = 0.15f;
 
         [Header("收益公式")]
-        [Tooltip("单条收益基准值，乘稀有度倍率后得到 BaseValue(rarity)")]
-        [SerializeField] private float RewardBaseValue = 10f;
         [Tooltip("DepthBonus = 1 + 归一化深度 × 本系数")]
         [SerializeField] private float DepthBonusFactor = 1f;
         [Tooltip("同一次回收内每多捕一条的连击增量")]
@@ -50,13 +49,12 @@ namespace Module.Fish.Data
 
         public float ShaftDepth => ShaftDepthMeters;
         public float ShaftHalfWidth => ShaftHalfWidthMeters;
-        public int TargetCatchCount => TargetCount;
+        public int TargetCoins => TargetCoinValue;
         public int ReelCount => ReelToleranceCount;
         public IReadOnlyList<FishDataSO> Fishes => FishPool;
         public AnimationCurve Density => DensityCurve;
         public float BaseFishPerSlice => BaseFishCountPerSlice;
         public float HazardChance => HazardSpawnChance;
-        public float RewardBase => RewardBaseValue;
         public float DepthBonusScale => DepthBonusFactor;
         public float ComboStep => ComboStepPerCatch;
 

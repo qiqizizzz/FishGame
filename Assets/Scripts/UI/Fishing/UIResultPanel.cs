@@ -67,8 +67,9 @@ namespace UI.Fishing
                 return;
 
             m_titleText.text = "本次收获";
-            m_summaryText.text = $"下潜深度 {result.MaxDepth:0} 米　·　捕获 {result.TotalCatch} / {result.TargetCatchCount}"
-                + (result.IsTargetReached ? "（已钓满）" : string.Empty);
+            m_summaryText.text = $"下潜深度 {result.MaxDepth:0} 米　·　捕获 {result.TotalCatch} 条"
+                + $"　·　渔获 {result.TotalCoins} / {result.TargetCoins}"
+                + (result.IsTargetReached ? "（已达标）" : string.Empty);
             m_coinsText.text = $"金币 +{result.TotalCoins}";
 
             rebuildRows(result);

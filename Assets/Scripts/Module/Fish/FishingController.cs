@@ -65,8 +65,12 @@ namespace Module.Fish
             m_scareFilter = canScareFish;
         }
 
-        /// <summary>本局已带回水面的鱼数，供 HUD 计数行与结束条件使用</summary>
+        /// <summary>本局已带回水面的鱼数，结算面板展示条数用，不再作为结束条件</summary>
         public int TotalCatch => m_totalCatch;
+
+        /// <summary>本局累计渔获价值（金币），HUD 进度行与结束条件取这里；
+        /// HUD 在预加载阶段就会刷新，此时 result 尚未创建，故允许判空</summary>
+        public int TotalCoins => m_result != null ? m_result.TotalCoins : 0;
 
         /// <summary>当前钩上负载，HUD 画鱼串取这里</summary>
         public IReadOnlyList<CatchRecord> Carried => m_carry.Carried;
@@ -80,8 +84,8 @@ namespace Module.Fish
         /// <summary>钩上可挂的鱼条数上限，HUD 负载行的分母</summary>
         public int MaxCarryCount => m_carry.Capacity;
 
-        /// <summary>本局目标捕获数，HUD 计数的分母</summary>
-        public int TargetCatchCount => m_scene != null ? m_scene.SessionConfig.TargetCatchCount : 0;
+        /// <summary>本局目标渔获价值（金币），HUD 进度行的分母</summary>
+        public int TargetCoins => m_scene != null ? m_scene.SessionConfig.TargetCoins : 0;
 
         // ==================== 生命周期 ====================
         protected override void OnInit()
@@ -234,7 +238,7 @@ namespace Module.Fish
             }
 
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
-            m_result = new SessionResult(TargetCatchCount);
+            m_result = new SessionResult(TargetCoins);
             m_spawn.BeginSession(m_scene.SessionConfig, m_scene.RarityTable, m_stats, m_factory,
                 m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
 
@@ -338,11 +342,11 @@ namespace Module.Fish
             QLog.Info($"[{nameof(FishingController)}] 本次出水带回 {m_buffer.Count} 条，累计 {m_totalCatch} 条");
             m_buffer.Clear();
 
-            if (m_totalCatch >= TargetCatchCount)
+            if (m_result.TotalCoins >= TargetCoins)
                 finishSession();
         }
 
-        // 收益公式：档位倍率 × 深度加成 × 同一次回收的连击倍率
+        // 收益公式：鱼种标价 × 深度加成 × 同一次回收的连击倍率
         // Unload 是从最外侧往回塞的，倒着遍历才拿到真实的入钩顺序
         private void scoreLandedFish()
         {
@@ -362,7 +366,6 @@ namespace Module.Fish
                 int comboIndex = m_buffer.Count - 1 - i;
                 float combo = 1f + comboIndex * session.ComboStep;
                 float depthBonus = 1f + Mathf.Clamp01(record.AttachedDepth * depthNorm) * session.DepthBonusScale;
-                float valueMultiplier = row != null ? row.ValueMultiplier : 1f;
 
                 m_result.Add(new FishScoreItem
                 {
@@ -370,7 +373,7 @@ namespace Module.Fish
                     DisplayName = data.DisplayName,
                     Rarity = data.Rarity,
                     Stars = row != null ? row.StarCount : 0,
-                    Coins = Mathf.RoundToInt(session.RewardBase * valueMultiplier * depthBonus * combo),
+                    Coins = Mathf.RoundToInt(data.CoinValue * depthBonus * combo),
                     CatchDepth = record.AttachedDepth,
                     PrimaryColor = row != null ? row.PrimaryColor : Color.white
                 });
@@ -403,8 +406,8 @@ namespace Module.Fish
             EventManager.PublishEvent(EventDefines.FishingSessionEnded, m_result);
             GameApp.UIManager.Open<UIResultPanel>(m_result).Forget();
 
-            QLog.Info($"[{nameof(FishingController)}] 本局钓满 {m_totalCatch} 条，" +
-                      $"收益 {m_result.TotalCoins} 金币，最大下潜 {m_maxDepth:0} 米");
+            QLog.Info($"[{nameof(FishingController)}] 本局渔获 {m_result.TotalCoins} 金币，" +
+                      $"目标 {TargetCoins}，带回 {m_totalCatch} 条，最大下潜 {m_maxDepth:0} 米");
         }
 
         // 再来一局：清空计数与鱼群重新开局，视图与控制器都不必重建
@@ -415,7 +418,7 @@ namespace Module.Fish
             m_totalCatch = 0;
             m_maxDepth = 0f;
             m_buffer.Clear();
-            m_result = new SessionResult(TargetCatchCount);
+            m_result = new SessionResult(TargetCoins);
 
             m_spawn.EndSession();
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
@@ -425,7 +428,7 @@ namespace Module.Fish
             m_machine.Start(m_hook);
             m_running = true;
 
-            QLog.Info($"[{nameof(FishingController)}] 开新一局，目标 {TargetCatchCount} 条，在场鱼 {m_spawn.Alive.Count} 条");
+            QLog.Info($"[{nameof(FishingController)}] 开新一局，目标 {TargetCoins} 金币，在场鱼 {m_spawn.Alive.Count} 条");
         }
 
         private static FishCaptureInfo captureInfo(FishInstance fish, float depth)

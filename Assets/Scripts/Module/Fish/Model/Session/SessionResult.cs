@@ -15,15 +15,16 @@ namespace Module.Fish.Model
     {
         private readonly List<FishScoreItem> m_items = new();
 
-        public SessionResult(int targetCatchCount)
+        public SessionResult(int targetCoins)
         {
-            TargetCatchCount = targetCatchCount;
+            TargetCoins = targetCoins;
         }
 
         /// <summary>本局带回水面的每一条鱼，按入钩顺序排列</summary>
         public IReadOnlyList<FishScoreItem> Items => m_items;
 
-        public int TargetCatchCount { get; }
+        /// <summary>本局目标渔获价值（金币）</summary>
+        public int TargetCoins { get; }
 
         public int TotalCoins { get; private set; }
 
@@ -32,7 +33,8 @@ namespace Module.Fish.Model
         /// <summary>本局最大下潜深度（米），对应结算页的「下潜深度」</summary>
         public float MaxDepth { get; private set; }
 
-        public bool IsTargetReached => TotalCatch >= TargetCatchCount;
+        /// <summary>累计渔获价值是否已达标，达标即封盘结算</summary>
+        public bool IsTargetReached => TotalCoins >= TargetCoins;
 
         public void Add(FishScoreItem item)
         {

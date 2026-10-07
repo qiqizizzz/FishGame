@@ -19,7 +19,6 @@ MonoBehaviour:
     RimIntensity: 0
     RimPulse: 0
     StarCount: 1
-    ValueMultiplier: 1
     SpawnWeight: 45
     DepthBand:
       MinDepth: 0
@@ -31,7 +30,6 @@ MonoBehaviour:
     RimIntensity: 0.35
     RimPulse: 0
     StarCount: 2
-    ValueMultiplier: 1.8
     SpawnWeight: 25
     DepthBand:
       MinDepth: 15
@@ -43,7 +41,6 @@ MonoBehaviour:
     RimIntensity: 0.6
     RimPulse: 0
     StarCount: 3
-    ValueMultiplier: 3.5
     SpawnWeight: 15
     DepthBand:
       MinDepth: 35
@@ -55,7 +52,6 @@ MonoBehaviour:
     RimIntensity: 0.85
     RimPulse: 0
     StarCount: 4
-    ValueMultiplier: 7
     SpawnWeight: 10
     DepthBand:
       MinDepth: 55
@@ -67,7 +63,6 @@ MonoBehaviour:
     RimIntensity: 1.2
     RimPulse: 1
     StarCount: 5
-    ValueMultiplier: 15
     SpawnWeight: 5
     DepthBand:
       MinDepth: 75
@@ -79,7 +74,6 @@ MonoBehaviour:
     RimIntensity: 0
     RimPulse: 0
     StarCount: 0
-    ValueMultiplier: 0
     SpawnWeight: 0
     DepthBand:
       MinDepth: 0

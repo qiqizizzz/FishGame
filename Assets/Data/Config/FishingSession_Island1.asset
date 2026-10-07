@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShaftDepthMeters: 100
   ShaftHalfWidthMeters: 2.5
-  TargetCount: 10
+  TargetCoinValue: 500
   ReelToleranceCount: 2
   FishPool:
   - {fileID: 11400000, guid: 77f718af62836ed4f9848b1ac377c89f, type: 2}
@@ -53,6 +53,5 @@ MonoBehaviour:
     m_RotationOrder: 4
   BaseFishCountPerSlice: 2
   HazardSpawnChance: 0.15
-  RewardBaseValue: 10
   DepthBonusFactor: 1
   ComboStepPerCatch: 0.15

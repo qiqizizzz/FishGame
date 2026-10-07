@@ -6,8 +6,9 @@
 * └──────────────────────────────────┘
 * 挂上钩的鱼退出 AI 驱动，改由本服务排成鱼串贴在钩子下方
 * 脱钩一律从最外侧（最后挂上的）开始，先贪上去的最后掉，符合「贪心代价」的视觉
-* 鱼串按每条鱼的实测身高累加间距，再左右交替错位并给一点下垂角，
-* 等距 0.5 米排下去时大鱼会完全糊住小鱼，两条鱼看着像一条
+* 鱼串按每条鱼的实测身高累加间距，相邻两鱼刻意叠掉一部分再左右交替错位，
+* 整串才像挂在钩子上的一串鱼，而不是顺着鱼线散开的几条
+* 挂住的鱼比自由鱼前移一个纵深层，否则回收时会被井口的冰层方块挡住
 */
 
 using System.Collections.Generic;
@@ -22,10 +23,14 @@ namespace Module.Fish.Service
         // 实测身高缺失时的兜底间距（米）
         private const float CARRY_SPACING = 0.5f;
         private const float HOOK_CLEARANCE = 0.3f;
-        private const float FISH_GAP = 0.18f;
-        private const float SWAY_RATIO = 0.34f;
-        private const float MAX_SWAY = 0.55f;
-        private const float HANG_TILT_DEGREES = 14f;
+        private const float FISH_GAP = 0.06f;
+        // 相邻两鱼身高的重叠系数，1 为首尾相接，越小叠得越紧
+        private const float BODY_OVERLAP = 0.55f;
+        private const float SWAY_RATIO = 0.14f;
+        private const float MAX_SWAY = 0.22f;
+        private const float HANG_TILT_DEGREES = 16f;
+        // 井道冰层方块的前表面在世界 z=-2，挂住的鱼必须比它更靠近相机才不会被井口切掉
+        private const float CARRY_WORLD_Z = -2.5f;
 
         private readonly List<CatchRecord> m_carried = new();
 
@@ -101,7 +106,7 @@ namespace Module.Fish.Service
 
                 offset += i == 0
                     ? height * 0.5f
-                    : (previousHeight + height) * 0.5f + FISH_GAP;
+                    : (previousHeight + height) * 0.5f * BODY_OVERLAP + FISH_GAP;
                 previousHeight = height;
 
                 int swaySign = i % 2 == 0 ? 1 : -1;
@@ -111,7 +116,7 @@ namespace Module.Fish.Service
                 fish.Depth = depth + offset;
 
                 Transform root = fish.Root;
-                root.localPosition = new Vector3(fish.X, -fish.Depth, root.localPosition.z);
+                root.localPosition = new Vector3(fish.X, -fish.Depth, chainLocalZ(root));
                 root.localRotation = Quaternion.Euler(0f, 0f, HANG_TILT_DEGREES * swaySign)
                     * Quaternion.Euler(0f, fish.Direction >= 0 ? 90f : -90f, 0f);
             }
@@ -141,6 +146,13 @@ namespace Module.Fish.Service
         {
             for (int i = m_carried.Count - 1; i >= 0; i--)
                 releaseAt(i, landed);
+        }
+
+        // 把鱼串的世界纵深换算成鱼根节点的局部 z，父级无旋转所以只差一个平移
+        private static float chainLocalZ(Transform root)
+        {
+            Transform parent = root != null ? root.parent : null;
+            return CARRY_WORLD_Z - (parent != null ? parent.position.z : 0f);
         }
 
         private void releaseAt(int index, List<CatchRecord> sink)

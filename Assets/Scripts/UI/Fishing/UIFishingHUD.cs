@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 钓鱼 HUD，显示捕获数/放线深度/钩上负载与当前阶段
+* │  描    述: 钓鱼 HUD，显示渔获价值/放线深度/钩上负载与当前阶段
 * │  类    名: UIFishingHUD.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -35,11 +35,11 @@ namespace UI.Fishing
         private FishingController m_controller;
         private Image m_panelImage;
         private TMP_Text m_phaseText;
-        private UIHudCounterItem m_hookCounter;
+        private UIHudCounterItem m_valueCounter;
         private UIHudCounterItem m_lineCounter;
         private UIHudCounterItem m_loadCounter;
 
-        private int m_lastCatch = -1;
+        private int m_lastCoins = -1;
         private int m_lastDepth = -1;
         private int m_lastLoad = -1;
         private int m_lastLoadCeiling = -1;
@@ -50,7 +50,7 @@ namespace UI.Fishing
             m_controller = Controller as FishingController;
             m_panelImage = FindComponent<Image>(PANEL_PATH);
             m_phaseText = FindComponent<TMP_Text>(PHASE_TEXT_PATH);
-            m_hookCounter = bindCounter(ROW_HOOK_PATH, "鱼钩");
+            m_valueCounter = bindCounter(ROW_HOOK_PATH, "渔获");
             m_lineCounter = bindCounter(ROW_LINE_PATH, "鱼线");
             m_loadCounter = bindCounter(ROW_LOAD_PATH, "负载");
 
@@ -64,7 +64,7 @@ namespace UI.Fishing
         {
             m_panelImage.color = PANEL_BASE_COLOR;
             m_flashEndTime = -1f;
-            m_lastCatch = m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
+            m_lastCoins = m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
         }
 
         protected override void SubscribeViewEvents()
@@ -86,12 +86,12 @@ namespace UI.Fishing
         // ==================== Private Function ====================
         private void refreshCounters()
         {
-            int catchCount = m_controller.TotalCatch;
+            int coins = m_controller.TotalCoins;
 
-            if (catchCount != m_lastCatch)
+            if (coins != m_lastCoins)
             {
-                m_lastCatch = catchCount;
-                m_hookCounter.SetValue($"{catchCount} / {m_controller.TargetCatchCount}");
+                m_lastCoins = coins;
+                m_valueCounter.SetValue($"{coins} / {m_controller.TargetCoins}");
             }
 
             int depth = (int)m_controller.Depth;

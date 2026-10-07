@@ -4,7 +4,7 @@
  * │  类    名: FishDataSO.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
- * 只存身份与覆写项，配色与倍率等档位数值一律回 RarityTableSO 查，不在这里冗余
+ * 只存身份、定价与覆写项，配色与星数等档位数值一律回 RarityTableSO 查，不在这里冗余
  * 覆写类字段以「<=0 表示沿用档位基准」为约定，避免再引入 nullable 标记
  */
 
@@ -36,6 +36,10 @@ namespace Module.Fish.Data
         [Tooltip("世界显示长度（米），生成时折算成屏幕上的实际占位，填多少就画多大")]
         [SerializeField] private float DisplayLengthMeters;
 
+        [Header("价值")]
+        [Tooltip("单条鱼的基础标价（金币），品质越高定价越高，深度加成与连击倍率在它之上再乘")]
+        [SerializeField, Min(0)] private int BaseCoinValue;
+
         [Header("覆写（<=0 表示沿用稀有度基准）")]
         [Tooltip("大于 0 时覆盖档位基准权重")]
         [SerializeField] private float WeightOverride;
@@ -49,6 +53,7 @@ namespace Module.Fish.Data
         public FishBehaviorType Behavior => MovementBehavior;
         public float BodyLength => LengthMeters;
         public float DisplayLength => DisplayLengthMeters;
+        public int CoinValue => BaseCoinValue;
 
         /// <summary>
         /// 生成时施加到根节点的等比缩放系数，把真实体长折算成世界显示长度
@@ -95,19 +100,6 @@ namespace Module.Fish.Data
             return row.SpawnWeight;
         }
 
-        public float ResolveValueMultiplier(RarityTableSO table)
-        {
-            RarityRow row = table == null ? null : table.Get(ValueRarity);
-
-            if (row == null)
-            {
-                QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 取不到档位 {ValueRarity} 的价值倍率");
-                return 0f;
-            }
-
-            return row.ValueMultiplier;
-        }
-
         public int ResolveTensionLoad(RarityTableSO table)
         {
             RarityRow row = table == null ? null : table.Get(ValueRarity);
@@ -134,6 +126,10 @@ namespace Module.Fish.Data
 
             if (DisplayLengthMeters <= 0f)
                 QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 未配置世界显示长度，生成时会缩成 0");
+
+            // 障碍档不产金币，其余鱼种一律要求定价
+            if (ValueRarity != FishRarity.Hazard && BaseCoinValue <= 0)
+                QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 未定价，可捕获鱼必须填写基础标价");
         }
     }
 }

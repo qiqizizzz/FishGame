@@ -19,6 +19,7 @@ MonoBehaviour:
   MovementBehavior: 1
   LengthMeters: 0.22
   DisplayLengthMeters: 0.7
+  BaseCoinValue: 12
   WeightOverride: 0
   BandOverride:
     MinDepth: 0

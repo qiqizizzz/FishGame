@@ -19,6 +19,8 @@ namespace Module.Fish.Service
     {
         private const float FLEE_SPEED_MULTIPLIER = 3.5f;
         private const float FLEE_DURATION = 1.1f;
+        // 自由鱼所在的局部纵深，与 FishFactory.Spawn 生成时写入的 z 保持一致
+        private const float FREE_LOCAL_Z = 0f;
 
         private readonly Dictionary<FishBehaviorType, IFishBehavior> m_behaviors = new();
 
@@ -77,7 +79,8 @@ namespace Module.Fish.Service
                 }
 
                 Transform root = fish.Root;
-                root.localPosition = new Vector3(fish.X, -fish.Depth, root.localPosition.z);
+                // 自由鱼固定待在自己那一层，脱钩交还的鱼下一帧就被摆回原层，不会留在鱼串那一层
+                root.localPosition = new Vector3(fish.X, -fish.Depth, FREE_LOCAL_Z);
                 root.localRotation = Quaternion.Euler(0f, fish.Direction >= 0 ? 90f : -90f, 0f);
             }
         }
