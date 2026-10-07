@@ -17,7 +17,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Utils.log;
 
-namespace UI.Fishing
+namespace UI.RoundHUD
 {
     public sealed class UIFishingHUD : UIBase
     {

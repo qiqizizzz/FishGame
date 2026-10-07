@@ -18,7 +18,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Utils.log;
 
-namespace UI.Fishing
+namespace UI.Summary
 {
     public sealed class UIResultPanel : UIBase
     {

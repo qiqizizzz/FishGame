@@ -14,7 +14,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UI.Fishing
+namespace UI.Summary
 {
     public sealed class UIResultFishItem : UIItemBase
     {
@@ -46,7 +46,6 @@ namespace UI.Fishing
 
         public void Setup(FishScoreItem item)
         {
-            // 模板本身是隐藏的，被复制时不一定已经走过 Awake，这里补一次惰性绑定
             if (m_nameText == null)
                 bindNodes();
 

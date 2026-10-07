@@ -11,7 +11,7 @@ using Framework.QTower.View;
 using TMPro;
 using UnityEngine;
 
-namespace UI.Fishing
+namespace UI.RoundHUD
 {
     public sealed class UIHudCounterItem : UIItemBase
     {
