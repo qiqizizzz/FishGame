@@ -34,7 +34,11 @@ namespace Module.Fish
 
         // 低于结算面板（100），高于场景内一切表现
         private const int HUD_SORTING_ORDER = 10;
+        private const int ROUND_HUD_SORTING_ORDER = 20;
         private const int RESULT_SORTING_ORDER = 100;
+
+        // 回合系统还没接上，开场先按第一回合演出
+        private const int FIRST_ROUND = 1;
 
         // ==================== 字段[私有] ====================
         private readonly FishingScene m_scene;
@@ -51,6 +55,7 @@ namespace Module.Fish
         private HookStateMachine m_machine;
         private IFishingStats m_stats;
         private HookViewController m_hook;
+        private UIRoundHUD m_roundHud;
         private SessionResult m_result;
         private bool m_running;
         private float m_maxDepth;
@@ -204,6 +209,16 @@ namespace Module.Fish
             return hud;
         }
 
+        private async UniTask<UIRoundHUD> showRoundHud()
+        {
+            UIRoundHUD roundHud = await GameApp.UIManager.Open<UIRoundHUD>();
+
+            if (roundHud != null && m_disposed)
+                GameApp.UIManager.UnregisterByController(this);
+
+            return roundHud;
+        }
+
         // 视图跟着玩法控制器注册与注销，回主菜单时不会留下悬空面板
         private void registerViews()
         {
@@ -213,6 +228,14 @@ namespace Module.Fish
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = HUD_SORTING_ORDER
+            });
+
+            GameApp.UIManager.Register<UIRoundHUD>(new UIData
+            {
+                Address = UIDefines.UIRoundHUD,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = ROUND_HUD_SORTING_ORDER
             });
 
             GameApp.UIManager.Register<UIResultPanel>(new UIData
@@ -228,6 +251,7 @@ namespace Module.Fish
         private async UniTaskVoid startSession()
         {
             UniTask<UIFishingHUD> hudTask = showHud();
+            UniTask<UIRoundHUD> roundHudTask = showRoundHud();
 
             await m_factory.Prepare(m_scene.SessionConfig.Fishes);
 
@@ -247,7 +271,10 @@ namespace Module.Fish
             m_running = true;
 
             await hudTask;
+            m_roundHud = await roundHudTask;
             publishSceneReady();
+
+            m_roundHud.StartRound(FIRST_ROUND, GamePhase.Fishing);
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
                       $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条");
