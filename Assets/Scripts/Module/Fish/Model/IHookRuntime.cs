@@ -36,6 +36,12 @@ namespace Module.Fish.Model
         /// <summary>钩子当前横向坐标（米）</summary>
         float Horizontal { get; }
 
+        /// <summary>钩尖捕获点横向坐标（米）</summary>
+        float CaptureHorizontal { get; }
+
+        /// <summary>钩尖捕获点深度（米，水面为 0，向下为正）</summary>
+        float CaptureDepth { get; }
+
         /// <summary>井口锚点，回收与待命都回到这里</summary>
         Vector3 HolePosition { get; }
 

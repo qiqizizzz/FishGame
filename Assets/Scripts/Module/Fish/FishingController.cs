@@ -5,9 +5,10 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 每帧顺序固定：采样输入 → 重建空间索引 → 推进状态机 → 钩上鱼跟随 → 流式生成 → 批量驱动行为
-* 状态迁移与判定规则全部收在控制器（见 01 篇 4.3：Controller 是唯一可改 Model 的地方）
+* 状态迁移与判定规则全部收在控制器：Controller 是唯一可改 Model 的地方
 */
 
+using System;
 using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using Framework.QTower;
@@ -45,6 +46,7 @@ namespace Module.Fish
         private readonly FishDetectionService m_detection = new();
         private readonly FishCarryService m_carry = new();
         private readonly List<CatchRecord> m_buffer = new();
+        private readonly Func<FishInstance, bool> m_catchFilter;
 
         private FishFactory m_factory;
         private HookStateMachine m_machine;
@@ -62,6 +64,7 @@ namespace Module.Fish
         public FishingController(FishingScene scene)
         {
             m_scene = scene;
+            m_catchFilter = canCatchFish;
         }
 
         /// <summary>本局已带回水面的鱼数，M3 接 HUD 与结束条件</summary>
@@ -73,11 +76,8 @@ namespace Module.Fish
         /// <summary>当前放线深度（米），HUD 的鱼线行</summary>
         public float Depth => m_hook != null ? m_hook.Depth : 0f;
 
-        /// <summary>钩上已占用的容量点数，HUD 的负载行</summary>
-        public int CarriedPoints => m_carry.UsedPoints;
-
-        /// <summary>本局容量上限，来自下潜属性包</summary>
-        public int CarryCapacity => m_stats != null ? m_stats.CarryCapacity : 0;
+        /// <summary>钩上挂着的鱼数，HUD 的负载行</summary>
+        public int CarriedCount => m_carry.Count;
 
         /// <summary>本局目标捕获数，HUD 计数的分母</summary>
         public int TargetCatchCount => m_scene != null ? m_scene.SessionConfig.TargetCatchCount : 0;
@@ -149,9 +149,10 @@ namespace Module.Fish
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 裁决钩子与周围鱼的一次接触，规则见 01 篇 3.3
+        /// 裁决钩子与周围鱼的一次接触
+        /// 判定取钩尖捕获点而非钩子根节点，回收阶段按鱼身线段接触捕获
         /// </summary>
-        /// <param name="catching">true 为回收阶段的鱼头捕获，false 为下潜阶段的任意接触即失误</param>
+        /// <param name="catching">true 为回收阶段的捕获，false 为下潜阶段的任意接触即失误</param>
         /// <returns>需要进入缠绕态时返回 true</returns>
         public bool ResolveContact(IHookRuntime hook, bool catching)
         {
@@ -160,21 +161,36 @@ namespace Module.Fish
 
             HookConfigSO config = hook.HookConfig;
 
-            if (!m_detection.TryFindTouched(hook.Horizontal, hook.Depth, config.HookRadius, catching, out FishInstance fish))
-                return false;
+            FishInstance fish;
 
-            m_contactCooldown = CONTACT_COOLDOWN;
+            bool found = catching
+                ? m_detection.TryFindTouched(
+                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, true, m_catchFilter, out fish)
+                : m_detection.TryFindTouched(
+                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, false, null, out fish);
+
+            if (!found)
+                return false;
 
             if (fish.Data != null && fish.Data.Rarity == FishRarity.Hazard)
             {
+                m_contactCooldown = CONTACT_COOLDOWN;
                 penalizeHazard(fish);
                 return true;
             }
 
             if (catching)
-                attachFish(fish);
-            else
-                scareFish(fish);
+            {
+                // 没挂上就不吃冷却，钩子继续往上走还能钩住后面的鱼
+                if (!attachFish(fish))
+                    return false;
+
+                m_contactCooldown = CONTACT_COOLDOWN;
+                return false;
+            }
+
+            m_contactCooldown = CONTACT_COOLDOWN;
+            scareFish(fish);
 
             return false;
         }
@@ -237,8 +253,7 @@ namespace Module.Fish
             publishSceneReady();
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
-                      $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条，" +
-                      $"携带容量 {m_stats.CarryCapacity} 点");
+                      $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条");
         }
 
         // 遮罩只认这一个信号：场景侧初始化结束，失败与中途中断同样要发
@@ -263,14 +278,22 @@ namespace Module.Fish
                 settleLanded();
         }
 
-        private void attachFish(FishInstance fish)
+        // 所有鱼都钓得起来，这里只把已经挂在钩子上的排除掉，不再看容量
+        private bool canCatchFish(FishInstance fish)
+        {
+            return fish != null && !fish.IsHooked;
+        }
+
+        private bool attachFish(FishInstance fish)
         {
             CatchRecord record = m_carry.Attach(fish);
 
             if (record == null)
-                return;
+                return false;
 
             EventManager.PublishEvent(EventDefines.FishingFishCaptured, captureInfo(fish, record.AttachedDepth));
+
+            return true;
         }
 
         private void scareFish(FishInstance fish)
@@ -319,7 +342,7 @@ namespace Module.Fish
                 finishSession();
         }
 
-        // 收益公式见 01 篇 3.5：档位倍率 × 深度加成 × 同一次回收的连击倍率
+        // 收益公式：档位倍率 × 深度加成 × 同一次回收的连击倍率
         // Unload 是从最外侧往回塞的，倒着遍历才拿到真实的入钩顺序
         private void scoreLandedFish()
         {

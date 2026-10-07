@@ -4,7 +4,7 @@
 * │  类    名: FishAiService.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 见 01 篇第九章：鱼数量大时 Update 峰值是性能风险，统一由本服务一帧遍历一次
+* 鱼数量大时 Update 峰值是性能风险，统一由本服务一帧遍历一次
 */
 
 using System.Collections.Generic;

@@ -101,12 +101,12 @@ namespace UI.Fishing
                 m_lineCounter.SetValue($"{depth} m");
             }
 
-            int load = m_controller.CarriedPoints;
+            int load = m_controller.CarriedCount;
 
             if (load != m_lastLoad)
             {
                 m_lastLoad = load;
-                m_loadCounter.SetValue($"{load} / {m_controller.CarryCapacity}");
+                m_loadCounter.SetValue($"{load} 条");
             }
         }
 

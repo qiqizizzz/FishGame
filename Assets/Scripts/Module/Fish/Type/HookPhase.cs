@@ -9,7 +9,7 @@
 namespace Module.Fish.Type
 {
     /// <summary>
-    /// 钩子所处阶段，取值顺序与主设计文档 3.2 的状态机图一致
+    /// 钩子所处阶段，取值顺序与状态机流程一致
     /// </summary>
     public enum HookPhase
     {

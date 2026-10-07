@@ -4,7 +4,7 @@
 * │  类    名: IInputProvider.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 见 01 篇第九章：工程未装 Input System，先用旧 Input Manager 实现，接口留着日后换
+* 工程未装 Input System，先用旧 Input Manager 实现，接口留着日后换
 */
 
 using UnityEngine;

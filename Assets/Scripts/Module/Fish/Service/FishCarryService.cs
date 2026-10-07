@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 钩上负载服务，管容量校验、挂鱼跟随与受罚脱钩
+* │  描    述: 钩上负载服务，管挂鱼登记、挂鱼跟随与受罚脱钩
 * │  类    名: FishCarryService.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -26,7 +26,6 @@ namespace Module.Fish.Service
         private const float SWAY_RATIO = 0.34f;
         private const float MAX_SWAY = 0.55f;
         private const float HANG_TILT_DEGREES = 14f;
-        private const int MAX_CARRIED = 6;
 
         private readonly List<CatchRecord> m_carried = new();
 
@@ -52,14 +51,12 @@ namespace Module.Fish.Service
         }
 
         /// <summary>
-        /// 能否再挂这条鱼：容量够、没挂过、没到条数上限
+        /// 能否再挂这条鱼：只要求鱼还活着且没挂过
+        /// 容量上限与条数上限都已取消，能钓多深由鱼线长度决定，钩上不封顶
         /// </summary>
         public bool CanAttach(FishInstance fish)
         {
-            if (fish == null || fish.IsHooked || m_carried.Count >= MAX_CARRIED)
-                return false;
-
-            return UsedPoints + carryCost(fish) <= m_stats.CarryCapacity;
+            return fish != null && !fish.IsHooked && fish.IsAlive;
         }
 
         /// <summary>

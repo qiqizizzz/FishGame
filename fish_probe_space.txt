@@ -1,0 +1,11 @@
+=== HIERARCHY / SPACE PROBE 2 ===
+HOOK path=World/Hook localPos=(0.0000,-1.0000,-1.5000) localScale=(1.0000,1.0000,1.0000) lossy=(1.0000,1.0000,1.0000)
+HOOK parent path=World localPos=(0.0000,0.0000,0.0000) localScale=(1.0000,1.0000,1.0000)
+FISHROOT path=World/FishRoot localPos=(0.0000,0.0000,-0.8000) localScale=(1.0000,1.0000,1.0000) lossy=(1.0000,1.0000,1.0000)
+FISHROOT parent path=World localPos=(0.0000,0.0000,0.0000) localScale=(1.0000,1.0000,1.0000)
+PARENT POS DIFF=(0.0000,0.0000,0.0000)
+FISHROOT children=0
+LURE path=World/Hook/Lure localPos=(0.0000,0.0000,0.0000) localScale=(2.4600,2.4600,2.4600)
+LURE MATH size=(0.0970,0.5995,0.1199) cRelRoot=(0.0000,-0.0572,-0.0020) bottomY=-0.3569 n=1
+LURE LAZY  size=(0.0970,0.5995,0.1199) cRelRoot=(0.0000,-0.0572,-0.0020) bottomY=-0.3569
+CAM pos=(0.0000,2.0500,-20.0000) orthoSize=4.500

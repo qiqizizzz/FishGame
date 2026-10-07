@@ -1,0 +1,10 @@
+Angelfish|神仙鱼|anchor=0|len=0.8200|gameH=0.5381|lazyZ=0.3000|lazyY=0.1969|scale=2.7333
+Anglerfish|鮟鱇鱼|anchor=12|len=1.2900|gameH=0.7703|lazyZ=0.7000|lazyY=0.4180|scale=1.8429
+Bass|鲈鱼|anchor=24|len=1.4400|gameH=0.6427|lazyZ=0.8000|lazyY=0.3570|scale=1.8000
+Clownfish|小丑鱼|anchor=36|len=0.7000|gameH=0.3438|lazyZ=0.2200|lazyY=0.1080|scale=3.1818
+Goldfish|金鱼|anchor=48|len=0.7200|gameH=0.3482|lazyZ=0.2400|lazyY=0.1161|scale=3.0000
+Oarfish|桨鱼|anchor=60|len=1.9000|gameH=0.3745|lazyZ=1.3000|lazyY=0.2562|scale=1.4615
+Pufferfish|河豚|anchor=72|len=1.4000|gameH=0.9307|lazyZ=0.9000|lazyY=0.5983|scale=1.5556
+SuperdwarfFish|极小杂鱼|anchor=84|len=0.3000|gameH=0.0932|lazyZ=0.1000|lazyY=0.0311|scale=3.0000
+Tuna|金枪鱼|anchor=96|len=2.4900|gameH=1.1351|lazyZ=1.8000|lazyY=0.8205|scale=1.3833
+YellowBoxfish|黄箱鲀|anchor=108|len=1.0100|gameH=0.3924|lazyZ=0.4500|lazyY=0.1748|scale=2.2444

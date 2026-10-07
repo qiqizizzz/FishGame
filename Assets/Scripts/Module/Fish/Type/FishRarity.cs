@@ -4,7 +4,7 @@
  * │  类    名: FishRarity.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
- * 与 03 篇的 ItemQuality 是两套语义，禁止复用同一个枚举，靠映射表关联
+ * 与道具品质枚举是两套语义，禁止复用同一个枚举，靠映射表关联
  */
 
 namespace Module.Fish.Type

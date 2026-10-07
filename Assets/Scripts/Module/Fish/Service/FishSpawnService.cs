@@ -294,6 +294,7 @@ namespace Module.Fish.Service
         {
             float length = data.DisplayLength;
             float height = m_factory.DisplayHeight(data);
+            Vector4 bodyBox = m_factory.GetBodyBox(data);
 
             if (!resolveFreeSpot(ref x, ref depth, offset.y, length, height))
                 return false;
@@ -311,6 +312,8 @@ namespace Module.Fish.Service
                 Behavior = data.Behavior,
                 BaseDepth = depth,
                 DisplayHeight = height,
+                BodyHalf = new Vector2(bodyBox.x, bodyBox.y),
+                BodyOffset = new Vector2(bodyBox.z, bodyBox.w),
                 X = x,
                 Depth = depth,
                 Direction = direction,

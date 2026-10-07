@@ -1,0 +1,41 @@
+=== PROBE D full report ===
+神仙鱼 (Angelfish) rootScl=0.990 meas=(0.30,0.20) dspScl=2.733 rend=1 [SubMesh_0,]
+    ASSUMED len=0.820 h=0.538 off=(0.000,0.000)
+    REAL1ST len=0.373 h=1.486 off=(0.000,136.557) errLen=-55% errH=176%
+    REALALL len=0.373 h=1.486 off=(0.000,136.557)
+鮟鱇鱼 (Anglerfish) rootScl=0.940 meas=(0.70,0.42) dspScl=1.843 rend=1 [SubMesh_0,]
+    ASSUMED len=1.290 h=0.770 off=(0.000,0.000)
+    REAL1ST len=1.174 h=1.510 off=(0.000,92.166) errLen=-9% errH=96%
+    REALALL len=1.174 h=1.510 off=(0.000,92.166)
+鲈鱼 (Bass) rootScl=0.867 meas=(0.80,0.36) dspScl=1.800 rend=1 [SubMesh_0,]
+    ASSUMED len=1.440 h=0.643 off=(0.000,0.000)
+    REAL1ST len=0.548 h=1.334 off=(0.000,89.966) errLen=-62% errH=108%
+    REALALL len=0.548 h=1.334 off=(0.000,89.966)
+小丑鱼 (Clownfish) rootScl=0.994 meas=(0.22,0.11) dspScl=3.182 rend=1 [SubMesh_0,]
+    ASSUMED len=0.700 h=0.344 off=(0.000,0.000)
+    REAL1ST len=0.538 h=1.101 off=(0.000,159.047) errLen=-23% errH=220%
+    REALALL len=0.538 h=1.101 off=(0.000,159.047)
+金鱼 (Goldfish) rootScl=1.034 meas=(0.24,0.12) dspScl=3.000 rend=1 [SubMesh_0,]
+    ASSUMED len=0.720 h=0.348 off=(0.000,0.000)
+    REAL1ST len=0.467 h=1.011 off=(0.000,149.938) errLen=-35% errH=190%
+    REALALL len=0.467 h=1.011 off=(0.000,149.938)
+桨鱼 (Oarfish) rootScl=0.813 meas=(1.30,0.26) dspScl=1.462 rend=1 [SubMesh_0,]
+    ASSUMED len=1.900 h=0.374 off=(0.000,0.000)
+    REAL1ST len=0.286 h=0.673 off=(0.000,73.201) errLen=-85% errH=80%
+    REALALL len=0.286 h=0.673 off=(0.000,73.201)
+河豚 (Pufferfish) rootScl=1.038 meas=(0.90,0.60) dspScl=1.556 rend=1 [SubMesh_0,]
+    ASSUMED len=1.400 h=0.931 off=(0.000,0.000)
+    REAL1ST len=1.531 h=1.395 off=(0.000,77.821) errLen=9% errH=50%
+    REALALL len=1.531 h=1.395 off=(0.000,77.821)
+极小杂鱼 (SuperdwarfFish) rootScl=2.283 meas=(0.10,0.03) dspScl=3.000 rend=1 [SubMesh_0,]
+    ASSUMED len=0.300 h=0.093 off=(0.000,0.000)
+    REAL1ST len=0.050 h=0.122 off=(0.000,150.008) errLen=-83% errH=31%
+    REALALL len=0.050 h=0.122 off=(0.000,150.008)
+金枪鱼 (Tuna) rootScl=0.655 meas=(1.80,0.82) dspScl=1.383 rend=1 [SubMesh_0,]
+    ASSUMED len=2.490 h=1.135 off=(0.000,0.000)
+    REAL1ST len=1.208 h=2.396 off=(0.000,69.295) errLen=-52% errH=111%
+    REALALL len=1.208 h=2.396 off=(0.000,69.295)
+黄箱鲀 (YellowBoxfish) rootScl=0.997 meas=(0.45,0.17) dspScl=2.244 rend=1 [SubMesh_0,]
+    ASSUMED len=1.010 h=0.392 off=(0.000,0.000)
+    REAL1ST len=0.925 h=0.883 off=(0.000,112.257) errLen=-8% errH=125%
+    REALALL len=0.925 h=0.883 off=(0.000,112.257)

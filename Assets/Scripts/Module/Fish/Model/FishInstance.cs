@@ -27,6 +27,12 @@ namespace Module.Fish.Model
         /// <summary>缩放后的屏幕显示高度（米），鱼串间距与防重叠判定用</summary>
         public float DisplayHeight;
 
+        /// <summary>真实渲染盒半尺寸（米），x 沿鱼头方向、y 为竖直，捕获判定以此为准</summary>
+        public Vector2 BodyHalf;
+
+        /// <summary>真实渲染盒中心相对根节点的偏移（米），x 沿鱼头方向、y 向上为正</summary>
+        public Vector2 BodyOffset;
+
         /// <summary>当前横向坐标（米）</summary>
         public float X;
 

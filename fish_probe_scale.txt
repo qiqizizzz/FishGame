@@ -1,0 +1,11 @@
+=== PROBE SCALE: root localScale discarded by Spawn? ===
+angelfish| len=0.8200 rootScl=(0.9900,0.9900,0.9900) lazyZ=0.3000 dspScl=2.7333 || CURRENT real=(0.8283 x 0.5435) off=(-0.0105,-0.0403) ratio=1.0101 || FIXED real=(0.8200 x 0.5381) off=(-0.0103,-0.0399) || codeAssumed=(0.8200 x 0.5381)
+anglerfish| len=1.2900 rootScl=(0.9398,0.9398,0.9398) lazyZ=0.7000 dspScl=1.8429 || CURRENT real=(1.3726 x 0.8196) off=(0.0922,0.0128) ratio=1.0640 || FIXED real=(1.2900 x 0.7703) off=(0.0867,0.0120) || codeAssumed=(1.2900 x 0.7703)
+bass| len=1.4400 rootScl=(0.8670,0.8670,0.8670) lazyZ=0.8000 dspScl=1.8000 || CURRENT real=(1.6609 x 0.7413) off=(0.0022,-0.0188) ratio=1.1534 || FIXED real=(1.4400 x 0.6427) off=(0.0019,-0.0163) || codeAssumed=(1.4400 x 0.6427)
+clownfish| len=0.7000 rootScl=(0.9936,0.9936,0.9936) lazyZ=0.2200 dspScl=3.1818 || CURRENT real=(0.7045 x 0.3460) off=(-0.0636,-0.0139) ratio=1.0065 || FIXED real=(0.7000 x 0.3438) off=(-0.0632,-0.0138) || codeAssumed=(0.7000 x 0.3438)
+goldfish| len=0.7200 rootScl=(1.0335,1.0335,1.0335) lazyZ=0.2400 dspScl=3.0000 || CURRENT real=(0.6967 x 0.3369) off=(-0.0762,-0.0206) ratio=0.9676 || FIXED real=(0.7200 x 0.3482) off=(-0.0788,-0.0213) || codeAssumed=(0.7200 x 0.3482)
+oarfish| len=1.9000 rootScl=(0.8131,0.8131,0.8131) lazyZ=1.3000 dspScl=1.4615 || CURRENT real=(2.3366 x 0.4605) off=(0.0096,0.0848) ratio=1.2298 || FIXED real=(1.9000 x 0.3745) off=(0.0078,0.0690) || codeAssumed=(1.9000 x 0.3745)
+pufferfish| len=1.4000 rootScl=(1.0380,1.0380,1.0380) lazyZ=0.9000 dspScl=1.5556 || CURRENT real=(1.3488 x 0.8966) off=(-0.1980,0.0279) ratio=0.9634 || FIXED real=(1.4000 x 0.9307) off=(-0.2055,0.0290) || codeAssumed=(1.4000 x 0.9307)
+superdwarfish| PREFAB NOT FOUND
+tuna| len=2.4900 rootScl=(0.6554,0.6554,0.6554) lazyZ=1.8000 dspScl=1.3833 || CURRENT real=(3.7995 x 1.7320) off=(-0.0302,0.0925) ratio=1.5259 || FIXED real=(2.4900 x 1.1351) off=(-0.0198,0.0606) || codeAssumed=(2.4900 x 1.1351)
+yellowboxfish| len=1.0100 rootScl=(0.9969,0.9969,0.9969) lazyZ=0.4500 dspScl=2.2444 || CURRENT real=(1.0131 x 0.3936) off=(-0.0795,0.0155) ratio=1.0031 || FIXED real=(1.0100 x 0.3924) off=(-0.0793,0.0155) || codeAssumed=(1.0100 x 0.3924)

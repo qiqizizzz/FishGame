@@ -6,8 +6,11 @@
 * └──────────────────────────────────┘
 * 井道是窄竖屏，鱼在纵向上天然分散、横向上几乎重叠，所以一维深度分桶就够把每帧检测
 * 从「全场鱼数」压到「附近三桶」，比上二维网格少一半内存与重建开销
+* 判定盒用工厂实测的真实渲染盒：屏幕上鱼身画到哪里，钩尖就能在哪里挂上，
+* 换成配置体长凑的盒子会比画面小，大鱼头尾各差几十厘米，看着勾中却直接穿过去
 */
 
+using System;
 using System.Collections.Generic;
 using Module.Fish.Model;
 using UnityEngine;
@@ -19,6 +22,10 @@ namespace Module.Fish.Service
         private const float BUCKET_SIZE = 2f;
         private const int BUCKET_COUNT = 64;
         private const float MAX_QUERY_RADIUS = 1.6f;
+        // 渲染盒之外再留的容差（米），极小杂鱼只有十几厘米，一点容差都不留会点不中
+        private const float TOUCH_TOLERANCE = 0.1f;
+        // 没有实测盒时按体长的三成估半高，别让判定塌成一条线
+        private const float FALLBACK_HEIGHT_RATIO = 0.3f;
 
         private readonly List<FishInstance>[] m_buckets = new List<FishInstance>[BUCKET_COUNT];
 
@@ -53,11 +60,22 @@ namespace Module.Fish.Service
         /// <summary>
         /// 取与钩子接触到的最近一条鱼
         /// </summary>
-        /// <param name="headOnly">true 只认鱼头接触（回收捕获），false 鱼身任意接触都算（下潜误触、河豚）</param>
-        public bool TryFindTouched(float x, float depth, float hookRadius, bool headOnly, out FishInstance touched)
+        /// <param name="catching">true 为回收捕获，false 为下潜误触</param>
+        public bool TryFindTouched(float x, float depth, float hookRadius, bool catching, out FishInstance touched)
+        {
+            return TryFindTouched(x, depth, hookRadius, catching, null, out touched);
+        }
+
+        /// <summary>
+        /// 取与钩子接触到的最近一条鱼，filter 用于跳过已上钩等不可捕获目标
+        /// </summary>
+        /// <param name="catching">true 为回收捕获，false 为下潜误触</param>
+        public bool TryFindTouched(float x, float depth, float hookRadius, bool catching,
+            Func<FishInstance, bool> filter, out FishInstance touched)
         {
             touched = null;
 
+            float reach = hookRadius + TOUCH_TOLERANCE;
             float bestDistance = float.MaxValue;
             int center = bucketIndexOf(depth);
             int span = Mathf.CeilToInt(MAX_QUERY_RADIUS / BUCKET_SIZE) + 1;
@@ -72,9 +90,13 @@ namespace Module.Fish.Service
                 for (int i = 0; i < fishes.Count; i++)
                 {
                     FishInstance fish = fishes[i];
-                    float distance = TouchDistance(x, depth, fish, headOnly);
 
-                    if (distance > TouchRadius(fish, hookRadius) || distance >= bestDistance)
+                    if (filter != null && !filter(fish))
+                        continue;
+
+                    float distance = TouchDistance(x, depth, fish);
+
+                    if (distance > reach || distance >= bestDistance)
                         continue;
 
                     bestDistance = distance;
@@ -85,23 +107,46 @@ namespace Module.Fish.Service
             return touched != null;
         }
 
-        // 钩子到鱼的有效距离：headOnly 按鱼头点算，否则按鱼身中心算
-        public static float TouchDistance(float x, float depth, FishInstance fish, bool headOnly)
+        /// <summary>
+        /// 钩尖到鱼身渲染盒的最短距离，落在盒内时为 0
+        /// </summary>
+        public static float TouchDistance(float x, float depth, FishInstance fish)
         {
-            float length = fish.Data != null ? fish.Data.DisplayLength : 1f;
-            float targetX = headOnly ? fish.X + fish.Direction * length * 0.5f : fish.X;
-            float dx = x - targetX;
-            float dy = depth - fish.Depth;
+            resolveBox(fish, out float centerX, out float centerDepth, out float halfX, out float halfY);
+
+            float dx = Mathf.Max(0f, Mathf.Abs(x - centerX) - halfX);
+            float dy = Mathf.Max(0f, Mathf.Abs(depth - centerDepth) - halfY);
 
             return Mathf.Sqrt(dx * dx + dy * dy);
         }
 
-        // 该鱼的有效接触半径，鱼越大越容易蹭到
+        /// <summary>
+        /// 该鱼的有效接触半径：钩尖半径加固定容差，盒子本身已经提供了鱼身范围
+        /// </summary>
         public static float TouchRadius(FishInstance fish, float hookRadius)
         {
-            float length = fish.Data != null ? fish.Data.DisplayLength : 1f;
+            return hookRadius + TOUCH_TOLERANCE;
+        }
 
-            return hookRadius + length * 0.4f;
+        // 把渲染盒换算到判定平面：盒心不在根节点上，横向偏移沿鱼头方向、竖向偏移向上为正
+        private static void resolveBox(FishInstance fish, out float centerX, out float centerDepth,
+            out float halfX, out float halfY)
+        {
+            Vector2 half = fish.BodyHalf;
+            Vector2 offset = fish.BodyOffset;
+
+            if (half.x <= 0f || half.y <= 0f)
+            {
+                float length = fish.Data != null ? fish.Data.DisplayLength : TOUCH_TOLERANCE * 2f;
+                float height = fish.DisplayHeight > 0f ? fish.DisplayHeight : length * FALLBACK_HEIGHT_RATIO;
+
+                half = new Vector2(length * 0.5f, Mathf.Max(height * 0.5f, TOUCH_TOLERANCE));
+            }
+
+            centerX = fish.X + fish.Direction * offset.x;
+            centerDepth = fish.Depth - offset.y;
+            halfX = half.x;
+            halfY = half.y;
         }
 
         private static int bucketIndexOf(float depth)

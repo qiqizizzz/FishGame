@@ -27,6 +27,10 @@ namespace Module.Fish.View
         [Tooltip("每屏幕像素折算的世界米数，大于 0 时覆盖自动换算")]
         [SerializeField, Min(0f)] private float PixelsToMetersOverride;
 
+        [Header("捕获判定")]
+        [Tooltip("实际参与捕获判定的钩尖节点，留空时自动查找名为 Lure 的子节点")]
+        [SerializeField] private Transform HookTip;
+
         // ==================== 属性 ====================
         public HookConfigSO HookConfig => m_hookConfig;
 
@@ -43,6 +47,10 @@ namespace Module.Fish.View
         public float Depth => -m_transform.localPosition.y;
 
         public float Horizontal => m_transform.localPosition.x;
+
+        public float CaptureHorizontal => Horizontal + m_captureOffset.x;
+
+        public float CaptureDepth => Depth - m_captureOffset.y;
 
         public Vector3 HolePosition => HoleAnchorPosition;
 
@@ -63,6 +71,7 @@ namespace Module.Fish.View
         private IFishingEncounter m_encounter;
         private HookStateMachine m_machine;
         private float m_pixelsToMeters = 1f;
+        private Vector3 m_captureOffset;
         private bool m_isPressing;
 
         // ==================== 生命周期 ====================
@@ -70,6 +79,7 @@ namespace Module.Fish.View
         {
             m_transform = transform;
             m_pixelsToMeters = setupPixelsToMeters();
+            m_captureOffset = setupCaptureOffset();
         }
 
         // ==================== Public Function ====================
@@ -126,6 +136,48 @@ namespace Module.Fish.View
         }
 
         // 竖屏正交镜头下，横向像素到世界米数与纵向同比例，按相机高度换算即可
+        // 以钩尖模型最低点作为捕获点，避免根节点中心仍高于鱼身时视觉上已经钩中但判定未触发
+        // 偏移必须换算到父级空间：Depth 与 Horizontal 取的是 localPosition，父级缩放与钩子缩放都不能漏掉
+        private Vector3 setupCaptureOffset()
+        {
+            if (HookTip == null)
+                HookTip = transform.Find("Lure");
+
+            if (HookTip == null)
+            {
+#if UNITY_EDITOR
+                Debug.LogError($"[{nameof(HookViewController)}] 未找到 Lure 子节点，捕获点退回钩子根节点");
+#endif
+                return Vector3.zero;
+            }
+
+            Renderer[] renderers = HookTip.GetComponentsInChildren<Renderer>(true);
+
+            if (renderers.Length == 0)
+            {
+#if UNITY_EDITOR
+                Debug.LogError($"[{nameof(HookViewController)}] Lure 下未找到 Renderer，捕获点退回钩子根节点");
+#endif
+                return Vector3.zero;
+            }
+
+            Bounds bounds = renderers[0].bounds;
+
+            for (int i = 1; i < renderers.Length; i++)
+                bounds.Encapsulate(renderers[i].bounds);
+
+            Vector3 hookTipPoint = new Vector3(
+                (bounds.min.x + bounds.max.x) * 0.5f,
+                bounds.min.y,
+                bounds.center.z);
+
+            Vector3 tipInParent = transform.parent != null
+                ? transform.parent.InverseTransformPoint(hookTipPoint)
+                : hookTipPoint;
+
+            return tipInParent - m_transform.localPosition;
+        }
+
         private float setupPixelsToMeters()
         {
             if (PixelsToMetersOverride > 0f)

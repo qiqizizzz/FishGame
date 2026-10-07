@@ -653,6 +653,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   HoleAnchorPosition: {x: 0, y: 0, z: -1.5}
   PixelsToMetersOverride: 0
+  HookTip: {fileID: 0}
 --- !u!1 &339215963
 GameObject:
   m_ObjectHideFlags: 0
