@@ -108,3 +108,6 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Codex 临时产物（调试截图 / 恢复参考图 / 验证图），不进版本库
+/.codex/tmp/
