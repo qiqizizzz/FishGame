@@ -14,8 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ShaftDepthMeters: 100
   ShaftHalfWidthMeters: 2.5
-  TargetCoinValue: 500
-  ReelToleranceCount: 2
+  RoundDivesCount: 3
+  BaseRoundTargetValue: 250
+  TargetGrowthFactor: 1.8
   FishPool:
   - {fileID: 11400000, guid: 77f718af62836ed4f9848b1ac377c89f, type: 2}
   - {fileID: 11400000, guid: a3a28879fc62e8f4091704ce316f58aa, type: 2}

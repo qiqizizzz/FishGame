@@ -19,7 +19,6 @@ namespace Framework.QTower.Common.Defines
         public const string FishingPhaseChanged = "FishingPhaseChanged";
         public const string FishingFishCaptured = "FishingFishCaptured";
         public const string FishingPenaltyApplied = "FishingPenaltyApplied";
-        public const string FishingSessionEnded = "FishingSessionEnded";
         public const string FishingSessionRestartRequested = "FishingSessionRestartRequested";
         public const string FishingSceneReady = "FishingSceneReady";
     }

@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 钓鱼 HUD，显示渔获价值/放线深度/钩上负载与当前阶段
+* │  描    述: 钓鱼 HUD，显示回合渔获/剩余下潜/放线深度/钩上负载与当前阶段
 * │  类    名: UIFishingHUD.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -23,6 +23,7 @@ namespace UI.RoundHUD
     {
         private const string PANEL_PATH = "Panel_Counters";
         private const string ROW_HOOK_PATH = "Panel_Counters/Row_Hook";
+        private const string ROW_DIVE_PATH = "Panel_Counters/Row_Dive";
         private const string ROW_LINE_PATH = "Panel_Counters/Row_Line";
         private const string ROW_LOAD_PATH = "Panel_Counters/Row_Load";
         private const string PHASE_TEXT_PATH = "Txt_Phase";
@@ -37,9 +38,13 @@ namespace UI.RoundHUD
         private TMP_Text m_phaseText;
         private UIHudCounterItem m_valueCounter;
         private UIHudCounterItem m_lineCounter;
+        private UIHudCounterItem m_diveCounter;
         private UIHudCounterItem m_loadCounter;
 
         private int m_lastCoins = -1;
+        private int m_lastCoinsGoal = -1;
+        private int m_lastDivesLeft = -1;
+        private int m_lastDivesTotal = -1;
         private int m_lastDepth = -1;
         private int m_lastLoad = -1;
         private int m_lastLoadCeiling = -1;
@@ -51,6 +56,7 @@ namespace UI.RoundHUD
             m_panelImage = FindComponent<Image>(PANEL_PATH);
             m_phaseText = FindComponent<TMP_Text>(PHASE_TEXT_PATH);
             m_valueCounter = bindCounter(ROW_HOOK_PATH, "渔获");
+            m_diveCounter = bindCounter(ROW_DIVE_PATH, "下潜");
             m_lineCounter = bindCounter(ROW_LINE_PATH, "鱼线");
             m_loadCounter = bindCounter(ROW_LOAD_PATH, "负载");
 
@@ -64,7 +70,8 @@ namespace UI.RoundHUD
         {
             m_panelImage.color = PANEL_BASE_COLOR;
             m_flashEndTime = -1f;
-            m_lastCoins = m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
+            m_lastCoins = m_lastCoinsGoal = m_lastDivesLeft = m_lastDivesTotal =
+                m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
         }
 
         protected override void SubscribeViewEvents()
@@ -86,12 +93,24 @@ namespace UI.RoundHUD
         // ==================== Private Function ====================
         private void refreshCounters()
         {
-            int coins = m_controller.TotalCoins;
+            int coins = m_controller.RoundValue;
+            int goal = m_controller.RoundTarget;
 
-            if (coins != m_lastCoins)
+            if (coins != m_lastCoins || goal != m_lastCoinsGoal)
             {
                 m_lastCoins = coins;
-                m_valueCounter.SetValue($"{coins} / {m_controller.TargetCoins}");
+                m_lastCoinsGoal = goal;
+                m_valueCounter.SetValue($"{coins} / {goal}");
+            }
+
+            int divesLeft = m_controller.DivesRemaining;
+            int divesTotal = m_controller.DivesPerRound;
+
+            if (divesLeft != m_lastDivesLeft || divesTotal != m_lastDivesTotal)
+            {
+                m_lastDivesLeft = divesLeft;
+                m_lastDivesTotal = divesTotal;
+                m_diveCounter.SetValue($"{divesLeft} / {divesTotal}");
             }
 
             int depth = (int)m_controller.Depth;

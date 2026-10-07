@@ -37,9 +37,6 @@ namespace Module.Fish
         private const int ROUND_HUD_SORTING_ORDER = 20;
         private const int RESULT_SORTING_ORDER = 100;
 
-        // 回合系统还没接上，开场先按第一回合演出
-        private const int FIRST_ROUND = 1;
-
         // ==================== 字段[私有] ====================
         private readonly FishingScene m_scene;
         private readonly MouseInputProvider m_input = new();
@@ -56,11 +53,10 @@ namespace Module.Fish
         private IFishingStats m_stats;
         private HookViewController m_hook;
         private UIRoundHUD m_roundHud;
-        private SessionResult m_result;
+        private RunState m_run;
         private bool m_running;
         private float m_maxDepth;
         private bool m_phasePublished;
-        private int m_totalCatch;
         private HookPhase m_lastPhase = HookPhase.Idle;
         private bool m_disposed;
 
@@ -71,12 +67,18 @@ namespace Module.Fish
             m_scareFilter = canScareFish;
         }
 
-        /// <summary>本局已带回水面的鱼数，结算面板展示条数用，不再作为结束条件</summary>
-        public int TotalCatch => m_totalCatch;
+        /// <summary>本回合累计渔获价值（金币），HUD 渔获行的分子；
+        /// HUD 在预加载阶段就会刷新，此时 run 尚未创建，故允许判空</summary>
+        public int RoundValue => m_run != null ? m_run.RoundValue : 0;
 
-        /// <summary>本局累计渔获价值（金币），HUD 进度行与结束条件取这里；
-        /// HUD 在预加载阶段就会刷新，此时 result 尚未创建，故允许判空</summary>
-        public int TotalCoins => m_result != null ? m_result.TotalCoins : 0;
+        /// <summary>本回合目标渔获价值（金币），HUD 渔获行的分母</summary>
+        public int RoundTarget => m_run != null ? m_run.RoundTarget : 0;
+
+        /// <summary>本回合还能潜几次，HUD 下潜行的分子</summary>
+        public int DivesRemaining => m_run != null ? m_run.DivesRemaining : 0;
+
+        /// <summary>每回合的固定下潜次数，HUD 下潜行的分母</summary>
+        public int DivesPerRound => m_run != null ? m_run.DivesPerRound : 0;
 
         /// <summary>当前钩上负载，HUD 画鱼串取这里</summary>
         public IReadOnlyList<CatchRecord> Carried => m_carry.Carried;
@@ -89,9 +91,6 @@ namespace Module.Fish
 
         /// <summary>钩上可挂的鱼条数上限，HUD 负载行的分母</summary>
         public int MaxCarryCount => m_carry.Capacity;
-
-        /// <summary>本局目标渔获价值（金币），HUD 进度行的分母</summary>
-        public int TargetCoins => m_scene != null ? m_scene.SessionConfig.TargetCoins : 0;
 
         // ==================== 生命周期 ====================
         protected override void OnInit()
@@ -117,7 +116,8 @@ namespace Module.Fish
             m_hook.Initialize(m_scene.HookConfig, m_scene.SessionConfig, m_stats, m_machine, this);
             m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
 
-            startSession().Forget();
+            m_run = newRun();
+            startRun().Forget();
         }
 
         protected override void OnDestroy()
@@ -130,7 +130,7 @@ namespace Module.Fish
 
         protected override void RegisterModuleEvent()
         {
-            RegisterEvent(EventDefines.FishingSessionRestartRequested, restartSession);
+            RegisterEvent(EventDefines.FishingSessionRestartRequested, restartRun);
         }
 
         public override void Tick(float deltaTime)
@@ -247,8 +247,16 @@ namespace Module.Fish
             });
         }
 
+        // 每回合下潜次数与回合目标曲线都取自会话配置，重开也走这里
+        private RunState newRun()
+        {
+            FishingSessionConfigSO config = m_scene.SessionConfig;
+
+            return new RunState(config.DivesPerRound, config.BaseRoundTarget, config.RoundTargetGrowth);
+        }
+
         // HUD 与鱼 prefab 同时发起，两条都完成才向遮罩放行，避免遮罩收了 HUD 才蹦出来
-        private async UniTaskVoid startSession()
+        private async UniTaskVoid startRun()
         {
             UniTask<UIFishingHUD> hudTask = showHud();
             UniTask<UIRoundHUD> roundHudTask = showRoundHud();
@@ -263,7 +271,6 @@ namespace Module.Fish
             }
 
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
-            m_result = new SessionResult(TargetCoins);
             m_spawn.BeginSession(m_scene.SessionConfig, m_scene.RarityTable, m_stats, m_factory,
                 m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
 
@@ -274,7 +281,7 @@ namespace Module.Fish
             m_roundHud = await roundHudTask;
             publishSceneReady();
 
-            m_roundHud.StartRound(FIRST_ROUND, GamePhase.Fishing);
+            m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
                       $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条");
@@ -290,15 +297,17 @@ namespace Module.Fish
         private void publishPhaseChanged()
         {
             HookPhase phase = m_machine.Phase;
+            bool phaseChanged = !m_phasePublished || phase != m_lastPhase;
 
-            if (!m_phasePublished || phase != m_lastPhase)
+            if (phaseChanged)
             {
                 m_lastPhase = phase;
                 m_phasePublished = true;
                 EventManager.PublishEvent(EventDefines.FishingPhaseChanged, phase);
             }
 
-            if (phase == HookPhase.Landed)
+            // 出水会停 0.35 秒，只有刚进入的那一帧才结算，否则一次下潜要扣掉二十次
+            if (phaseChanged && phase == HookPhase.Landed)
                 settleLanded();
         }
 
@@ -355,28 +364,33 @@ namespace Module.Fish
             EventManager.PublishEvent(EventDefines.FishingPenaltyApplied, PenaltyType.Pufferfish);
         }
 
-        // 出水：先算收益再回池，钩上的鱼计入本局收获，脱钩的鱼已经自行游走
+        // 出水：先算收益再回池，钩上的鱼计入本回合收获，脱钩的鱼已经自行游走
+        // 空手而出照样扣一次下潜，否则反复起竿就能无限刷回合次数
         private void settleLanded()
         {
             m_carry.Unload(m_buffer);
 
-            if (m_buffer.Count == 0)
-                return;
+            DiveResult dive = new();
 
-            scoreLandedFish();
-            recycleLandedFish();
+            if (m_buffer.Count > 0)
+            {
+                scoreLandedFish(dive);
+                recycleLandedFish();
+            }
 
-            m_totalCatch += m_buffer.Count;
-            QLog.Info($"[{nameof(FishingController)}] 本次出水带回 {m_buffer.Count} 条，累计 {m_totalCatch} 条");
+            m_run.SubmitDive(dive, m_maxDepth);
             m_buffer.Clear();
 
-            if (m_result.TotalCoins >= TargetCoins)
-                finishSession();
+            QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合第 {m_run.DivesUsed} 潜带回 {dive.FishCount} 条，" +
+                      $"本回合累计 {m_run.RoundValue}/{m_run.RoundTarget}，剩余下潜 {m_run.DivesRemaining} 次");
+
+            if (m_run.IsRoundOver)
+                handleRoundEnd();
         }
 
         // 收益公式：鱼种标价 × 深度加成 × 同一次回收的连击倍率
         // Unload 是从最外侧往回塞的，倒着遍历才拿到真实的入钩顺序
-        private void scoreLandedFish()
+        private void scoreLandedFish(DiveResult dive)
         {
             FishingSessionConfigSO session = m_scene.SessionConfig;
             float depthNorm = session.ShaftDepth > 0f ? 1f / session.ShaftDepth : 0f;
@@ -395,7 +409,7 @@ namespace Module.Fish
                 float combo = 1f + comboIndex * session.ComboStep;
                 float depthBonus = 1f + Mathf.Clamp01(record.AttachedDepth * depthNorm) * session.DepthBonusScale;
 
-                m_result.Add(new FishScoreItem
+                dive.Add(new FishScoreItem
                 {
                     Id = data.Id,
                     DisplayName = data.DisplayName,
@@ -425,28 +439,43 @@ namespace Module.Fish
             }
         }
 
-        // 封盘：捕获数达标就停掉玩法驱动，把结果交给结算面板
-        private void finishSession()
+        // 回合裁决：次数用尽才判达标，达标开下一回合，没达标就封盘
+        // 商店阶段接上之前，达标后直接进下一回合的三次下潜
+        private void handleRoundEnd()
         {
-            m_running = false;
-            m_result.Finish(m_totalCatch, m_maxDepth);
+            if (m_run.IsTargetReached)
+            {
+                m_run.AdvanceRound();
+                m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
 
-            EventManager.PublishEvent(EventDefines.FishingSessionEnded, m_result);
-            GameApp.UIManager.Open<UIResultPanel>(m_result).Forget();
+                QLog.Info($"[{nameof(FishingController)}] 达标进入第 {m_run.Round} 回合，" +
+                          $"目标 {m_run.RoundTarget} 金币，银行已有 {m_run.Coins} 金币");
+                return;
+            }
 
-            QLog.Info($"[{nameof(FishingController)}] 本局渔获 {m_result.TotalCoins} 金币，" +
-                      $"目标 {TargetCoins}，带回 {m_totalCatch} 条，最大下潜 {m_maxDepth:0} 米");
+            endRun();
         }
 
-        // 再来一局：清空计数与鱼群重新开局，视图与控制器都不必重建
-        private void restartSession()
+        // 封盘：停掉玩法驱动，把整局结果交给结算面板
+        private void endRun()
+        {
+            m_running = false;
+            m_run.EndRun();
+
+            GameApp.UIManager.Open<UIResultPanel>(m_run).Forget();
+
+            QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合未达标，本局结束，" +
+                      $"银行 {m_run.Coins} 金币，带回 {m_run.TotalCatch} 条，最大下潜 {m_maxDepth:0} 米");
+        }
+
+        // 再来一局：回到第一回合重开，视图与控制器都不必重建
+        private void restartRun()
         {
             GameApp.UIManager.Close<UIResultPanel>();
 
-            m_totalCatch = 0;
             m_maxDepth = 0f;
             m_buffer.Clear();
-            m_result = new SessionResult(TargetCoins);
+            m_run = newRun();
 
             m_spawn.EndSession();
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
@@ -456,7 +485,10 @@ namespace Module.Fish
             m_machine.Start(m_hook);
             m_running = true;
 
-            QLog.Info($"[{nameof(FishingController)}] 开新一局，目标 {TargetCoins} 金币，在场鱼 {m_spawn.Alive.Count} 条");
+            m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
+
+            QLog.Info($"[{nameof(FishingController)}] 开新一局，第 {m_run.Round} 回合目标 {m_run.RoundTarget} 金币，" +
+                      $"每回合可潜 {m_run.DivesPerRound} 次，在场鱼 {m_spawn.Alive.Count} 条");
         }
 
         private static FishCaptureInfo captureInfo(FishInstance fish, float depth)

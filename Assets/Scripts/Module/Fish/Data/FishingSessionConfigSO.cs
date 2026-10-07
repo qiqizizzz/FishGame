@@ -1,10 +1,10 @@
 /*
  * ┌──────────────────────────────────┐
- * │  描    述: 单局会话配置，井道几何、结束条件与鱼池
+ * │  描    述: 单局会话配置，井道几何、回合规则与鱼池
  * │  类    名: FishingSessionConfigSO.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
- * 结束条件看累计渔获价值，不看条数，钩满一串杂鱼也顶不上几条高价值鱼
+ * 回合目标看累计渔获价值，不看条数，钩满一串杂鱼也顶不上几条高价值鱼
  * 井道总深度是世界几何边界，与 IFishingStats.LineLength 是两回事：
  * 钩子触底深度取二者较小值，线不够长而下方仍有鱼正是核心挫败感来源
  * 收益公式：单条收益 = 鱼种标价（FishDataSO）× DepthBonus × ComboMultiplier
@@ -25,11 +25,13 @@ namespace Module.Fish.Data
         [Tooltip("井道可视半宽（米），横向拖动的物理边界")]
         [SerializeField] private float ShaftHalfWidthMeters = 3f;
 
-        [Header("结束条件")]
-        [Tooltip("目标渔获价值（金币），累计收益达到即结束本局")]
-        [SerializeField, Min(1)] private int TargetCoinValue = 500;
-        [Tooltip("卷线器容错次数，归零后再次受罚即结束")]
-        [SerializeField] private int ReelToleranceCount = 3;
+        [Header("回合规则")]
+        [Tooltip("每回合固定的下潜次数，次数用尽即裁决本回合是否达标")]
+        [SerializeField, Min(1)] private int RoundDivesCount = 3;
+        [Tooltip("第一回合的目标渔获价值（金币）")]
+        [SerializeField, Min(1)] private int BaseRoundTargetValue = 250;
+        [Tooltip("目标价值逐回合增长倍率，1.8 表示每回合目标是上一回合的 1.8 倍")]
+        [SerializeField, Min(1f)] private float TargetGrowthFactor = 1.8f;
 
         [Header("鱼池与密度")]
         [Tooltip("本档可用鱼种，Hazard 也放这里，由生成服务按档位分流")]
@@ -49,8 +51,9 @@ namespace Module.Fish.Data
 
         public float ShaftDepth => ShaftDepthMeters;
         public float ShaftHalfWidth => ShaftHalfWidthMeters;
-        public int TargetCoins => TargetCoinValue;
-        public int ReelCount => ReelToleranceCount;
+        public int DivesPerRound => RoundDivesCount;
+        public int BaseRoundTarget => BaseRoundTargetValue;
+        public float RoundTargetGrowth => TargetGrowthFactor;
         public IReadOnlyList<FishDataSO> Fishes => FishPool;
         public AnimationCurve Density => DensityCurve;
         public float BaseFishPerSlice => BaseFishCountPerSlice;
