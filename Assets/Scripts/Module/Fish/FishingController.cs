@@ -21,7 +21,8 @@ using Module.Fish.Model;
 using Module.Fish.Service;
 using Module.Fish.Type;
 using Module.Fish.View;
-using UI.Fishing;
+using UI.RoundHUD;
+using UI.Summary;
 using UnityEngine;
 using Utils.log;
 
