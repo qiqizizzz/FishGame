@@ -16,7 +16,7 @@ namespace Module.Fish.Model
         /// 裁决钩子当前位置与周围鱼的一次接触
         /// </summary>
         /// <param name="hook">当前钩子上下文，取坐标与钩头半径</param>
-        /// <param name="catching">true 为回收阶段的鱼头捕获判定，false 为下潜阶段的任意接触即失误</param>
+        /// <param name="catching">true 为回收阶段的鱼身捕获判定，false 为下潜阶段的任意接触即失误</param>
         /// <returns>需要迁移到缠绕态时返回 true</returns>
         bool ResolveContact(IHookRuntime hook, bool catching);
     }

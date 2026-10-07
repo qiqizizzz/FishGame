@@ -33,7 +33,7 @@ namespace Module.Fish.Data
         [Header("体型与容量")]
         [Tooltip("实测体长（米）")]
         [SerializeField] private float LengthMeters;
-        [Tooltip("世界显示长度（米），生成时按 SizeRatio 等比缩放")]
+        [Tooltip("世界显示长度（米），生成时折算成屏幕上的实际占位，填多少就画多大")]
         [SerializeField] private float DisplayLengthMeters;
         [Tooltip("携带占用的容量点数")]
         [SerializeField] private int CapacityCost;

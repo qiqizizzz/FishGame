@@ -7,6 +7,8 @@
 * 工厂模式：生成逻辑只认 FishDataSO，不关心 prefab 从哪来、实例是新建还是复用
 * 尺寸按「实测模型长度」折算，让 FishDataSO.DisplayLengthMeters 成为屏幕大小的唯一真源
 * （SizeRatio 假设模型按 1 单位=1 米导出，实测各 prefab 根缩放不统一，直接用会走样）
+* 折算时根缩放要一并乘回去：实测长度本身含根缩放，只写 one * displayScale 会把根缩放抹掉，
+* 屏幕上就变成 DisplayLength / 根缩放，配置写 2.49 米却画出 3.80 米
 * 顺带实测模型高度，鱼串间距与防重叠判定要用真实的屏幕占位，不能拿体长凑
 * 另外按生成时真正生效的变换量出「真实渲染盒」，判定范围跟着像素走，
 * 避免配置体长和屏幕上看到的鱼对不上，视觉上勾到了头尾却判成没碰到
@@ -110,7 +112,7 @@ namespace Module.Fish.Service
             Transform root = view.transform;
             root.localPosition = localPosition;
             root.localRotation = Quaternion.Euler(0f, direction >= 0 ? 90f : -90f, 0f);
-            root.localScale = Vector3.one * displayScale(data);
+            root.localScale = prefab.transform.localScale * displayScale(data);
 
             return view;
         }
@@ -189,7 +191,8 @@ namespace Module.Fish.Service
         // 根节点用 Spawn 实际写入的缩放与转身，量出来的就是屏幕上那条鱼的占位
         private static Vector4 measureBodyBox(GameObject prefab, float scale)
         {
-            Matrix4x4 rootMatrix = Matrix4x4.TRS(Vector3.zero, ROOT_ORIENTATION, Vector3.one * scale);
+            Vector3 rootScale = prefab.transform.localScale * scale;
+            Matrix4x4 rootMatrix = Matrix4x4.TRS(Vector3.zero, ROOT_ORIENTATION, rootScale);
             Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
             bool found = false;
 

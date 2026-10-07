@@ -18,7 +18,7 @@ MonoBehaviour:
   ValueRarity: 4
   MovementBehavior: 0
   LengthMeters: 2.75
-  DisplayLengthMeters: 2.49
+  DisplayLengthMeters: 3.8
   CapacityCost: 8
   WeightOverride: 0
   BandOverride:

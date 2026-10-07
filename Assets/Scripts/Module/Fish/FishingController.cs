@@ -31,9 +31,6 @@ namespace Module.Fish
     {
         private const KeyCode EXIT_TO_MENU_KEY = KeyCode.Escape;
 
-        // 一次接触裁决后的免疫窗口，防止同一条鱼在相邻帧反复触发缠绕
-        private const float CONTACT_COOLDOWN = 0.3f;
-
         // 低于结算面板（100），高于场景内一切表现
         private const int HUD_SORTING_ORDER = 10;
         private const int RESULT_SORTING_ORDER = 100;
@@ -47,6 +44,7 @@ namespace Module.Fish
         private readonly FishCarryService m_carry = new();
         private readonly List<CatchRecord> m_buffer = new();
         private readonly Func<FishInstance, bool> m_catchFilter;
+        private readonly Func<FishInstance, bool> m_scareFilter;
 
         private FishFactory m_factory;
         private HookStateMachine m_machine;
@@ -56,7 +54,6 @@ namespace Module.Fish
         private bool m_running;
         private float m_maxDepth;
         private bool m_phasePublished;
-        private float m_contactCooldown;
         private int m_totalCatch;
         private HookPhase m_lastPhase = HookPhase.Idle;
         private bool m_disposed;
@@ -65,12 +62,13 @@ namespace Module.Fish
         {
             m_scene = scene;
             m_catchFilter = canCatchFish;
+            m_scareFilter = canScareFish;
         }
 
         /// <summary>本局已带回水面的鱼数，M3 接 HUD 与结束条件</summary>
         public int TotalCatch => m_totalCatch;
 
-        /// <summary>当前钩上负载，HUD 画鱼串与容量条取这里</summary>
+        /// <summary>当前钩上负载，HUD 画鱼串取这里</summary>
         public IReadOnlyList<CatchRecord> Carried => m_carry.Carried;
 
         /// <summary>当前放线深度（米），HUD 的鱼线行</summary>
@@ -132,7 +130,6 @@ namespace Module.Fish
                 return;
 
             m_input.Tick();
-            m_contactCooldown = Mathf.Max(0f, m_contactCooldown - deltaTime);
 
             // 同一帧内按下并松开也算按住，避免快点被采样吞掉
             m_hook.FeedInput(m_input.IsPressed || m_input.PressBegan, m_input.DragDeltaPixels.x);
@@ -150,15 +147,12 @@ namespace Module.Fish
         // ==================== Public Function ====================
         /// <summary>
         /// 裁决钩子与周围鱼的一次接触
-        /// 判定取钩尖捕获点而非钩子根节点，回收阶段按鱼身线段接触捕获
+        /// 判定取钩尖捕获点而非钩子根节点，回收阶段碰到整条鱼身即捕获
         /// </summary>
         /// <param name="catching">true 为回收阶段的捕获，false 为下潜阶段的任意接触即失误</param>
         /// <returns>需要进入缠绕态时返回 true</returns>
         public bool ResolveContact(IHookRuntime hook, bool catching)
         {
-            if (m_contactCooldown > 0f)
-                return false;
-
             HookConfigSO config = hook.HookConfig;
 
             FishInstance fish;
@@ -167,29 +161,24 @@ namespace Module.Fish
                 ? m_detection.TryFindTouched(
                     hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, true, m_catchFilter, out fish)
                 : m_detection.TryFindTouched(
-                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, false, null, out fish);
+                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, false, m_scareFilter, out fish);
 
             if (!found)
                 return false;
 
             if (fish.Data != null && fish.Data.Rarity == FishRarity.Hazard)
             {
-                m_contactCooldown = CONTACT_COOLDOWN;
                 penalizeHazard(fish);
                 return true;
             }
 
             if (catching)
             {
-                // 没挂上就不吃冷却，钩子继续往上走还能钩住后面的鱼
-                if (!attachFish(fish))
-                    return false;
-
-                m_contactCooldown = CONTACT_COOLDOWN;
+                // 没挂上就继续找，钩子不受任何免疫影响
+                attachFish(fish);
                 return false;
             }
 
-            m_contactCooldown = CONTACT_COOLDOWN;
             scareFish(fish);
 
             return false;
@@ -282,6 +271,14 @@ namespace Module.Fish
         private bool canCatchFish(FishInstance fish)
         {
             return fish != null && !fish.IsHooked;
+        }
+
+        // 误触与河豚受罚的去重：正在惊散逃逸的鱼不重复裁决
+        // 取代原先的全局免疫计时器，那玩意儿会把整片水域一起屏蔽约 1.35 米，
+        // 钩子从别的鱼身上穿过去也不计数
+        private bool canScareFish(FishInstance fish)
+        {
+            return fish != null && fish.FleeTimer <= 0f;
         }
 
         private bool attachFish(FishInstance fish)
@@ -414,7 +411,6 @@ namespace Module.Fish
 
             m_totalCatch = 0;
             m_maxDepth = 0f;
-            m_contactCooldown = 0f;
             m_buffer.Clear();
             m_result = new SessionResult(TargetCatchCount);
 
