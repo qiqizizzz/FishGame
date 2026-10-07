@@ -17,9 +17,6 @@ namespace Module.Fish.Model
         /// <summary>挂上瞬间的深度（米），结算 DepthBonus 以此为准，回收途中上浮不再加成</summary>
         public float AttachedDepth;
 
-        /// <summary>该鱼占用的携带容量点数</summary>
-        public int CarryPoints;
-
         /// <summary>该鱼的张力负载档位，接张力模型时直接累加</summary>
         public int TensionLoad;
     }

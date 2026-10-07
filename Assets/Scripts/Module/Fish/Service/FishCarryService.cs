@@ -36,8 +36,9 @@ namespace Module.Fish.Service
 
         public int Count => m_carried.Count;
 
-        /// <summary>已占用的容量点数</summary>
-        public int UsedPoints { get; private set; }
+        /// <summary>钩上可挂的鱼条数上限，HUD 负载行拿它做分母；开局绑定前返回 0
+        /// HUD 在预加载阶段就会刷新，此时属性包尚未 BeginSession，故允许判空</summary>
+        public int Capacity => m_stats != null ? m_stats.MaxCarryCount : 0;
 
         /// <summary>
         /// 开局绑定属性包与稀有度表并清空负载
@@ -47,16 +48,15 @@ namespace Module.Fish.Service
             m_stats = stats;
             m_rarityTable = rarityTable;
             m_carried.Clear();
-            UsedPoints = 0;
         }
 
         /// <summary>
-        /// 能否再挂这条鱼：只要求鱼还活着且没挂过
-        /// 容量上限与条数上限都已取消，能钓多深由鱼线长度决定，钩上不封顶
+        /// 能否再挂这条鱼：鱼要还活着、没被挂过，钩上还得留着空名额
+        /// 每条鱼一律占 1 个名额，名额上限来自钩子配置，不再按体型折算容量点数
         /// </summary>
         public bool CanAttach(FishInstance fish)
         {
-            return fish != null && !fish.IsHooked && fish.IsAlive;
+            return fish != null && !fish.IsHooked && fish.IsAlive && m_carried.Count < Capacity;
         }
 
         /// <summary>
@@ -71,14 +71,12 @@ namespace Module.Fish.Service
             {
                 Fish = fish,
                 AttachedDepth = fish.Depth,
-                CarryPoints = carryCost(fish),
                 TensionLoad = fish.Data != null ? fish.Data.ResolveTensionLoad(m_rarityTable) : 0
             };
 
             fish.IsHooked = true;
             fish.FleeTimer = 0f;
             m_carried.Add(record);
-            UsedPoints += record.CarryPoints;
 
             return record;
         }
@@ -149,13 +147,7 @@ namespace Module.Fish.Service
         {
             CatchRecord record = m_carried[index];
             m_carried.RemoveAt(index);
-            UsedPoints = Mathf.Max(0, UsedPoints - record.CarryPoints);
             sink.Add(record);
-        }
-
-        private static int carryCost(FishInstance fish)
-        {
-            return fish.Data != null ? Mathf.Max(1, fish.Data.CarryCost) : 1;
         }
     }
 }

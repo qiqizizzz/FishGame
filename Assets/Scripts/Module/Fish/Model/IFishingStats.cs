@@ -5,7 +5,7 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 背包物品聚合出这个只读属性包，下潜层禁止读任何背包概念
-* M1 就立起来是为了防止下潜层散落硬编码深度与容量常量，P1 接背包时零返工
+* 接口先立起来是为了防止下潜层散落硬编码深度与容量常量，背包接上时零返工
 */
 
 namespace Module.Fish.Model
@@ -18,9 +18,6 @@ namespace Module.Fish.Model
         /// <summary>可放线长度（米），钩子能到的最深处，是硬上限</summary>
         float LineLength { get; }
 
-        /// <summary>一次能带回几条鱼的容量点数</summary>
-        int CarryCapacity { get; }
-
         /// <summary>收线速度（米/秒）</summary>
         float ReelSpeed { get; }
 
@@ -30,8 +27,8 @@ namespace Module.Fish.Model
         /// <summary>断线前的缓冲窗口比例（0-1）</summary>
         float TensionRelief { get; }
 
-        /// <summary>一次能挂几条鱼，P0 恒为 1</summary>
-        int HookCount { get; }
+        /// <summary>钩上可同时挂着的鱼条数上限，每条鱼一律占 1 个名额</summary>
+        int MaxCarryCount { get; }
 
         /// <summary>稀有度权重放大系数，作用于加权随机表</summary>
         float LurePull { get; }

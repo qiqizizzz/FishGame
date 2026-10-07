@@ -65,7 +65,7 @@ namespace Module.Fish
             m_scareFilter = canScareFish;
         }
 
-        /// <summary>本局已带回水面的鱼数，M3 接 HUD 与结束条件</summary>
+        /// <summary>本局已带回水面的鱼数，供 HUD 计数行与结束条件使用</summary>
         public int TotalCatch => m_totalCatch;
 
         /// <summary>当前钩上负载，HUD 画鱼串取这里</summary>
@@ -74,8 +74,11 @@ namespace Module.Fish
         /// <summary>当前放线深度（米），HUD 的鱼线行</summary>
         public float Depth => m_hook != null ? m_hook.Depth : 0f;
 
-        /// <summary>钩上挂着的鱼数，HUD 的负载行</summary>
+        /// <summary>钩上挂着的鱼数，HUD 负载行的分子</summary>
         public int CarriedCount => m_carry.Count;
+
+        /// <summary>钩上可挂的鱼条数上限，HUD 负载行的分母</summary>
+        public int MaxCarryCount => m_carry.Capacity;
 
         /// <summary>本局目标捕获数，HUD 计数的分母</summary>
         public int TargetCatchCount => m_scene != null ? m_scene.SessionConfig.TargetCatchCount : 0;
@@ -267,7 +270,7 @@ namespace Module.Fish
                 settleLanded();
         }
 
-        // 所有鱼都钓得起来，这里只把已经挂在钩子上的排除掉，不再看容量
+        // 所有鱼都钓得起来，检测阶段只排除已挂在钩上的；钩上名额是否已满由 FishCarryService 判定
         private bool canCatchFish(FishInstance fish)
         {
             return fish != null && !fish.IsHooked;

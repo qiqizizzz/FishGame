@@ -30,13 +30,11 @@ namespace Module.Fish.Data
         [SerializeField] private FishRarity ValueRarity;
         [SerializeField] private FishBehaviorType MovementBehavior;
 
-        [Header("体型与容量")]
+        [Header("体型")]
         [Tooltip("实测体长（米）")]
         [SerializeField] private float LengthMeters;
         [Tooltip("世界显示长度（米），生成时折算成屏幕上的实际占位，填多少就画多大")]
         [SerializeField] private float DisplayLengthMeters;
-        [Tooltip("携带占用的容量点数")]
-        [SerializeField] private int CapacityCost;
 
         [Header("覆写（<=0 表示沿用稀有度基准）")]
         [Tooltip("大于 0 时覆盖档位基准权重")]
@@ -57,7 +55,6 @@ namespace Module.Fish.Data
         /// </summary>
         public float SizeRatio => LengthMeters > 0f ? DisplayLengthMeters / LengthMeters : 1f;
 
-        public int CarryCost => CapacityCost;
         public bool HasWeightOverride => WeightOverride > 0f;
 
         /// <summary>
@@ -134,9 +131,6 @@ namespace Module.Fish.Data
 
             if (string.IsNullOrEmpty(ResourceKey))
                 QLog.Error($"[{nameof(FishDataSO)}] {name} 未填写 Addressables key");
-
-            if (ValueRarity != FishRarity.Hazard && CapacityCost <= 0)
-                QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 可捕获鱼的容量点数必须大于 0");
 
             if (DisplayLengthMeters <= 0f)
                 QLog.Error($"[{nameof(FishDataSO)}] {Identifier} 未配置世界显示长度，生成时会缩成 0");

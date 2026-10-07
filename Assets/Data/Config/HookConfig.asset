@@ -18,11 +18,10 @@ MonoBehaviour:
   HookRadiusMeters: 0.15
   LineWidthMeters: 0.02
   LineLengthMeters: 25
-  CapacityPoints: 4
   ReelSpeedMeters: 4.5
   TensionCeiling: 100
   ReliefRatio: 0
-  FishPerHook: 1
+  CarryCountCeiling: 10
   LureWeightScale: 1
   DetectRadiusMeters: 0.8
   CoinBonusRatio: 0

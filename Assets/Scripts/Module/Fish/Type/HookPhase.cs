@@ -22,7 +22,7 @@ namespace Module.Fish.Type
         /// <summary>回收：触底或捕获后自动收线回水面，无需玩家操作</summary>
         Reeling = 2,
 
-        /// <summary>缠绕：挂上河豚的受罚态，M2 接入</summary>
+        /// <summary>缠绕：挂上河豚的受罚态</summary>
         Tangled = 3,
 
         /// <summary>出水：回到水面，短暂停顿后回待命</summary>

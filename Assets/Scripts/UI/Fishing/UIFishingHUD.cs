@@ -42,6 +42,7 @@ namespace UI.Fishing
         private int m_lastCatch = -1;
         private int m_lastDepth = -1;
         private int m_lastLoad = -1;
+        private int m_lastLoadCeiling = -1;
         private float m_flashEndTime = -1f;
 
         protected override void OnInit()
@@ -63,7 +64,7 @@ namespace UI.Fishing
         {
             m_panelImage.color = PANEL_BASE_COLOR;
             m_flashEndTime = -1f;
-            m_lastCatch = m_lastDepth = m_lastLoad = -1;
+            m_lastCatch = m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
         }
 
         protected override void SubscribeViewEvents()
@@ -103,10 +104,13 @@ namespace UI.Fishing
 
             int load = m_controller.CarriedCount;
 
-            if (load != m_lastLoad)
+            int ceiling = m_controller.MaxCarryCount;
+
+            if (load != m_lastLoad || ceiling != m_lastLoadCeiling)
             {
                 m_lastLoad = load;
-                m_loadCounter.SetValue($"{load} 条");
+                m_lastLoadCeiling = ceiling;
+                m_loadCounter.SetValue($"{load} / {ceiling}");
             }
         }
 
