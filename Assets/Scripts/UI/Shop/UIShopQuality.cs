@@ -4,7 +4,7 @@
 * │  类    名: UIShopQuality.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 只是显示用色，背包数据层定稿后由物品数据供色，这个文件可以整块删掉
+* 只是显示用色，数据层只出档位不出颜色，色板换风格不动数据
 * 文字色按品质色亮度自动切深棕或浅米，保证任何色块上的名称都看得清
 */
 
@@ -27,6 +27,25 @@ namespace UI.Shop
         public static Color Gold { get; } = new Color32(0xF5, 0xB9, 0x3B, 0xFF);
 
         // ==================== Public Function ====================
+        /// <summary>
+        /// 取档位对应的品质色，一到三级走白蓝紫，再往上的档位留给合成
+        /// </summary>
+        /// <param name="tier">档位，从 1 开始</param>
+        public static Color TierColor(int tier)
+        {
+            switch (tier)
+            {
+                case 1:
+                    return White;
+                case 2:
+                    return Blue;
+                case 3:
+                    return Purple;
+                default:
+                    return Gold;
+            }
+        }
+
         /// <summary>
         /// 取品质色上用于标注名称的文字色
         /// </summary>

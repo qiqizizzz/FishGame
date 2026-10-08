@@ -5,13 +5,15 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 数值只读不写：金币与剩余下潜次数取自传入的 RunState，面板不回查任何玩法对象
-* 背包内容与商品定价目前都是界面占位，背包与商店模块接上后整段替换
+* 背包与仓库读 RunBackpack 的真实数据，商品仍是界面占位，等商店库存模块接上再换
+* 格子解锁直接问模型的解锁掩码，物品坐标直接问实例的世界格，界面不自己算位图
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由面板自带的隐藏模板复制并留用，只开关不销毁
 */
 
 using System.Collections.Generic;
 using Framework.QTower.View;
+using Module.Backpack.Model;
 using Module.Fish.Model;
 using TMPro;
 using UnityEngine;
@@ -50,6 +52,9 @@ namespace UI.Shop
         private Button m_diveButton;
         private Button m_closeButton;
 
+        // 本局背包，面板只读它，不替它保管状态
+        private RunBackpack m_backpack;
+
         // 从网格读出来的单格尺寸，摆物品时算跨格用
         private float m_cellSize;
         private float m_cellSpacing;
@@ -57,6 +62,9 @@ namespace UI.Shop
         // 复制出来的物品视图与商品卡只开关不销毁，销毁会延到帧尾，同帧重建会被布局算进内容高度
         private readonly List<UIShopItemView> m_itemViews = new();
         private readonly List<UIShopGoodsItem> m_goodsItems = new();
+
+        // 装世界格坐标的缓冲，物品视图摆完就把值写进自己的方块，不存引用
+        private readonly List<Vector2Int> m_cellBuffer = new();
         private int m_itemsShown;
         private int m_goodsShown;
 
@@ -99,19 +107,27 @@ namespace UI.Shop
         protected override void OnOpen(params object[] args)
         {
             RunState run = args.Length > 0 ? args[0] as RunState : null;
+            RunBackpack backpack = args.Length > 1 ? args[1] as RunBackpack : null;
 
 #if UNITY_EDITOR
             if (run == null)
                 QLog.Error("没有传入 RunState，面板留空");
+            if (backpack == null)
+                QLog.Error("没有传入 RunBackpack，背包与仓库不会填充");
 #endif
 
             if (run == null)
                 return;
 
             refreshCounters(run);
+            rebuildGoods();
+
+            if (backpack == null)
+                return;
+
+            m_backpack = backpack;
             fillBackpack();
             fillStorage();
-            rebuildGoods();
         }
 
         // ==================== Private Function ====================
@@ -122,51 +138,67 @@ namespace UI.Shop
             m_divesText.text = $"下潜 {run.DivesRemaining} 次";
         }
 
-        // 占位：外圈一圈锁定，中心九格可用，背包模块接入后改由格子解锁数据驱动
+        // 每一格是空格还是锁格，全看模型的解锁掩码，异形开局也由配置说话
         private void fillBackpack()
         {
+            BackpackModel model = m_backpack.Model;
             int columns = m_grid.constraintCount;
-            int rows = m_slots.Length / columns;
+
+#if UNITY_EDITOR
+            if (m_slots.Length != columns * model.Rows)
+                QLog.Error($"格子数与配置不符：预制体 {m_slots.Length} 格，配置 {columns}×{model.Rows}");
+#endif
 
             for (int i = 0; i < m_slots.Length; i++)
             {
                 int row = i / columns;
                 int column = i % columns;
-                bool isEdge = row == 0 || column == 0 || row == rows - 1 || column == columns - 1;
 
-                if (isEdge)
-                    m_slots[i].SetLocked();
-                else
+                if (model.IsCellUnlocked(column, row))
                     m_slots[i].SetEmpty();
+                else
+                    m_slots[i].SetLocked();
             }
 
             rebuildItemViews();
         }
 
-        // 占位：三件形状不同的物品把跨格效果看出来，坐标是（列, 行）
+        // 网格上的物品全部来自模型，一件一个视图，形状格问实例要世界坐标
         private void rebuildItemViews()
         {
+            IReadOnlyList<BackpackItemInstance> items = m_backpack.Model.Items;
             m_itemsShown = 0;
 
-            showItem(new[] { new Vector2Int(1, 1), new Vector2Int(1, 2), new Vector2Int(1, 3) }, "教学鱼竿", UIShopQuality.White);
-            showItem(new[] { new Vector2Int(2, 2), new Vector2Int(2, 3), new Vector2Int(3, 3) }, "幸运罗盘", UIShopQuality.Purple);
-            showItem(new[] { new Vector2Int(3, 1) }, "发光鱼饵", UIShopQuality.Blue);
+            for (int i = 0; i < items.Count; i++)
+            {
+                items[i].FillWorldCells(m_cellBuffer);
+                showItem(m_cellBuffer, items[i].Definition.Label, UIShopQuality.TierColor(items[i].Tier));
+            }
 
             for (int i = m_itemsShown; i < m_itemViews.Count; i++)
                 m_itemViews[i].gameObject.SetActive(false);
         }
 
-        // 占位：仓库先摆两件暂存物品看效果，接入后由仓库数据驱动
+        // 暂存架按件显示，件数之外的格子留空，多出来的件数说明配置和预制体没对齐
         private void fillStorage()
         {
-            for (int i = 0; i < m_storageSlots.Length; i++)
-                m_storageSlots[i].SetEmpty();
+            IReadOnlyList<BackpackItemInstance> stash = m_backpack.Stash;
 
-            storeItem(0, "延长鱼线", UIShopQuality.Blue);
-            storeItem(1, "鱼竿工具箱", UIShopQuality.Gold);
+#if UNITY_EDITOR
+            if (stash.Count > m_storageSlots.Length)
+                QLog.Error($"暂存 {stash.Count} 件超过仓库格数 {m_storageSlots.Length}，多出来的没有格子显示");
+#endif
+
+            for (int i = 0; i < m_storageSlots.Length; i++)
+            {
+                if (i < stash.Count)
+                    m_storageSlots[i].SetStored(stash[i].Definition.Label, UIShopQuality.TierColor(stash[i].Tier));
+                else
+                    m_storageSlots[i].SetEmpty();
+            }
         }
 
-        private void showItem(Vector2Int[] cells, string itemName, Color qualityColor)
+        private void showItem(IReadOnlyList<Vector2Int> cells, string itemName, Color qualityColor)
         {
             while (m_itemViews.Count <= m_itemsShown)
                 m_itemViews.Add(Instantiate(m_itemTemplate, m_itemsRect));
@@ -175,19 +207,6 @@ namespace UI.Shop
             item.gameObject.SetActive(true);
             item.Setup(cells, m_cellSize, m_cellSpacing, qualityColor, itemName);
             m_itemsShown++;
-        }
-
-        private void storeItem(int index, string itemName, Color qualityColor)
-        {
-            if (index >= m_storageSlots.Length)
-            {
-#if UNITY_EDITOR
-                QLog.Error($"仓库格下标越界：{index}，当前共 {m_storageSlots.Length} 格");
-#endif
-                return;
-            }
-
-            m_storageSlots[index].SetStored(itemName, qualityColor);
         }
 
         // 占位：商品池与售价都还没定，这里只是把一排卡片铺出来看版式

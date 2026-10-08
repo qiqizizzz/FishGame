@@ -48,16 +48,16 @@ namespace UI.Shop
         /// <summary>
         /// 按形状格摆放一件物品
         /// </summary>
-        /// <param name="cells">物品占用的格子，坐标为（列, 行），左上角为原点</param>
+        /// <param name="cells">物品占用的格子，坐标为（列, 行），左上角为原点，只读不存引用，调用方可共用同一个缓冲</param>
         /// <param name="cellSize">单格边长，取自背包网格</param>
         /// <param name="cellSpacing">单格间距，取自背包网格</param>
         /// <param name="qualityColor">品质色，决定方块底色</param>
         /// <param name="itemName">物品名称，显示在物品正中</param>
-        public void Setup(Vector2Int[] cells, float cellSize, float cellSpacing, Color qualityColor, string itemName)
+        public void Setup(IReadOnlyList<Vector2Int> cells, float cellSize, float cellSpacing, Color qualityColor, string itemName)
         {
             ensureBound();
 
-            if (cells == null || cells.Length == 0)
+            if (cells == null || cells.Count == 0)
             {
 #if UNITY_EDITOR
                 QLog.Error($"形状格为空，无法摆放物品：{itemName}");
@@ -71,7 +71,7 @@ namespace UI.Shop
             int minRow = int.MaxValue;
             int maxRow = int.MinValue;
 
-            for (int i = 0; i < cells.Length; i++)
+            for (int i = 0; i < cells.Count; i++)
             {
                 minColumn = Mathf.Min(minColumn, cells[i].x);
                 maxColumn = Mathf.Max(maxColumn, cells[i].x);
@@ -87,7 +87,7 @@ namespace UI.Shop
 
             m_blockUsed = 0;
 
-            for (int i = 0; i < cells.Length; i++)
+            for (int i = 0; i < cells.Count; i++)
                 showBlock(cells[i].x - minColumn, cells[i].y - minRow, pitch, qualityColor);
 
             for (int i = m_blockUsed; i < m_blocks.Count; i++)
