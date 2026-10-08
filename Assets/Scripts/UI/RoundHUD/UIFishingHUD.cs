@@ -21,7 +21,7 @@ namespace UI.RoundHUD
 {
     public sealed class UIFishingHUD : UIBase
     {
-        private const string PANEL_PATH = "Panel_Counters";
+        private const string PANEL_BG_PATH = "Panel_Counters/bg";
         private const string ROW_HOOK_PATH = "Panel_Counters/Row_Hook";
         private const string ROW_DIVE_PATH = "Panel_Counters/Row_Dive";
         private const string ROW_LINE_PATH = "Panel_Counters/Row_Line";
@@ -30,11 +30,11 @@ namespace UI.RoundHUD
 
         private const float PENALTY_FLASH_SECONDS = 0.45f;
 
-        private static readonly Color PANEL_BASE_COLOR = new Color(0.043f, 0.094f, 0.157f, 0.62f);
         private static readonly Color PANEL_WARN_COLOR = new Color(0.47f, 0.12f, 0.14f, 0.74f);
 
         private FishingController m_controller;
         private Image m_panelImage;
+        private Color m_panelBaseColor;
         private TMP_Text m_phaseText;
         private UIHudCounterItem m_valueCounter;
         private UIHudCounterItem m_lineCounter;
@@ -53,7 +53,10 @@ namespace UI.RoundHUD
         protected override void OnInit()
         {
             m_controller = Controller as FishingController;
-            m_panelImage = FindComponent<Image>(PANEL_PATH);
+            // bg 是装饰件，取不到就跳过，不再因为它缺失而报错
+            Transform panelBg = FindNode(PANEL_BG_PATH);
+            m_panelImage = panelBg != null ? panelBg.GetComponent<Image>() : null;
+            m_panelBaseColor = m_panelImage != null ? m_panelImage.color : Color.white;
             m_phaseText = FindComponent<TMP_Text>(PHASE_TEXT_PATH);
             m_valueCounter = bindCounter(ROW_HOOK_PATH, "渔获");
             m_diveCounter = bindCounter(ROW_DIVE_PATH, "下潜");
@@ -68,7 +71,7 @@ namespace UI.RoundHUD
 
         protected override void OnOpen(params object[] args)
         {
-            m_panelImage.color = PANEL_BASE_COLOR;
+            resetPanelColor();
             m_flashEndTime = -1f;
             m_lastCoins = m_lastCoinsGoal = m_lastDivesLeft = m_lastDivesTotal =
                 m_lastDepth = m_lastLoad = m_lastLoadCeiling = -1;
@@ -141,11 +144,20 @@ namespace UI.RoundHUD
             if (Time.unscaledTime >= m_flashEndTime)
             {
                 m_flashEndTime = -1f;
-                m_panelImage.color = PANEL_BASE_COLOR;
+                resetPanelColor();
                 return;
             }
 
             m_panelImage.color = PANEL_WARN_COLOR;
+        }
+
+        // 底色取预制体上的原始值，避免代码覆盖美术配置
+        private void resetPanelColor()
+        {
+            if (m_panelImage == null)
+                return;
+
+            m_panelImage.color = m_panelBaseColor;
         }
 
         private UIHudCounterItem bindCounter(string path, string label)
@@ -163,6 +175,9 @@ namespace UI.RoundHUD
         // 受罚就是"少赚了"，整块面板闪一下比盯着数字找变化更快
         private void handlePenaltyApplied(PenaltyType penalty)
         {
+            if (m_panelImage == null)
+                return;
+
             m_flashEndTime = Time.unscaledTime + PENALTY_FLASH_SECONDS;
         }
 
