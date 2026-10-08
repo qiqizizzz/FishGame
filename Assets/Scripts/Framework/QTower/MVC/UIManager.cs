@@ -13,6 +13,7 @@ using Cysharp.Threading.Tasks;
 using Framework.QTower.Controller;
 using Framework.QTower.View;
 using UnityEngine;
+using UnityEngine.UI;
 using Utils.log;
 
 namespace Framework.QTower
@@ -125,12 +126,22 @@ namespace Framework.QTower
             if (loadedView == null)
                 loadedView = viewObject.AddComponent<TView>();
 
+            // 面板必须有自己的 Canvas，SortingOrder 才有地方落：预制体没配就在运行时补
             Canvas canvas = viewObject.GetComponent<Canvas>();
-            if (canvas != null)
-            {
-                canvas.overrideSorting = true;
-                canvas.sortingOrder = viewData.SortingOrder;
-            }
+            if (canvas == null)
+                canvas = viewObject.AddComponent<Canvas>();
+
+            // Graphic 只注册在最近的 Canvas 上，补了 Canvas 之后上级 GraphicRaycaster 就收不到面板的点击，必须跟着补
+            if (viewObject.GetComponent<GraphicRaycaster>() == null)
+                viewObject.AddComponent<GraphicRaycaster>();
+
+            // 运行时补出来的 Canvas 附加通道默认是 None，TMP 的描边与 Underlay 会画不出来，这里对齐工程内既有 Canvas
+            canvas.additionalShaderChannels = AdditionalCanvasShaderChannels.TexCoord1
+                | AdditionalCanvasShaderChannels.Normal
+                | AdditionalCanvasShaderChannels.Tangent;
+
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = viewData.SortingOrder;
 
             loadedView.Controller = viewData.Controller;
             loadedView.Init();

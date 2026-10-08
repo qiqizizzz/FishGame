@@ -38,7 +38,8 @@ namespace Module.Fish
 
         // 低于结算面板（100），高于场景内一切表现
         private const int HUD_SORTING_ORDER = 10;
-        private const int ROUND_HUD_SORTING_ORDER = 20;
+        // 阶段横幅要压在商店面板（60）之上，因此比商店只高一点即可
+        private const int ROUND_HUD_SORTING_ORDER = 61;
         // 商店面板压在结算之下，回合内它与 HUD 不会同时露出
         private const int SHOP_SORTING_ORDER = 60;
         private const int RESULT_SORTING_ORDER = 100;
