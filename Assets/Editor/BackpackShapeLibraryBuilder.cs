@@ -22,7 +22,8 @@ public static class BackpackShapeLibraryBuilder
     private const string SHAPES_FOLDER = "Assets/Data/Backpack/Shapes";
     private const string CONFIG_PATH = "Assets/Data/Config/BackpackConfig.asset";
 
-    private const int CONTAINER_SIDE = 5;
+    private const int CONTAINER_COLUMNS = 6;
+    private const int CONTAINER_ROWS = 5;
     private const int STASH_CAPACITY = 5;
 
     // 多米诺 2 格，竖着的一条
@@ -83,7 +84,7 @@ public static class BackpackShapeLibraryBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        QLog.Info($"形状库与配置已就绪：{SHAPES_FOLDER} 五个模板，配置 {CONFIG_PATH}，开局锚形 {m_anchorCells.Length} 格，容器 {CONTAINER_SIDE}×{CONTAINER_SIDE}");
+        QLog.Info($"形状库与配置已就绪：{SHAPES_FOLDER} 五个模板，配置 {CONFIG_PATH}，开局锚形 {m_anchorCells.Length} 格，容器 {CONTAINER_COLUMNS}×{CONTAINER_ROWS}");
     }
 
     // ==================== Private Function ====================
@@ -127,8 +128,8 @@ public static class BackpackShapeLibraryBuilder
             config = ScriptableObject.CreateInstance<BackpackConfigSO>();
 
         SerializedObject serialized = new SerializedObject(config);
-        serialized.FindProperty("GridColumns").intValue = CONTAINER_SIDE;
-        serialized.FindProperty("GridRows").intValue = CONTAINER_SIDE;
+        serialized.FindProperty("GridColumns").intValue = CONTAINER_COLUMNS;
+        serialized.FindProperty("GridRows").intValue = CONTAINER_ROWS;
         serialized.FindProperty("StashCapacityLimit").intValue = STASH_CAPACITY;
 
         SerializedProperty prices = serialized.FindProperty("TierPriceList");

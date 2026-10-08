@@ -26,8 +26,11 @@ namespace UI.Shop
         [Tooltip("空格子的底图，锁定格与仓库格是纯色块，不用它")]
         [SerializeField] private Sprite CellSprite;
 
-        [Tooltip("锁定格的颜色")]
-        [SerializeField] private Color LockedColor = new Color32(0x6E, 0x5F, 0x45, 0xFF);
+        [Tooltip("空格子的颜色，靠透明度压成位置提示，别调到不透明")]
+        [SerializeField] private Color EmptyColor = new Color32(0xFF, 0xFF, 0xFF, 0x3C);
+
+        [Tooltip("锁定格的颜色，同样只留一点压暗的凹陷感，别盖过真正的装备块")]
+        [SerializeField] private Color LockedColor = new Color32(0x6E, 0x5F, 0x45, 0x3A);
 
         // ==================== 字段[私有] ====================
         private Image m_bgImage;
@@ -47,8 +50,9 @@ namespace UI.Shop
         {
             ensureBound();
 
+            // 空格只是提示这里能放，压成半透明才不像一块真的占了位的装备
             m_bgImage.sprite = CellSprite;
-            m_bgImage.color = Color.white;
+            m_bgImage.color = EmptyColor;
             hideLabel();
         }
 

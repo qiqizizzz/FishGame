@@ -25,7 +25,7 @@ namespace Module.Backpack.Data
         // ==================== 字段[外部设置] ====================
         [Header("容器网格")]
         [Tooltip("容器列数，上限受位图每行余量约束")]
-        [SerializeField, Range(2, Model.ShapeMask.MAX_GRID_SIDE)] private int GridColumns = 5;
+        [SerializeField, Range(2, Model.ShapeMask.MAX_GRID_SIDE)] private int GridColumns = 6;
         [Tooltip("容器行数，上限受 long 符号位约束")]
         [SerializeField, Range(2, Model.ShapeMask.MAX_GRID_SIDE)] private int GridRows = 5;
 

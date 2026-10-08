@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 69abef80eacf4024a914fe5dbbcd34fb, type: 3}
   m_Name: BackpackConfig
   m_EditorClassIdentifier: 
-  GridColumns: 5
+  GridColumns: 6
   GridRows: 5
   UnlockMaskList: 0307040400000000
   ExpansionCostList: 

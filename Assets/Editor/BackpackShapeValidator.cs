@@ -25,7 +25,8 @@ public static class BackpackShapeValidator
     private const string SHAPES_FOLDER = "Assets/Data/Backpack/Shapes";
     private const string ITEMS_FOLDER = "Assets/Data/Backpack/Items";
     private const string CONFIG_PATH = "Assets/Data/Config/BackpackConfig.asset";
-    private const int CONTAINER_SIDE = 5;
+    private const int CONTAINER_COLUMNS = 6;
+    private const int CONTAINER_ROWS = 5;
 
     private static readonly Vector2Int[] m_anchorCells =
     {
@@ -115,7 +116,7 @@ public static class BackpackShapeValidator
             return;
         }
 
-        bool sized = config.Columns == CONTAINER_SIDE && config.Rows == CONTAINER_SIDE;
+        bool sized = config.Columns == CONTAINER_COLUMNS && config.Rows == CONTAINER_ROWS;
         report($"配置：容器 {config.Columns}×{config.Rows} · 解锁 {config.UnlockStageCount} 级 · "
             + $"暂存 {config.StashCapacity} 件 · 售价 {config.TierPrice(1)}/{config.TierPrice(2)}/{config.TierPrice(3)}",
             sized && config.UnlockStageCount > 0);
@@ -138,7 +139,7 @@ public static class BackpackShapeValidator
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_SIDE, CONTAINER_SIDE, anchor);
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
 
         BackpackItemInstance blockItem = createItem(block, 1);
         blockItem.AnchorColumn = 0;
@@ -155,7 +156,7 @@ public static class BackpackShapeValidator
             blockPlaced && linePlaced && packedFull);
 
         BackpackModel probe = new BackpackModel();
-        probe.Configure(CONTAINER_SIDE, CONTAINER_SIDE, anchor);
+        probe.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
         bool slabFits = canPlaceAnywhere(probe, slab);
 
         report($"2×3 板在锚形内可放置锚点数：{(slabFits ? "有，后期锁不住" : "零，天然锁在后期")}", !slabFits);
@@ -174,7 +175,7 @@ public static class BackpackShapeValidator
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_SIDE, CONTAINER_SIDE, toBits(m_allCells));
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, toBits(m_allCells));
 
         BackpackItemInstance cornerItem = createItem(corner, 1);
         cornerItem.AnchorColumn = 1;
@@ -223,7 +224,7 @@ public static class BackpackShapeValidator
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_SIDE, CONTAINER_SIDE, toBits(m_allCells));
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, toBits(m_allCells));
 
         BackpackItemInstance first = createItem(domino, 1);
         first.AnchorColumn = 0;
@@ -256,7 +257,7 @@ public static class BackpackShapeValidator
         long anchor = toBits(m_anchorCells);
         long full = toBits(m_allCells);
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_SIDE, CONTAINER_SIDE, anchor);
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
 
         GridShapeSO domino = loadShape("domino_2");
 
@@ -383,9 +384,9 @@ public static class BackpackShapeValidator
         {
             ShapeMask current = orientations[i];
 
-            for (int row = 0; row <= CONTAINER_SIDE - current.Height; row++)
+            for (int row = 0; row <= CONTAINER_ROWS - current.Height; row++)
             {
-                for (int column = 0; column <= CONTAINER_SIDE - current.Width; column++)
+                for (int column = 0; column <= CONTAINER_COLUMNS - current.Width; column++)
                 {
                     if (model.CanPlace(current, column, row))
                         return true;

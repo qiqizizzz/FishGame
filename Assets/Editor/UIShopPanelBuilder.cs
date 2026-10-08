@@ -43,10 +43,10 @@ public static class UIShopPanelBuilder
     private const float TITLE_HEIGHT = 40f;
     private const int TITLE_FONT = 32;
 
-    private const int GRID_COLUMNS = 5;
+    private const int GRID_COLUMNS = 6;
     private const int GRID_ROWS = 5;
-    private const float CELL_SIZE = 156f;
-    private const float CELL_SPACING = 8f;
+    private const float CELL_SIZE = 130f;
+    private const float CELL_SPACING = 4f;
 
     private const int STORAGE_COUNT = 5;
     private const float STORAGE_CELL = 104f;
@@ -98,18 +98,23 @@ public static class UIShopPanelBuilder
         PrefabUtility.UnloadPrefabContents(contents);
         AssetDatabase.SaveAssets();
 
+        // 新建的格子只带默认底图，顺手按开局掩码烘一次，免得重建后 Prefab 模式又看不出锁格
+        BackpackSlotAppearanceBaker.bake();
+
         QLog.Info($"商店背包面板版式已重建，商店面板底边距屏幕顶部 {bottom:F0} 像素");
     }
 
     // ==================== Private Function ====================
-    // 背包面板：标题 + 5x5 网格 + 盖在网格上的物品图层，返回面板底边距屏幕顶的距离
+    // 背包面板：标题 + 6x5 网格 + 盖在网格上的物品图层，返回面板底边距屏幕顶的距离
+    // 列数变了宽和高不再相等，横向仍守 800 像素，多出来的一列靠缩格子换，不动面板边界
     private static float buildBackpack(RectTransform bg, float top)
     {
-        float gridSide = GRID_COLUMNS * CELL_SIZE + (GRID_COLUMNS - 1) * CELL_SPACING;
-        RectTransform panel = createPanel(bg, "Panel_Backpack", top, CONTENT_TOP + gridSide + PANEL_BOTTOM, 2);
+        float gridWidth = GRID_COLUMNS * CELL_SIZE + (GRID_COLUMNS - 1) * CELL_SPACING;
+        float gridHeight = GRID_ROWS * CELL_SIZE + (GRID_ROWS - 1) * CELL_SPACING;
+        RectTransform panel = createPanel(bg, "Panel_Backpack", top, CONTENT_TOP + gridHeight + PANEL_BOTTOM, 2);
         createPanelTitle(panel, "背包");
 
-        RectTransform grid = createNode(panel, "Grid_Slots", m_topCenter, m_topCenter, new Vector2(0f, -CONTENT_TOP), new Vector2(gridSide, gridSide));
+        RectTransform grid = createNode(panel, "Grid_Slots", m_topCenter, m_topCenter, new Vector2(0f, -CONTENT_TOP), new Vector2(gridWidth, gridHeight));
         addGrid(grid, CELL_SIZE, CELL_SPACING, GRID_COLUMNS);
 
         for (int row = 0; row < GRID_ROWS; row++)
@@ -122,7 +127,7 @@ public static class UIShopPanelBuilder
             }
         }
 
-        RectTransform items = createNode(panel, "Layer_Items", m_topCenter, m_topCenter, new Vector2(0f, -CONTENT_TOP), new Vector2(gridSide, gridSide));
+        RectTransform items = createNode(panel, "Layer_Items", m_topCenter, m_topCenter, new Vector2(0f, -CONTENT_TOP), new Vector2(gridWidth, gridHeight));
         float pitch = CELL_SIZE + CELL_SPACING;
         RectTransform template = createNode(items, "Item_Template", m_topLeft, m_topLeft, Vector2.zero, new Vector2(pitch, pitch));
         template.gameObject.AddComponent<UIShopItemView>();
