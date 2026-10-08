@@ -9,6 +9,7 @@
 
 using Framework.QTower;
 using Game;
+using Module.Backpack.Data;
 using Module.Fish.Data;
 using Module.Fish.View;
 using UnityEngine;
@@ -23,6 +24,7 @@ namespace Module.Fish
         [SerializeField] private RarityTableSO RarityTableAsset;
         [SerializeField] private HookConfigSO HookConfigAsset;
         [SerializeField] private FishingSessionConfigSO SessionConfigAsset;
+        [SerializeField] private BackpackConfigSO BackpackConfigAsset;
 
         [Header("场景引用")]
         [SerializeField] private HookViewController HookView;
@@ -33,6 +35,7 @@ namespace Module.Fish
         public RarityTableSO RarityTable => RarityTableAsset;
         public HookConfigSO HookConfig => HookConfigAsset;
         public FishingSessionConfigSO SessionConfig => SessionConfigAsset;
+        public BackpackConfigSO BackpackConfig => BackpackConfigAsset;
         public HookViewController Hook => HookView;
         public FishingCameraRig CameraRig => CameraRigView;
         public Transform FishRoot => FishRootNode;
@@ -67,6 +70,9 @@ namespace Module.Fish
 
             if (SessionConfigAsset == null)
                 QLog.Error($"[{nameof(FishingScene)}] SessionConfig 未挂，本局不会生成鱼");
+
+            if (BackpackConfigAsset == null)
+                QLog.Error($"[{nameof(FishingScene)}] BackpackConfig 未挂，商店阶段开不出背包");
 
             if (HookView == null)
                 QLog.Error($"[{nameof(FishingScene)}] Hook 未挂，状态机没有可驱动的钩子");

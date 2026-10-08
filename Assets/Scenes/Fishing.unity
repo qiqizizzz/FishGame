@@ -983,6 +983,8 @@ MonoBehaviour:
   RarityTableAsset: {fileID: 11400000, guid: 5ae54a3a8b36d0245ad3e6b65bc80266, type: 2}
   HookConfigAsset: {fileID: 11400000, guid: 793296d91618b3e4ab91b1275be7c03d, type: 2}
   SessionConfigAsset: {fileID: 11400000, guid: a9dac898f4f190748a27a1d70124376f, type: 2}
+  BackpackConfigAsset: {fileID: 11400000, guid: bdf40750e09b0d847a7ff9eb9cff0237,
+    type: 2}
   HookView: {fileID: 330791299}
   CameraRigView: {fileID: 330585548}
   FishRootNode: {fileID: 1339405604}

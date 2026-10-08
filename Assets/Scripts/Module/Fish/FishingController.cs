@@ -6,6 +6,7 @@
 * └──────────────────────────────────┘
 * 每帧顺序固定：采样输入 → 重建空间索引 → 推进状态机 → 钩上鱼跟随 → 流式生成 → 批量驱动行为
 * 状态迁移与判定规则全部收在控制器：Controller 是唯一可改 Model 的地方
+* 回合按「商店 → 钓鱼」两阶段推进，商店阶段整段暂停玩法驱动
 */
 
 using System;
@@ -16,6 +17,8 @@ using Framework.QTower.Common.Defines;
 using Framework.QTower.Controller;
 using Framework.QTower.Event;
 using Game;
+using Module.Backpack.Data;
+using Module.Backpack.Model;
 using Module.Fish.Data;
 using Module.Fish.Model;
 using Module.Fish.Service;
@@ -57,6 +60,8 @@ namespace Module.Fish
         private HookViewController m_hook;
         private UIRoundHUD m_roundHud;
         private RunState m_run;
+        private RunBackpack m_backpack;
+        private GamePhase m_phase = GamePhase.Shop;
         private bool m_running;
         private float m_maxDepth;
         private bool m_phasePublished;
@@ -120,6 +125,7 @@ namespace Module.Fish
             m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
 
             m_run = newRun();
+            m_backpack = newBackpack();
             startRun().Forget();
         }
 
@@ -134,6 +140,7 @@ namespace Module.Fish
         protected override void RegisterModuleEvent()
         {
             RegisterEvent(EventDefines.FishingSessionRestartRequested, restartRun);
+            RegisterEvent(EventDefines.ShopExitRequested, handleShopExit);
         }
 
         public override void Tick(float deltaTime)
@@ -249,7 +256,7 @@ namespace Module.Fish
                 SortingOrder = RESULT_SORTING_ORDER
             });
 
-            // 只登记地址，回合流程接上前不会有人打开它
+            // 商店是每回合的开场，进入商店阶段时才打开
             GameApp.UIManager.Register<UIShopPanel>(new UIData
             {
                 Address = UIDefines.UIShopPanel,
@@ -257,6 +264,15 @@ namespace Module.Fish
                 Controller = this,
                 SortingOrder = SHOP_SORTING_ORDER
             });
+        }
+
+        // 开局装备按配置落进网格，商店面板一打开就能看到教学鱼竿占的位置
+        private RunBackpack newBackpack()
+        {
+            RunBackpack backpack = new RunBackpack(m_scene.BackpackConfig);
+            backpack.SeedStartingItems();
+
+            return backpack;
         }
 
         // 每回合下潜次数与回合目标曲线都取自会话配置，重开也走这里
@@ -287,16 +303,54 @@ namespace Module.Fish
                 m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
 
             m_machine.Start(m_hook);
-            m_running = true;
 
             await hudTask;
             m_roundHud = await roundHudTask;
             publishSceneReady();
 
-            m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
+            enterShopPhase();
 
             QLog.Info($"[{nameof(FishingController)}] 本局可下潜 {m_hook.MaxDepth:0} 米，" +
                       $"鱼群游动半宽 {m_spawn.SwimHalfWidth:0.00} 米，在场鱼 {m_spawn.Alive.Count} 条");
+        }
+
+        // 商店阶段：面板盖住水面，玩法驱动整段暂停，回合数与「商店阶段」横幅一起亮起来
+        private void enterShopPhase()
+        {
+            m_phase = GamePhase.Shop;
+            m_running = false;
+
+            GameApp.UIManager.Hide<UIFishingHUD>();
+            GameApp.UIManager.Open<UIShopPanel>(m_run, m_backpack).Forget();
+            m_roundHud.StartRound(m_run.Round, GamePhase.Shop);
+
+            QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合商店阶段，" +
+                      $"银行 {m_run.Coins} 金币，目标 {m_run.RoundTarget} 金币，" +
+                      $"可潜 {m_run.DivesPerRound} 次，背包内 {m_backpack.Model.ItemCount} 件装备");
+        }
+
+        // 钓鱼阶段：收起商店面板，把玩法驱动交还给钩子状态机
+        private void enterFishingPhase()
+        {
+            m_phase = GamePhase.Fishing;
+
+            GameApp.UIManager.Close<UIShopPanel>();
+            GameApp.UIManager.Open<UIFishingHUD>().Forget();
+            m_running = true;
+
+            m_roundHud.PlayPhaseBanner(GamePhase.Fishing);
+
+            QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合开始钓鱼，" +
+                      $"剩余下潜 {m_run.DivesRemaining} 次，本回合目标 {m_run.RoundTarget} 金币");
+        }
+
+        // 商店面板只管喊「我要离开商店」，去哪一层由控制器决定
+        private void handleShopExit()
+        {
+            if (m_phase != GamePhase.Shop)
+                return;
+
+            enterFishingPhase();
         }
 
         // 遮罩只认这一个信号：场景侧初始化结束，失败与中途中断同样要发
@@ -451,17 +505,13 @@ namespace Module.Fish
             }
         }
 
-        // 回合裁决：次数用尽才判达标，达标开下一回合，没达标就封盘
-        // 商店阶段接上之前，达标后直接进下一回合的三次下潜
+        // 回合裁决：次数用尽才判达标，达标回到商店阶段花金币，没达标就封盘
         private void handleRoundEnd()
         {
             if (m_run.IsTargetReached)
             {
                 m_run.AdvanceRound();
-                m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
-
-                QLog.Info($"[{nameof(FishingController)}] 达标进入第 {m_run.Round} 回合，" +
-                          $"目标 {m_run.RoundTarget} 金币，银行已有 {m_run.Coins} 金币");
+                enterShopPhase();
                 return;
             }
 
@@ -488,6 +538,7 @@ namespace Module.Fish
             m_maxDepth = 0f;
             m_buffer.Clear();
             m_run = newRun();
+            m_backpack = newBackpack();
 
             m_spawn.EndSession();
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
@@ -495,12 +546,9 @@ namespace Module.Fish
                 m_scene.FishRoot, m_scene.CameraRig.ViewHalfWidth);
 
             m_machine.Start(m_hook);
-            m_running = true;
 
-            m_roundHud.StartRound(m_run.Round, GamePhase.Fishing);
-
-            QLog.Info($"[{nameof(FishingController)}] 开新一局，第 {m_run.Round} 回合目标 {m_run.RoundTarget} 金币，" +
-                      $"每回合可潜 {m_run.DivesPerRound} 次，在场鱼 {m_spawn.Alive.Count} 条");
+            QLog.Info($"[{nameof(FishingController)}] 开新一局，在场鱼 {m_spawn.Alive.Count} 条");
+            enterShopPhase();
         }
 
         private static FishCaptureInfo captureInfo(FishInstance fish, float depth)
@@ -518,7 +566,8 @@ namespace Module.Fish
                 && m_scene.SessionConfig != null
                 && m_scene.Hook != null
                 && m_scene.CameraRig != null
-                && m_scene.FishRoot != null;
+                && m_scene.FishRoot != null
+                && m_scene.BackpackConfig != null;
 
             if (!valid)
                 QLog.Error($"[{nameof(FishingController)}] 场景引用不完整，玩法不会启动，请检查 FishingScene 上的挂载");

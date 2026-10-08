@@ -9,9 +9,12 @@
 * 格子解锁直接问模型的解锁掩码，物品坐标直接问实例的世界格，界面不自己算位图
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由面板自带的隐藏模板复制并留用，只开关不销毁
+* 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
 
 using System.Collections.Generic;
+using Framework.QTower.Common.Defines;
+using Framework.QTower.Event;
 using Framework.QTower.View;
 using Module.Backpack.Model;
 using Module.Fish.Model;
@@ -100,8 +103,8 @@ namespace UI.Shop
             m_cellSpacing = m_grid.spacing.x;
 
             m_refreshButton.onClick.AddListener(handleRefreshClicked);
-            m_diveButton.onClick.AddListener(handleDiveClicked);
-            m_closeButton.onClick.AddListener(handleCloseClicked);
+            m_diveButton.onClick.AddListener(handleLeaveShopClicked);
+            m_closeButton.onClick.AddListener(handleLeaveShopClicked);
         }
 
         protected override void OnOpen(params object[] args)
@@ -240,15 +243,11 @@ namespace UI.Shop
             rebuildGoods();
         }
 
-        private void handleDiveClicked()
+        // 商店阶段唯一的去处就是下潜，两个按钮暂时同义，等商店能买东西再分职责
+        // 面板不自己决定下一阶段是谁，只喊一声「离开商店」，切阶段交给控制器
+        private void handleLeaveShopClicked()
         {
-            // 回合流程接上后这里改成进入钓鱼阶段，目前先把面板收起
-            Hide();
-        }
-
-        private void handleCloseClicked()
-        {
-            Hide();
+            EventManager.PublishEvent(EventDefines.ShopExitRequested);
         }
     }
 }
