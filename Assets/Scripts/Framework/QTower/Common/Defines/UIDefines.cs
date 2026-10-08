@@ -15,6 +15,7 @@ namespace Framework.QTower.Common.Defines
         public const string UIFishingHUD = "UIFishingHUD";
         public const string UIRoundHUD = "UIRoundHUD";
         public const string UIResultPanel = "UIResultPanel";
+        public const string UIShopPanel = "UIShopPanel";
         public const string UILoadingPanel = "UILoadingPanel";
     }
 }

@@ -22,6 +22,7 @@ using Module.Fish.Service;
 using Module.Fish.Type;
 using Module.Fish.View;
 using UI.RoundHUD;
+using UI.Shop;
 using UI.Summary;
 using UnityEngine;
 using Utils.log;
@@ -35,6 +36,8 @@ namespace Module.Fish
         // 低于结算面板（100），高于场景内一切表现
         private const int HUD_SORTING_ORDER = 10;
         private const int ROUND_HUD_SORTING_ORDER = 20;
+        // 商店面板压在结算之下，回合内它与 HUD 不会同时露出
+        private const int SHOP_SORTING_ORDER = 60;
         private const int RESULT_SORTING_ORDER = 100;
 
         // ==================== 字段[私有] ====================
@@ -244,6 +247,15 @@ namespace Module.Fish
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = RESULT_SORTING_ORDER
+            });
+
+            // 只登记地址，回合流程接上前不会有人打开它
+            GameApp.UIManager.Register<UIShopPanel>(new UIData
+            {
+                Address = UIDefines.UIShopPanel,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = SHOP_SORTING_ORDER
             });
         }
 
