@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: old_customer
   ItemLabel: "\u8001\u4E3B\u987E"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: -544377847, guid: ea60f01420e7cc64f8bfd642fea7abc5, type: 3}
   ModType: 4
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

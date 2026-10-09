@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: bite_glove
   ItemLabel: "\u9632\u54AC\u624B\u5957"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: 1089169132, guid: f6d78ce8c5d8fb548abb01dcb61c5119, type: 3}
   ModType: 9
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

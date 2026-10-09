@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: line_extension
   ItemLabel: "\u5EF6\u957F\u9C7C\u7EBF"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: -192963534, guid: ea60f01420e7cc64f8bfd642fea7abc5, type: 3}
   ModType: 0
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

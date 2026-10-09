@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: hold_hatch
   ItemLabel: "\u6D3B\u6C34\u8231"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: -1848417944, guid: f6d78ce8c5d8fb548abb01dcb61c5119, type: 3}
   ModType: 2
   TierShapes:
   - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}

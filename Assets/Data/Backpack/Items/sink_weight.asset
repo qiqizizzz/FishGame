@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: sink_weight
   ItemLabel: "\u914D\u91CD\u94C5\u5760"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: 1473664566, guid: f6d78ce8c5d8fb548abb01dcb61c5119, type: 3}
   ModType: 5
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

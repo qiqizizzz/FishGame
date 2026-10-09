@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: glow_lure
   ItemLabel: "\u53D1\u5149\u62DF\u9975"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: -1170059644, guid: ea60f01420e7cc64f8bfd642fea7abc5, type: 3}
   ModType: 3
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

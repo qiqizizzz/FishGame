@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: stream_hook
   ItemLabel: "\u6D41\u7EBF\u94A9\u8EAB"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: 165831762, guid: ea60f01420e7cc64f8bfd642fea7abc5, type: 3}
   ModType: 6
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}

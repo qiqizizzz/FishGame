@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ItemId: reel_handle
   ItemLabel: "\u5377\u7EBF\u624B\u67C4"
-  ItemIcon: {fileID: 0}
+  ItemIcon: {fileID: -817591623, guid: f6d78ce8c5d8fb548abb01dcb61c5119, type: 3}
   ModType: 1
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
