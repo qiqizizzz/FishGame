@@ -285,6 +285,12 @@ namespace UI.Shop
             refreshAll();
         }
 
+        // 面板中途被关掉或整块禁用时 End 系列来不及跑，提层状态在这里自己收干净，不留残留
+        private void OnDisable()
+        {
+            restoreBackpackPanel();
+        }
+
         // ==================== Public Function ====================
         // 宿主手势入口，转给背包模型校验，成不成都要重铺，让落点歪掉的物品弹回原位
         public bool TryRotate(BackpackItemInstance item)
