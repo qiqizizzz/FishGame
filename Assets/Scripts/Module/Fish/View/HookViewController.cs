@@ -104,6 +104,18 @@ namespace Module.Fish.View
         }
 
         /// <summary>
+        /// 换一局时把新属性包推给钩子，钩子自己不保管任何玩法状态
+        /// </summary>
+        /// <param name="stats">背包重算出来的新属性包</param>
+        public void AttachStats(IFishingStats stats)
+        {
+            m_stats = stats;
+
+            if (stats == null)
+                QLog.Error($"[{nameof(HookViewController)}] 属性包未注入，钩子无法取到线长上限");
+        }
+
+        /// <summary>
         /// 每帧喂入玩家意图：按住状态与本帧横向拖拽的屏幕像素位移
         /// </summary>
         public void FeedInput(bool isPressing, float dragDeltaPixels)

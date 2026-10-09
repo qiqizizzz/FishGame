@@ -123,13 +123,15 @@ namespace Module.Fish
                 new TangledHookState(),
                 new LandedHookState());
 
-            m_hook.Initialize(m_scene.SessionConfig, m_stats, m_machine, this);
-            m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
-
+            // 属性包必须在 Initialize 之前生成，否则钩子会拿到一个 null 的 stats
             m_run = newRun();
             m_backpack = newBackpack();
             m_shop = newShop();
             rebuildStats();
+
+            m_hook.Initialize(m_scene.SessionConfig, m_stats, m_machine, this);
+            m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
+
             startRun().Forget();
         }
 
@@ -282,10 +284,13 @@ namespace Module.Fish
         }
 
         // 属性包订阅了背包的变动事件，重建前先把旧的摘掉，免得旧背包一直拽着一个没人读的属性包
+        // 这里是 stats 唯一的生成点，生成后立刻回注给钩子，换一局时钩子才不会攥着上一个已 Dispose 的旧包
         private void rebuildStats()
         {
             (m_stats as IDisposable)?.Dispose();
             m_stats = new BackpackFishingStats(m_scene.HookConfig, m_backpack.Model);
+
+            m_hook.AttachStats(m_stats);
         }
 
         // 商店与背包同生命周期，开新局换一间店，刷新价钱一并回到起始档
