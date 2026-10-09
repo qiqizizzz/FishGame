@@ -215,8 +215,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: "\u672C\u6B21\u6536\u83B7"
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: f1e2ac522e2e8854496798d55de6de58, type: 2}
-  m_sharedMaterial: {fileID: -2994712278907660003, guid: f1e2ac522e2e8854496798d55de6de58,
+  m_fontAsset: {fileID: 11400000, guid: e812164ccc3e0d44e876e1e26ac17c04, type: 2}
+  m_sharedMaterial: {fileID: -5658852956424855102, guid: e812164ccc3e0d44e876e1e26ac17c04,
     type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}

@@ -15,6 +15,7 @@
 * 格子上不再常驻名称，点中布或装备都在它旁边浮出详情小窗：第一行名字，第二行能力线
 * 详情小窗是独立预制体 UIShopDetailWindow，脚本只实例化一次并按选中物染色，版式全在预制体里改
 * 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
+* 布与装备一出网格就压在仓库与商店底下，拖起来期间要把整块背包面板提到最后，松手放回原位
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
@@ -173,6 +174,12 @@ namespace UI.Shop
         // 被抓到手上的那块布，它铺过的格子在这期间显示成锁格，因为底板确实跟着手指走了
         private BackpackItemInstance m_plateInHand;
 
+        // 背包面板整块，拖起来的东西要压过仓库与商店，只能连它一起往上提
+        private RectTransform m_backpackPanelRect;
+
+        // 提层之前的兄弟序号，-1 表示当前没提着，松手按它放回原位
+        private int m_backpackPanelIndex = -1;
+
         // 幽灵格要抄底层格子的底图，整张网格同源，读第一格就够
         private Sprite m_cellSprite;
 
@@ -209,6 +216,7 @@ namespace UI.Shop
 
             // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，小窗挂它才能越过网格的范围摆
             m_backgroundRect = m_itemsRect.transform.parent.parent as RectTransform;
+            m_backpackPanelRect = m_itemsRect.transform.parent as RectTransform;
 
 #if UNITY_EDITOR
             if (m_grid == null)
@@ -225,6 +233,8 @@ namespace UI.Shop
                 QLog.Error($"没有指定 {nameof(DetailWindowPrefab)}，点中布或装备不会有详情小窗");
             if (m_backgroundRect == null)
                 QLog.Error("背景节点没找到，详情小窗无处可挂");
+            if (m_backpackPanelRect == null)
+                QLog.Error("背包面板没找到，拖起来的布与装备压不过仓库与商店");
 #endif
 
             m_cellSize = m_grid.cellSize.x;
@@ -268,6 +278,8 @@ namespace UI.Shop
             m_selectedPlate = null;
             m_selectedItem = null;
             m_plateInHand = null;
+            // 上一眼可能正拖着东西就关了面板，提层状态在这里兜底清干净
+            restoreBackpackPanel();
             refreshActionBar();
 
             refreshAll();
@@ -401,6 +413,7 @@ namespace UI.Shop
         // 装备到手上了，操作条与详情小窗先收起来，免得拖的时候满屏控件
         public void BeginItemDrag(BackpackItemInstance item)
         {
+            raiseBackpackPanel();
             m_plateBar.gameObject.SetActive(false);
             m_detailRect.gameObject.SetActive(false);
         }
@@ -408,6 +421,7 @@ namespace UI.Shop
         // 手上的装备落下或作废，条子按落点之后的选中态复原
         public void EndItemDrag(BackpackItemInstance item)
         {
+            restoreBackpackPanel();
             refreshActionBar();
         }
 
@@ -482,6 +496,7 @@ namespace UI.Shop
                 return;
 
             m_plateInHand = plate;
+            raiseBackpackPanel();
             // 布已经离地，压在它下面的操作条与详情小窗跟着收起来，免得拖的时候满屏都是控件
             m_plateBar.gameObject.SetActive(false);
             m_detailRect.gameObject.SetActive(false);
@@ -491,6 +506,9 @@ namespace UI.Shop
         // 松手之前先解除手持，格子才有机会按布落下之后的样子重染
         public void EndPlateDrag(BackpackItemInstance plate)
         {
+            // 这块布还认不认得都要先把层还回去，漏一次背包面板就一直压在商店上面
+            restoreBackpackPanel();
+
             if (m_plateInHand == null)
                 return;
 
@@ -547,6 +565,27 @@ namespace UI.Shop
         {
             if (m_backpack != null)
                 fillStorage();
+        }
+
+        // 拖起来的东西出了网格就压在仓库与商店底下，把整块背包面板提到最后才压得住
+        // 提层只认第一次的序号，重复调用不会把提层后的序号当成原序号记下来
+        private void raiseBackpackPanel()
+        {
+            if (m_backpackPanelRect == null || m_backpackPanelIndex >= 0)
+                return;
+
+            m_backpackPanelIndex = m_backpackPanelRect.GetSiblingIndex();
+            m_backpackPanelRect.SetAsLastSibling();
+        }
+
+        // 松手放回原位，没提过就是空转，中途关面板也靠 OnOpen 再兜一次
+        private void restoreBackpackPanel()
+        {
+            if (m_backpackPanelRect == null || m_backpackPanelIndex < 0)
+                return;
+
+            m_backpackPanelRect.SetSiblingIndex(m_backpackPanelIndex);
+            m_backpackPanelIndex = -1;
         }
 
         private void refreshCounters()
