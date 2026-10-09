@@ -1,13 +1,13 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 把开局解锁掩码烘进商店背包预制体，Prefab 模式下直接看得见锁格
+* │  描    述: 把开局布料铺出的格烘进商店背包预制体，Prefab 模式下直接看得见空格
 * │  类    名: BackpackSlotAppearanceBaker.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 运行时外观由 UIShopSlotItem 按掩码逐格切换，预制体里只留一份默认底图，编辑器下 30 格长一个样
+* 运行时外观由 UIShopSlotItem 按板块掩码逐格切换，预制体里只留一份默认底图，编辑器下 30 格长一个样
 * 这里读同一份背包配置，把每格 Image 的底图与颜色写成实值，写完仍可在 Prefab 模式逐格手调
 * 只动格子节点上的 Image 与名称文本，不碰版式、层级与尺寸，重跑不会覆盖手工调过的布局
-* 改过开局掩码或格子配色后点一次即可，运行时的切换逻辑依旧是唯一权威
+* 改过开局布料或格子配色后点一次即可，运行时的切换逻辑依旧是唯一权威
 */
 
 using Module.Backpack.Data;
@@ -54,7 +54,7 @@ public static class BackpackSlotAppearanceBaker
                 return;
             }
 
-            int usedCells = bakeBackpack(grid.GetComponent<RectTransform>(), config.Columns, config.Rows, config.UnlockMaskAt(0));
+            int usedCells = bakeBackpack(grid.GetComponent<RectTransform>(), config.Columns, config.Rows, config.BuildStartingMask());
             int storageCells = bakeStorage(storage.GetComponent<RectTransform>());
 
             if (usedCells < 0 || storageCells < 0)

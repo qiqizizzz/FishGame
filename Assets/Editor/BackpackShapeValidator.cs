@@ -5,7 +5,7 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 工程里没有 EditMode 测试程序集，自检就挂在这个菜单上，改到位图或判定后点一下就知道有没有跑偏
-* 铺满校验证明开局锚形刚好容纳方块加竖三条，且 2×3 板天然进不去，后期靠尺寸而不是靠额外锁
+* 格子全靠布铺出来，铺满校验验的是两块开局布拼出的 5 格，以及拆布挤走装备时的暂存架兜底
 * 旋转校验专门盯自排除：忘了摘掉物品自己的占用位，原地旋转就会永远转不动
 * 装备库与开局落位顺带一起跑，档位表填歪或开局放不下当场就报
 * 临时物品只在内存里造，不落盘，不往工程里塞假资产
@@ -28,12 +28,15 @@ public static class BackpackShapeValidator
     private const int CONTAINER_COLUMNS = 6;
     private const int CONTAINER_ROWS = 5;
 
-    private static readonly Vector2Int[] m_anchorCells =
+    // 铺满校验要逐列铺竖三条加竖二连，5 列刚好盖满 m_allCells 的 25 格
+    private const int FULL_TILING_COLUMNS = 5;
+
+    // 开局那 5 格由 3 格布加 2 格布拼出来，自检一切以这块并集为准
+    private static readonly Vector2Int[] m_startingCells =
     {
-        new Vector2Int(0, 0), new Vector2Int(1, 0),
-        new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(2, 1),
-        new Vector2Int(2, 2),
-        new Vector2Int(2, 3)
+        new Vector2Int(2, 0), new Vector2Int(3, 0),
+        new Vector2Int(2, 1), new Vector2Int(3, 1),
+        new Vector2Int(2, 2)
     };
 
     private static readonly Vector2Int[] m_allCells =
@@ -57,10 +60,11 @@ public static class BackpackShapeValidator
 
         printShapeTable();
         checkConfigAsset();
-        checkAnchorPacking();
+        checkStartingClothPacking();
         checkRotationSelfExclusion();
         checkOccupancyConflict();
-        checkUnlockContainment();
+        checkPlateSupport();
+        checkClothStashGuard();
         checkItemLibrary();
 
         string text = string.Join("\n", m_reports);
@@ -105,7 +109,7 @@ public static class BackpackShapeValidator
         }
     }
 
-    // 配置资产是界面与玩法唯一的数据源，基准锚形对不上就说明有人手抖改了掩码
+    // 配置资产是界面与玩法唯一的数据源，开局布拼出的格对不上就说明有人手抖改了摆放
     private static void checkConfigAsset()
     {
         BackpackConfigSO config = AssetDatabase.LoadAssetAtPath<BackpackConfigSO>(CONFIG_PATH);
@@ -117,49 +121,61 @@ public static class BackpackShapeValidator
         }
 
         bool sized = config.Columns == CONTAINER_COLUMNS && config.Rows == CONTAINER_ROWS;
-        report($"配置：容器 {config.Columns}×{config.Rows} · 解锁 {config.UnlockStageCount} 级 · "
+        report($"配置：容器 {config.Columns}×{config.Rows} · 开局布 {config.StartingClothCount} 块 · "
             + $"暂存 {config.StashCapacity} 件 · 售价 {config.TierPrice(1)}/{config.TierPrice(2)}/{config.TierPrice(3)}",
-            sized && config.UnlockStageCount > 0);
+            sized && config.StartingClothCount > 0);
 
-        bool anchorMatch = config.UnlockMaskAt(0) == toBits(m_anchorCells);
-        report($"开局锚形与自检基准一致：{anchorMatch}", anchorMatch);
+        bool anchorMatch = config.BuildStartingMask() == toBits(m_startingCells);
+        report($"开局布拼出的格与自检基准一致：{anchorMatch}", anchorMatch);
     }
-    // 方块加竖三条要正好铺满开局锚形，2×3 板要一个锚点都放不下
-    private static void checkAnchorPacking()
+    // 开局两块布要正好拼出基准的 5 格，多一格少一格都算配置摆歪了
+    private static void checkStartingClothPacking()
     {
-        long anchor = toBits(m_anchorCells);
-        GridShapeSO block = loadShape("block_4");
+        GridShapeSO domino = loadShape("domino_2");
         GridShapeSO line = loadShape("line_3");
         GridShapeSO slab = loadShape("slab_6");
 
-        if (block == null || line == null || slab == null)
+        if (domino == null || line == null || slab == null)
         {
-            m_failures.Add("缺少 block_4 / line_3 / slab_6，铺满校验跑不起来");
+            m_failures.Add("缺少 domino_2 / line_3 / slab_6，开局布铺格校验跑不起来");
             return;
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
 
-        BackpackItemInstance blockItem = createItem(block, 1);
-        blockItem.AnchorColumn = 0;
-        blockItem.AnchorRow = 0;
-        BackpackItemInstance lineItem = createItem(line, 1);
-        lineItem.AnchorColumn = 2;
-        lineItem.AnchorRow = 1;
+        BackpackItemInstance lineCloth = createCloth(line, 2, 0);
+        BackpackItemInstance dominoCloth = createCloth(domino, 3, 0);
 
-        bool blockPlaced = model.TryPlace(blockItem);
-        bool linePlaced = model.TryPlace(lineItem);
-        bool packedFull = model.FreeCells == 0 && model.UsedCells == m_anchorCells.Length;
+        bool linePaved = model.TryPlacePlate(lineCloth);
+        bool dominoPaved = model.TryPlacePlate(dominoCloth);
+        bool unionMatch = model.PlateMask == toBits(m_startingCells);
 
-        report($"锚形铺满：方块 {(blockPlaced ? "入" : "拒")} · 竖三条 {(linePlaced ? "入" : "拒")} · 剩余空格 {model.FreeCells}",
-            blockPlaced && linePlaced && packedFull);
+        report($"开局铺格：竖三条 {(linePaved ? "铺上" : "失败")} · 竖两块 {(dominoPaved ? "铺上" : "失败")} · "
+            + $"并集 {toHex(model.PlateMask)} 可用格 {model.UnlockedCells} 基准 {toHex(toBits(m_startingCells))}",
+            linePaved && dominoPaved && unionMatch && model.UnlockedCells == m_startingCells.Length);
 
+        // 布和布不许重叠，同一格铺两次不会多出一格
+        BackpackItemInstance overlapCloth = createCloth(line, 2, 0);
+        bool overlapRefused = !model.TryPlacePlate(overlapCloth);
+        report($"布压布：同锚点再铺一块被拒 {overlapRefused}", overlapRefused);
+
+        // 格子全靠布铺，6 格的大布在只有 5 格的开局范围里一个锚点都找不到
         BackpackModel probe = new BackpackModel();
-        probe.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
-        bool slabFits = canPlaceAnywhere(probe, slab);
+        probe.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
+        bool slabOnEmptyFloor = canPlacePlateAnywhere(probe, slab);
 
-        report($"2×3 板在锚形内可放置锚点数：{(slabFits ? "有，后期锁不住" : "零，天然锁在后期")}", !slabFits);
+        // 布没铺之前一格都没有，装备一件也落不下去
+        report($"空容器：铺得出板 {slabOnEmptyFloor} · 落不下装备 {!canPlaceItemAnywhere(probe, domino)}",
+            slabOnEmptyFloor && !canPlaceItemAnywhere(probe, domino));
+
+        // 铺满之后 2×3 装备要能压在布上，这才是买布换格子的好处
+        BackpackModel grown = new BackpackModel();
+        grown.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
+        tileFullPlates(grown);
+        bool slabItemFits = canPlaceItemAnywhere(grown, slab);
+        report($"铺满 25 格后：可用格 {grown.UnlockedCells} · 空格 {grown.FreeCells} · 2×3 装备可落 {slabItemFits}",
+            grown.UnlockedCells == m_allCells.Length && slabItemFits);
     }
 
     // 自排除：L 形在空格子容器里连转四圈必须全部成功并回到初始朝向
@@ -175,7 +191,8 @@ public static class BackpackShapeValidator
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, toBits(m_allCells));
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
+        tileFullPlates(model);
 
         BackpackItemInstance cornerItem = createItem(corner, 1);
         cornerItem.AnchorColumn = 1;
@@ -224,7 +241,8 @@ public static class BackpackShapeValidator
         }
 
         BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, toBits(m_allCells));
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
+        tileFullPlates(model);
 
         BackpackItemInstance first = createItem(domino, 1);
         first.AnchorColumn = 0;
@@ -251,37 +269,82 @@ public static class BackpackShapeValidator
             + $"· 移入占用格拒 {moveRefused} · 取走后可补 {refillAllowed}", passed);
     }
 
-    // 解锁只能往外长，往回收必须被拒绝，否则放好的物品会悬空
-    private static void checkUnlockContainment()
+    // 布是格子的唯一来源：拆走压着装备的布必须把装备一起摘下来，接不下就整次不动
+    private static void checkPlateSupport()
     {
-        long anchor = toBits(m_anchorCells);
-        long full = toBits(m_allCells);
-        BackpackModel model = new BackpackModel();
-        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS, anchor);
-
         GridShapeSO domino = loadShape("domino_2");
 
         if (domino == null)
         {
-            m_failures.Add("缺少 domino_2，解锁包含校验跑不起来");
+            m_failures.Add("缺少 domino_2，板块支撑校验跑不起来");
             return;
         }
 
-        BackpackItemInstance item = createItem(domino, 1);
-        item.AnchorColumn = 0;
-        item.AnchorRow = 0;
-        model.TryPlace(item);
+        BackpackModel model = new BackpackModel();
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
 
-        bool shrinkRefused = muted(() => !model.TrySetUnlockMask(anchor & ~(1L << 8)));
-        bool expandAllowed = model.TrySetUnlockMask(full);
-        bool movedFar = model.TryMove(item, 4, 3);
-        bool shrinkAfterExpandRefused = muted(() => !model.TrySetUnlockMask(anchor));
+        BackpackItemInstance cloth = createCloth(domino, 0, 0);
+        bool paved = model.TryPlacePlate(cloth);
+        BackpackItemInstance gear = createItem(domino, 1);
+        gear.AnchorColumn = 0;
+        gear.AnchorRow = 0;
+        bool stacked = model.TryPlace(gear);
+        bool cellShared = model.FindPlateAt(0, 1) == cloth && model.FindItemAt(0, 1) == gear;
+        // 列 4 行 3 在容器内但没铺布，装备落上去就该被拒
+        bool floorlessRefused = !model.CanPlace(domino.OrientationAt(0), 4, 3);
 
-        report($"解锁变更：关掉占用格被拒 {shrinkRefused} · 扩到满格被允许 {expandAllowed} · 移到新格 {movedFar} · 移过去后再关掉被拒 {shrinkAfterExpandRefused}",
-            shrinkRefused && expandAllowed && movedFar && shrinkAfterExpandRefused);
+        report($"同格叠层：铺板 {paved} · 压装备 {stacked} · 一格两层 {cellShared} · 无底格放装备被拒 {floorlessRefused}",
+            paved && stacked && cellShared && floorlessRefused);
+
+        List<BackpackItemInstance> orphans = new();
+        bool overCapacityRefused = muted(() => !model.TryRemovePlate(cloth, 0, orphans));
+        bool stateUntouched = model.PlateCount == 1 && model.ItemCount == 1 && model.UnlockedCells == 2;
+        bool dropped = model.TryRemovePlate(cloth, 1, orphans);
+
+        report($"拆布挤装备：容量不够被拒 {overCapacityRefused} · 拒绝后状态不变 {stateUntouched} · "
+            + $"容量够时拆成 {dropped} · 摘下的装备 {orphans.Count} 件 · 拆完可用格 {model.UnlockedCells}",
+            overCapacityRefused && stateUntouched && dropped && orphans.Count == 1 && orphans[0] == gear
+                && model.PlateCount == 0 && model.ItemCount == 0 && model.UnlockedCells == 0);
+    }
+
+    // 挪布和转布也一样：暂存架接不住悬空装备的这一次就不该发生
+    private static void checkClothStashGuard()
+    {
+        BackpackConfigSO config = AssetDatabase.LoadAssetAtPath<BackpackConfigSO>(CONFIG_PATH);
+        GridShapeSO line = loadShape("line_3");
+        GridShapeSO domino = loadShape("domino_2");
+
+        if (config == null || line == null || domino == null)
+        {
+            m_failures.Add("背包配置或形状缺失，暂存架兜底校验跑不起来");
+            return;
+        }
+
+        BackpackModel model = new BackpackModel();
+        model.Configure(CONTAINER_COLUMNS, CONTAINER_ROWS);
+
+        BackpackItemInstance cloth = createCloth(line, 0, 0);
+        model.TryPlacePlate(cloth);
+        BackpackItemInstance gear = createItem(domino, 1);
+        gear.AnchorColumn = 0;
+        gear.AnchorRow = 0;
+        model.TryPlace(gear);
+
+        List<BackpackItemInstance> orphans = new();
+        bool moveRefused = muted(() => !model.TryMovePlate(cloth, 3, 0, 0, orphans));
+        bool stillPaved = model.UnlockedCells == line.CellCount && model.UsedCells == domino.CellCount;
+
+        // 挪去列 3 之后列 0 那三格没了底，装备必须被摘下来，一处都不许是半成品
+        bool moveAllowed = model.TryMovePlate(cloth, 3, 0, 1, orphans);
+
+        report($"挪布兜底：架满时整次拒绝 {moveRefused} · 拒绝后格子与装备原样 {stillPaved} · "
+            + $"接得下时挪走 {moveAllowed} · 被摘装备 {orphans.Count} 件 · 剩可用格 {model.UnlockedCells}",
+            moveRefused && stillPaved && moveAllowed && orphans.Count == 1 && model.ItemCount == 0
+                && model.PlateCount == 1 && model.UnlockedCells == line.CellCount);
     }
 
     // 装备库的档位表必须一档比一档大、一档比一档强，形状一律从模板库取
+    // 一档比一档强按首档符号定向：负向 BUFF 越负越强，别当成填反了
     private static void checkItemLibrary()
     {
         string[] guids = AssetDatabase.FindAssets("t:BackpackItemSO", new[] { ITEMS_FOLDER });
@@ -313,6 +376,9 @@ public static class BackpackShapeValidator
             int lastCells = 0;
             float lastValue = 0f;
 
+            // 加成的强弱方向看首档的符号，负向 BUFF 是数值越往下走越强
+            int direction = 0;
+
             for (int tier = 1; tier <= tiers; tier++)
             {
                 GridShapeSO shape = item.ShapeAt(tier);
@@ -322,7 +388,10 @@ public static class BackpackShapeValidator
                 if (cells <= lastCells)
                     cellsGrow = false;
 
-                if (value <= lastValue)
+                if (direction == 0 && value != 0f)
+                    direction = value < 0f ? -1 : 1;
+
+                if (direction > 0 ? value <= lastValue : value >= lastValue)
                     valuesGrow = false;
 
                 lastCells = cells;
@@ -332,7 +401,17 @@ public static class BackpackShapeValidator
                 valueText += (tier > 1 ? "/" : "") + value;
             }
 
-            string line = $"  {item.Id} · {item.Label} · {item.Mod} · {tiers} 档 · 格数 {cellText} · 数值 {valueText}";
+            string weakPoint = "";
+
+            if (!cellsGrow)
+                weakPoint += "格数没有一档比一档大";
+
+            if (!valuesGrow)
+                weakPoint += (weakPoint.Length > 0 ? "、" : "") + "加成没有一档比一档强";
+
+            string line = $"  {item.Id} · {item.Label} · {item.Mod} · {tiers} 档 · 格数 {cellText} · 数值 {valueText}"
+                + (weakPoint.Length > 0 ? " · 待调：" + weakPoint : "");
+
             report(line, cellsGrow && valuesGrow && tiers <= BackpackItemSO.MAX_TIER);
         }
 
@@ -359,12 +438,13 @@ public static class BackpackShapeValidator
         }
 
         RunBackpack backpack = new RunBackpack(config);
+        backpack.SeedStartingCloths();
         backpack.SeedStartingItems();
 
         int placed = backpack.Model.ItemCount;
         int stashed = backpack.Stash.Count;
 
-        report($"开局落位：装备 {starting} 件 · 上格 {placed} · 暂存 {stashed} · 占格 {backpack.Model.UsedCells}/{backpack.Model.UnlockedCells}",
+        report($"开局落位：布料 {backpack.Model.PlateCount} 块 · 装备 {starting} 件 · 上格 {placed} · 暂存 {stashed} · 占格 {backpack.Model.UsedCells}/{backpack.Model.UnlockedCells}",
             placed == starting && stashed == 0);
     }
 
@@ -376,7 +456,19 @@ public static class BackpackShapeValidator
             m_failures.Add(text);
     }
 
-    private static bool canPlaceAnywhere(BackpackModel model, GridShapeSO shape)
+    // 装备层全锚点扫描：问这件装备在这面容器里到底有没有一个落点
+    private static bool canPlaceItemAnywhere(BackpackModel model, GridShapeSO shape)
+    {
+        return canPlaceAnywhere(model, shape, false);
+    }
+
+    // 板块层全锚点扫描：铺板只看会不会压到别的布，装备在上头不算冲突
+    private static bool canPlacePlateAnywhere(BackpackModel model, GridShapeSO shape)
+    {
+        return canPlaceAnywhere(model, shape, true);
+    }
+
+    private static bool canPlaceAnywhere(BackpackModel model, GridShapeSO shape, bool plateLayer)
     {
         ShapeMask[] orientations = shape.Orientations;
 
@@ -388,13 +480,51 @@ public static class BackpackShapeValidator
             {
                 for (int column = 0; column <= CONTAINER_COLUMNS - current.Width; column++)
                 {
-                    if (model.CanPlace(current, column, row))
+                    bool fits = plateLayer
+                        ? model.CanPlacePlate(current, column, row)
+                        : model.CanPlace(current, column, row);
+
+                    if (fits)
                         return true;
                 }
             }
         }
 
         return false;
+    }
+
+    // 满铺基准：每列竖三条盖住上三行、竖两块盖住下两行，五列正好 25 格
+    private static void tileFullPlates(BackpackModel model)
+    {
+        GridShapeSO line = loadShape("line_3");
+        GridShapeSO domino = loadShape("domino_2");
+
+        if (line == null || domino == null)
+        {
+            m_failures.Add("缺少 line_3 / domino_2，满铺基准铺不出来");
+            return;
+        }
+
+        for (int column = 0; column < FULL_TILING_COLUMNS; column++)
+        {
+            model.TryPlacePlate(createCloth(line, column, 0));
+            model.TryPlacePlate(createCloth(domino, column, 3));
+        }
+    }
+
+    // 内存造一块布：模型只按形状与锚点裁决，Kind 留给运行期分流，自检不必造真布
+    private static BackpackItemInstance createCloth(GridShapeSO shape, int anchorColumn, int anchorRow)
+    {
+        BackpackItemInstance plate = createItem(shape, 1);
+        plate.AnchorColumn = anchorColumn;
+        plate.AnchorRow = anchorRow;
+        return plate;
+    }
+
+    // 位图太长没法读，自检报告统一成十六进制
+    private static string toHex(long bits)
+    {
+        return "0x" + bits.ToString("X2");
     }
 
     // 内存造一件装备定义，档位表只挂一个形状，不落盘不留垃圾资产

@@ -1,11 +1,11 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 面板中的单个格子，负责空格、锁定与仓库暂存三种外观
+* │  描    述: 面板中的单个格子，负责空格、布底、锁定与仓库暂存四种外观
 * │  类    名: UIShopSlotItem.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 位置与尺寸交给 GridLayoutGroup，脚本只切底图与颜色
-* 背包格只当底，压在上面的物品由 UIShopItemView 单独画一层
+* 背包格铺的是布，布的底色就是这格的底色，压在布上的装备由 UIShopItemView 单独画一层
 * 仓库格自己就是物品，整格染成品质色并标出名称，点一下取回上网格
 * 只有装了东西的仓库格才吃点击，空格与锁格把射线让出去，免得挡住网格上的拖拽
 */
@@ -65,7 +65,22 @@ namespace UI.Shop
         }
 
         /// <summary>
-        /// 变成一块锁定的暗色格子，背包解锁后才会展成空格
+        /// 铺上一块布，整格染成这块布的底色，格子从锁格变成能用
+        /// </summary>
+        /// <param name="clothColor">布的底色，来自布料总表</param>
+        public void SetCloth(Color clothColor)
+        {
+            ensureBound();
+
+            m_bgImage.sprite = CellSprite;
+            m_bgImage.color = clothColor;
+            m_bgImage.raycastTarget = false;
+            clearRecall();
+            hideLabel();
+        }
+
+        /// <summary>
+        /// 变成一块锁定的暗色格子，还没被布铺到
         /// </summary>
         public void SetLocked()
         {

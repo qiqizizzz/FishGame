@@ -58,15 +58,6 @@ public static class BackpackShapeLibraryBuilder
         new Vector2Int(0, 2), new Vector2Int(1, 2)
     };
 
-    // 开局锚形 7 格，方块加竖三条刚好铺满，2×3 板天然锁在后期
-    private static readonly Vector2Int[] m_anchorCells =
-    {
-        new Vector2Int(0, 0), new Vector2Int(1, 0),
-        new Vector2Int(0, 1), new Vector2Int(1, 1), new Vector2Int(2, 1),
-        new Vector2Int(2, 2),
-        new Vector2Int(2, 3)
-    };
-
     // ==================== Menu ====================
     [MenuItem("Tools/钓鱼游戏/生成默认形状库与背包配置")]
     public static void Build()
@@ -84,7 +75,7 @@ public static class BackpackShapeLibraryBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        QLog.Info($"形状库与配置已就绪：{SHAPES_FOLDER} 五个模板，配置 {CONFIG_PATH}，开局锚形 {m_anchorCells.Length} 格，容器 {CONTAINER_COLUMNS}×{CONTAINER_ROWS}");
+        QLog.Info($"形状库与配置已就绪：{SHAPES_FOLDER} 五个模板，配置 {CONFIG_PATH}，开局格由配置里的开局布料列表铺出，容器 {CONTAINER_COLUMNS}×{CONTAINER_ROWS}");
     }
 
     // ==================== Private Function ====================
@@ -138,15 +129,6 @@ public static class BackpackShapeLibraryBuilder
 
         for (int i = 0; i < prices.arraySize; i++)
             prices.GetArrayElementAtIndex(i).intValue = tiers[i];
-
-        SerializedProperty masks = serialized.FindProperty("UnlockMaskList");
-
-        // 只在还没有阶段时写开局锚形，已点好的后续阶段绝不覆盖
-        if (masks.arraySize == 0)
-        {
-            masks.arraySize = 1;
-            masks.GetArrayElementAtIndex(0).longValue = toBits(m_anchorCells);
-        }
 
         serialized.ApplyModifiedPropertiesWithoutUndo();
 

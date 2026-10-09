@@ -162,6 +162,89 @@ public static class MaskPainterControl
         return count;
     }
 
+    /// <summary>
+    /// 只读绘制分层网格，每层用自己的颜色铺格，上层盖住下层，同时把鼠标下的格报出去
+    /// </summary>
+    /// <param name="layerBits">各层的位图，下标小的先画，大的盖在上面</param>
+    /// <param name="layerColors">各层的颜色，与位图一一对应，短了就按最后一格的颜色补</param>
+    /// <param name="columns">视口列数</param>
+    /// <param name="rows">视口行数</param>
+    /// <param name="highlightLayer">要描粗边的层，负数表示一层都不标</param>
+    /// <param name="hitCell">鼠标正压着的格，不在网格内时是 (-1,-1)</param>
+    /// <param name="pressed">本次事件里左键正压着某个格，按下与拖动途中都为真</param>
+    public static void PaintLayers(IReadOnlyList<long> layerBits, IReadOnlyList<Color> layerColors,
+        int columns, int rows, int highlightLayer, out Vector2Int hitCell, out bool pressed)
+    {
+        hitCell = new Vector2Int(-1, -1);
+        pressed = false;
+
+        columns = Mathf.Max(1, columns);
+        rows = Mathf.Max(1, rows);
+
+        float pitch = CELL_SIZE + CELL_SPACING;
+        Rect area = GUILayoutUtility.GetRect(columns * pitch - CELL_SPACING, rows * pitch - CELL_SPACING);
+        Event current = Event.current;
+
+        computeHover(area, pitch, columns, rows, current.mousePosition, out int hoverColumn, out int hoverRow);
+
+        bool hovering = hoverColumn >= 0;
+
+        if (hovering)
+            hitCell = new Vector2Int(hoverColumn, hoverRow);
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int column = 0; column < columns; column++)
+            {
+                Rect cellRect = new Rect(area.x + column * pitch, area.y + row * pitch, CELL_SIZE, CELL_SIZE);
+                int owner = topLayer(layerBits, 1L << (row * STRIDE + column));
+
+                if (owner >= 0)
+                    EditorGUI.DrawRect(cellRect, colorAt(layerColors, owner));
+
+                if (hovering && current.type == EventType.Repaint && column == hoverColumn && row == hoverRow)
+                    EditorGUI.DrawRect(cellRect, m_hoverColor);
+
+                drawBorder(cellRect, owner == highlightLayer ? m_filledLine : m_emptyLine);
+            }
+        }
+
+        if (!hovering)
+            return;
+
+        if (current.type == EventType.MouseDown && current.button == 0)
+        {
+            pressed = true;
+            current.Use();
+        }
+        else if (current.type == EventType.MouseDrag && current.button == 0)
+        {
+            pressed = true;
+            current.Use();
+        }
+    }
+
+    // 这一格归最上面那一层，一层都没盖到时返回 -1
+    private static int topLayer(IReadOnlyList<long> layerBits, long bit)
+    {
+        for (int i = layerBits.Count - 1; i >= 0; i--)
+        {
+            if ((layerBits[i] & bit) != 0)
+                return i;
+        }
+
+        return -1;
+    }
+
+    // 颜色表比层数短时重复最后一格的颜色，配置半途中不该把绘制器搞崩
+    private static Color colorAt(IReadOnlyList<Color> colors, int index)
+    {
+        if (colors == null || colors.Count == 0)
+            return m_filledColor;
+
+        return colors[Mathf.Min(index, colors.Count - 1)];
+    }
+
     // ==================== Private Function ====================
     // 唯一绘制入口，hasLock 为真时 lockMask 外的格压暗且拒绝点选，interactive 为假时只画不接输入
     private static long paint(long bits, int columns, int rows, long lockMask, bool hasLock,

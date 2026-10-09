@@ -140,7 +140,7 @@ namespace Module.Backpack.Model
             recompute();
         }
 
-        // 扫一遍背包，谁报出几条就收几条，不设来源封顶的进装备账，设了的按归属主体归组
+        // 装备层与板块层各扫一遍，暂存架不在模型里，天然不参与聚合
         private void recompute()
         {
             Array.Clear(m_itemSums, 0, m_itemSums.Length);
@@ -153,11 +153,25 @@ namespace Module.Backpack.Model
             if (m_model == null)
                 return;
 
-            IReadOnlyList<BackpackItemInstance> items = m_model.Items;
+            scanList(m_model.Items);
+            scanList(m_model.Plates);
 
-            for (int i = 0; i < items.Count; i++)
+            // 归完组再统一夹界：同一块布的所有碎片合起来才受这一块布的封顶约束
+            for (int g = 0; g < m_capOwners.Count; g++)
             {
-                BackpackItemInstance item = items[i];
+                float sum = m_capSums[g];
+                float cap = m_capLimits[g];
+                int index = m_capModIndices[g];
+                m_clothSums[index] += cap >= 0f ? Mathf.Min(sum, cap) : Mathf.Max(sum, cap);
+            }
+        }
+
+        // 扫一层存放物，谁报出几条就收几条：不设来源封顶的进装备账，设了的按归属主体归组
+        private void scanList(IReadOnlyList<BackpackItemInstance> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                BackpackItemInstance item = list[i];
                 IBackpackDef definition = item?.Definition;
 
                 if (definition == null)
@@ -179,15 +193,6 @@ namespace Module.Backpack.Model
                     else
                         addToCapGroup(buff, index);
                 }
-            }
-
-            // 归完组再统一夹界：同一块布的所有碎片合起来才受这一块布的封顶约束
-            for (int g = 0; g < m_capOwners.Count; g++)
-            {
-                float sum = m_capSums[g];
-                float cap = m_capLimits[g];
-                int index = m_capModIndices[g];
-                m_clothSums[index] += cap >= 0f ? Mathf.Min(sum, cap) : Mathf.Max(sum, cap);
             }
         }
 

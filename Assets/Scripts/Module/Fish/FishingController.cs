@@ -271,10 +271,11 @@ namespace Module.Fish
             });
         }
 
-        // 开局装备按配置落进网格，商店面板一打开就能看到教学鱼竿占的位置
+        // 开局先铺布再放装备：格子全是布铺出来的，顺序反了装备一件都压不上去
         private RunBackpack newBackpack()
         {
             RunBackpack backpack = new RunBackpack(m_scene.BackpackConfig);
+            backpack.SeedStartingCloths();
             backpack.SeedStartingItems();
 
             return backpack;

@@ -14,8 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GridColumns: 6
   GridRows: 5
-  UnlockMaskList: 00040c0c00000000
-  ExpansionCostList: 
+  ClothCatalog: {fileID: 11400000, guid: d4808276da18e954ba2b6bbbf1f12b48, type: 2}
+  StartingClothList:
+  - ClothId: cloth_blank
+    ShapeSlot: 3
+    OrientationSlot: 0
+    CellColumn: 2
+    CellRow: 0
+  - ClothId: cloth_blank
+    ShapeSlot: 2
+    OrientationSlot: 0
+    CellColumn: 3
+    CellRow: 0
   TierPriceList: 50000000c800000030020000
   StashCapacityLimit: 5
   StartingItemList:

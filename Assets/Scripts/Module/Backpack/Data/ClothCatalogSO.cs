@@ -67,6 +67,44 @@ namespace Module.Backpack.Data
         }
 
         /// <summary>
+        /// 按布标识查它在总表里的下标，查不到返回 -1，报不报错由调用方定
+        /// </summary>
+        /// <param name="clothId">布标识，例如 cloth_blank</param>
+        public int IndexOfCloth(string clothId)
+        {
+            if (string.IsNullOrEmpty(clothId))
+                return -1;
+
+            for (int i = 0; i < ClothList.Count; i++)
+            {
+                ClothEntry cloth = ClothList[i];
+
+                if (cloth != null && cloth.Id == clothId)
+                    return i;
+            }
+
+            return -1;
+        }
+
+        /// <summary>
+        /// 用布标识拼一块板块，配置里写名字不写下标，删掉中间某块布也不会让开局布指错地方
+        /// </summary>
+        /// <param name="clothId">布标识</param>
+        /// <param name="shapeIndex">该块布形状列表里的下标</param>
+        public ClothPieceDef ResolveByClothId(string clothId, int shapeIndex)
+        {
+            int clothIndex = IndexOfCloth(clothId);
+
+            if (clothIndex < 0)
+            {
+                QLog.Error($"[{nameof(ClothCatalogSO)}] 总表里没有这块布：{clothId}");
+                return null;
+            }
+
+            return Resolve(clothIndex, shapeIndex);
+        }
+
+        /// <summary>
         /// 取指定稀有度档的抽中权重，取不到时给 0，加权表会自动忽略这一项
         /// </summary>
         /// <param name="rarityIndex">稀有度下标</param>

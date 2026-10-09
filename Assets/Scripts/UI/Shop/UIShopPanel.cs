@@ -209,7 +209,7 @@ namespace UI.Shop
             m_divesText.text = $"下潜 {m_run.DivesRemaining} 次";
         }
 
-        // 每一格是空格还是锁格，全看模型的解锁掩码，异形开局也由配置说话
+        // 每一格是布还是锁格，问模型这块格归哪块布，布的颜色就是格子的底色
         private void fillBackpack()
         {
             BackpackModel model = m_backpack.Model;
@@ -225,10 +225,18 @@ namespace UI.Shop
                 int row = i / columns;
                 int column = i % columns;
 
-                if (model.IsCellUnlocked(column, row))
-                    m_slots[i].SetEmpty();
-                else
+                if (!model.IsCellUnlocked(column, row))
+                {
                     m_slots[i].SetLocked();
+                    continue;
+                }
+
+                BackpackItemInstance plate = model.FindPlateAt(column, row);
+
+                if (plate != null)
+                    m_slots[i].SetCloth(plate.Definition.TintColor);
+                else
+                    m_slots[i].SetEmpty();
             }
 
             rebuildItemViews();

@@ -105,6 +105,7 @@ public static class UIShopPanelPreview
         }
 
         RunBackpack backpack = new RunBackpack(config);
+        backpack.SeedStartingCloths();
         backpack.SeedStartingItems();
 
         return backpack;
