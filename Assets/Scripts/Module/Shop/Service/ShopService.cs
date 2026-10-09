@@ -7,6 +7,7 @@
 * 抽商品分三步：先抽类别，是装备再抽档位并从装备池抽款式，是布料则先按稀有度权重抽一块布再等概率剪一个异形
 * 售价基准只有一个来源，装备取背包配置的档位价，布料按「单格基准价 × 占格数 × 稀有度系数」现算，两边都只再乘一次浮动
 * 稀有度同时驱动两件事：越稀有的布抽中权重越低、价钱越高，两个数都写在总表的同一行里
+* 回收价与上架价同一条公式，只差最后一次浮动与回收比例，两处不会算出两个数
 * 扣钱与入手是分开的两步，入手失败原额退回，不会出现钱花了东西没影
 * 刷新价钱只在服务内部按次数累进，重开一局换新实例即回到起始价
 */
@@ -139,6 +140,25 @@ namespace Module.Shop.Service
 
             entry.MarkSold();
             return ShopBuyResult.Success;
+        }
+
+        /// <summary>
+        /// 折算一块布的回收价，按上架的基准价乘回收比例，随机浮动不参与
+        /// </summary>
+        /// <param name="definition">要卖的存放物定义，只有布料板块算得出价钱</param>
+        public int SellPriceOf(IBackpackDef definition)
+        {
+            if (definition is not ClothPieceDef piece || piece.Cloth == null || piece.Shape == null)
+                return 0;
+
+            // 只挂装备池的配置可以不填总表，这时货架上根本不会有布，这条链路也就问不到这里
+            if (m_catalog == null)
+                return 0;
+
+            int basePrice = Mathf.RoundToInt(piece.Cloth.CellBasePriceValue * piece.Shape.CellCount
+                                            * m_catalog.PriceScaleOf(piece.Cloth.RarityIndex));
+
+            return Mathf.Max(MIN_PRICE, Mathf.RoundToInt(basePrice * m_shopConfig.SellRatio));
         }
 
         // ==================== Private Function ====================

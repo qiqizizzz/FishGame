@@ -21,6 +21,7 @@ MonoBehaviour:
   - 25
   - 5
   PriceJitterRatio: 0.1
+  ClothSellRatio: 0.5
   RefreshBaseCost: 10
   RefreshCostGrowth: 1.6
   RefreshCostCeiling: 60

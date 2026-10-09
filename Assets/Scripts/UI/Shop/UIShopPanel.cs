@@ -8,12 +8,15 @@
 * 背包与仓库读 RunBackpack 的真实数据，商品来自 ShopService 抽出来的货架库存
 * 买、刷新、取回都由面板转给服务与模型，面板自己不算价格也不改库存
 * 拖拽与旋转的落点校验由本面板作为宿主转给背包模型，成不成都重铺一次，让摆歪的物品弹回原位
+* 布与装备分两层画：布由运行时建的一层垫在装备底下，装备仍走预制体里的模板，两层各自一套手势
+* 选中一块布才浮出操作条，旋转、拆到暂存架、卖成金币三件事都在条上按，不给单击直达的机会
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
 
 using System.Collections.Generic;
+using System.Linq;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Event;
 using Framework.QTower.View;
@@ -42,6 +45,23 @@ namespace UI.Shop
         private const string REFRESH_PATH = "Bg/Panel_Shop/Btn_Refresh";
         private const string DIVE_PATH = "Bg/Btns/Btn_Dive";
         private const string CLOSE_PATH = "Bg/Btns/Btn_Close";
+
+        // 布层与板块操作条都由运行时代码创建，预制体里没有这两个节点
+        private const string CLOTH_LAYER_NAME = "Layer_Cloths";
+        private const string PLATE_VIEW_NAME = "Plate_View";
+        private const string PLATE_BAR_NAME = "Bar_PlateActions";
+        private const string PLATE_ROTATE_NAME = "Btn_Rotate";
+        private const string PLATE_STASH_NAME = "Btn_Stash";
+        private const string PLATE_SELL_NAME = "Btn_Sell";
+
+        // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
+        private const float BAR_HEIGHT_RATIO = 0.48f;
+        private const float BAR_BUTTON_HEIGHT_RATIO = 0.74f;
+        private const float BAR_BUTTON_WIDTH = 150f;
+        private const float BAR_BUTTON_SPACING = 8f;
+        private const float BAR_PADDING = 10f;
+        private const float BAR_GAP = 10f;
+        private const float BAR_FONT_SIZE = 24f;
 
         // ==================== 属性 ====================
         public int Columns => m_backpack != null ? m_backpack.Model.Columns : 0;
@@ -81,6 +101,24 @@ namespace UI.Shop
         private int m_itemsShown;
         private int m_goodsShown;
 
+        // 布层的视图与计数，和装备层一样只开关不销毁
+        private RectTransform m_clothsRect;
+        private readonly List<UIShopPlateView> m_plateViews = new();
+        private int m_platesShown;
+
+        // 选中一块布才浮出来的操作条，底板与三个按钮都在运行时建好
+        private RectTransform m_plateBar;
+        private Button m_plateRotateButton;
+        private Button m_plateStashButton;
+        private Button m_plateSellButton;
+        private TMP_Text m_plateSellText;
+
+        // 当前选中的布只有面板这一份，视图铺布色时来问，拆掉卖掉之后由面板清空
+        private BackpackItemInstance m_selectedPlate;
+
+        // 量一块布的外框用，操作条定位靠它
+        private readonly List<Vector2Int> m_plateCells = new();
+
         // ==================== 生命周期 ====================
         protected override void OnInit()
         {
@@ -119,6 +157,9 @@ namespace UI.Shop
             m_refreshButton.onClick.AddListener(handleRefreshClicked);
             m_diveButton.onClick.AddListener(handleLeaveShopClicked);
             m_closeButton.onClick.AddListener(handleLeaveShopClicked);
+
+            createClothLayer();
+            createPlateBar();
         }
 
         protected override void OnOpen(params object[] args)
@@ -138,6 +179,10 @@ namespace UI.Shop
 
             if (m_run == null)
                 return;
+
+            // 重开面板不该带着上一眼的选中态走，先把布层的选择清干净
+            m_selectedPlate = null;
+            m_plateBar.gameObject.SetActive(false);
 
             refreshAll();
         }
@@ -177,6 +222,81 @@ namespace UI.Shop
             return recalled;
         }
 
+        // 布的落点同样交给模型裁决，成不成都重铺：摆歪的布弹回原位，被挤掉的装备也在这一步进架
+        public bool TryMovePlate(BackpackItemInstance plate, int anchorColumn, int anchorRow)
+        {
+            if (m_backpack == null || plate == null)
+                return false;
+
+            bool moved = m_backpack.TryMovePlate(plate, anchorColumn, anchorRow);
+            refreshBackpack();
+            return moved;
+        }
+
+        public bool TryRotatePlate(BackpackItemInstance plate)
+        {
+            if (m_backpack == null || plate == null)
+                return false;
+
+            bool rotated = m_backpack.TryRotatePlate(plate);
+            refreshBackpack();
+            return rotated;
+        }
+
+        // 拆进暂存架的布既不铺格也不给 BUFF，取回来靠暂存架那套入口
+        public bool TryStashPlate(BackpackItemInstance plate)
+        {
+            if (m_backpack == null || plate == null)
+                return false;
+
+            bool stashed = m_backpack.TryRemovePlateToStash(plate);
+            if (stashed)
+                m_selectedPlate = null;
+
+            refreshBackpack();
+            return stashed;
+        }
+
+        // 卖布先拆后收钱：拆不动就一分不收，不会出现钱到手了布还在格上
+        public bool TrySellPlate(BackpackItemInstance plate)
+        {
+            if (m_backpack == null || plate == null)
+                return false;
+
+            if (m_shop == null)
+            {
+                QLog.Error("没有传入 ShopService，布算不出回收价");
+                return false;
+            }
+
+            int price = m_shop.SellPriceOf(plate.Definition);
+            if (!m_backpack.TryRemovePlate(plate))
+            {
+                QLog.Info("这块布上压着装备，暂存架又接不住，先把装备挪开再卖");
+                return false;
+            }
+
+            m_run.AddCoins(price);
+            m_selectedPlate = null;
+            QLog.Info($"{UIShopGoodsName.Of(plate.Definition, plate.Tier)} 已卖出，回收 {price} 金币");
+            refreshBackpack();
+            refreshCounters();
+            return true;
+        }
+
+        // 点同一块布是取消选中，点另一块是换选中，选中态只存在面板这一份
+        public void SelectPlate(BackpackItemInstance plate)
+        {
+            m_selectedPlate = plate == null || m_selectedPlate == plate ? null : plate;
+            rebuildPlateViews();
+            refreshActionBar();
+        }
+
+        public bool IsPlateSelected(BackpackItemInstance plate)
+        {
+            return m_selectedPlate != null && m_selectedPlate == plate;
+        }
+
         // ==================== Private Function ====================
         // 一次全量重铺，买卖与刷新这种动了库存又动了背包的操作才用
         private void refreshAll()
@@ -194,6 +314,7 @@ namespace UI.Shop
 
             fillBackpack();
             fillStorage();
+            refreshActionBar();
         }
 
         private void refreshStorage()
@@ -239,6 +360,7 @@ namespace UI.Shop
                     m_slots[i].SetEmpty();
             }
 
+            rebuildPlateViews();
             rebuildItemViews();
         }
 
@@ -287,6 +409,204 @@ namespace UI.Shop
             view.gameObject.SetActive(true);
             view.Setup(item, m_cellSize, m_cellSpacing, this);
             m_itemsShown++;
+        }
+
+        // 布层是运行时建的一层底板，位置尺寸抄自 Layer_Items，两层共用同一套格子坐标
+        private void createClothLayer()
+        {
+#if UNITY_EDITOR
+            if (m_itemsRect.parent == null)
+                QLog.Error($"物品层 {ITEMS_PATH} 没有父节点，布层无处可挂");
+#endif
+
+            RectTransform layer = new GameObject(CLOTH_LAYER_NAME, typeof(RectTransform)).GetComponent<RectTransform>();
+            layer.SetParent(m_itemsRect.parent, false);
+            layer.anchorMin = new Vector2(0.5f, 1f);
+            layer.anchorMax = new Vector2(0.5f, 1f);
+            layer.pivot = new Vector2(0.5f, 1f);
+            layer.sizeDelta = m_itemsRect.sizeDelta;
+            layer.anchoredPosition = m_itemsRect.anchoredPosition;
+
+            // 排到物品层前面，UI 按兄弟序号后画的压在上面，布自然垫在装备底下
+            layer.SetSiblingIndex(m_itemsRect.GetSiblingIndex());
+            m_clothsRect = layer;
+        }
+
+        // 操作条挂在物品层里，平时收着，只有选中一块布才浮出来
+        private void createPlateBar()
+        {
+            float barHeight = m_cellSize * BAR_HEIGHT_RATIO;
+            float barWidth = BAR_PADDING * 2f + BAR_BUTTON_WIDTH * 3f + BAR_BUTTON_SPACING * 2f;
+
+            GameObject barObject = new GameObject(PLATE_BAR_NAME, typeof(RectTransform), typeof(Image));
+            Image backdrop = barObject.GetComponent<Image>();
+            backdrop.color = new Color32(0x2A, 0x1F, 0x14, 0xF0);
+
+            m_plateBar = barObject.GetComponent<RectTransform>();
+            m_plateBar.SetParent(m_itemsRect, false);
+            m_plateBar.anchorMin = new Vector2(0f, 1f);
+            m_plateBar.anchorMax = new Vector2(0f, 1f);
+            m_plateBar.pivot = new Vector2(0f, 1f);
+            m_plateBar.sizeDelta = new Vector2(barWidth, barHeight);
+
+            // 条上的空白也接点击，点一下就取消选中，不然玩家得去点别的布才能取消
+            Button clearButton = barObject.AddComponent<Button>();
+            clearButton.targetGraphic = backdrop;
+            clearButton.onClick.AddListener(handleClearPlateSelection);
+
+            m_plateRotateButton = createPlateBarButton(PLATE_ROTATE_NAME, "旋转", 0, out _);
+            m_plateStashButton = createPlateBarButton(PLATE_STASH_NAME, "拆下", 1, out _);
+            m_plateSellButton = createPlateBarButton(PLATE_SELL_NAME, "出售", 2, out m_plateSellText);
+            m_plateBar.gameObject.SetActive(false);
+        }
+
+        // 条上的按钮也由代码生成：底图加一个居中文字，位置按序号推，字体抄自金币文本，免得中文成豆腐块
+        private Button createPlateBarButton(string name, string label, int index, out TMP_Text buttonText)
+        {
+            float barHeight = m_plateBar.sizeDelta.y;
+            float buttonHeight = barHeight * BAR_BUTTON_HEIGHT_RATIO;
+
+            GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            RectTransform rect = buttonObject.GetComponent<RectTransform>();
+            rect.SetParent(m_plateBar, false);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.sizeDelta = new Vector2(BAR_BUTTON_WIDTH, buttonHeight);
+            rect.anchoredPosition = new Vector2(BAR_PADDING + index * (BAR_BUTTON_WIDTH + BAR_BUTTON_SPACING),
+                -(barHeight - buttonHeight) * 0.5f);
+
+            Image background = buttonObject.GetComponent<Image>();
+            background.color = new Color32(0x7A, 0x5F, 0x3A, 0xFF);
+
+            GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            RectTransform textRect = textObject.GetComponent<RectTransform>();
+            textRect.SetParent(rect, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.sizeDelta = Vector2.zero;
+
+            TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+            text.font = m_coinsText.font;
+            text.fontSize = BAR_FONT_SIZE;
+            text.alignment = TextAlignmentOptions.Center;
+            text.enableWordWrapping = false;
+            text.raycastTarget = false;
+            text.text = label;
+
+            Button button = buttonObject.GetComponent<Button>();
+            button.targetGraphic = background;
+            buttonText = text;
+            return button;
+        }
+
+        // 布层重铺，模型里有几块布就铺几个视图，多出来的藏起来
+        private void rebuildPlateViews()
+        {
+            if (m_backpack == null)
+                return;
+
+            IReadOnlyList<BackpackItemInstance> plates = m_backpack.Model.Plates;
+            m_platesShown = 0;
+
+            for (int i = 0; i < plates.Count; i++)
+                showPlate(plates[i]);
+
+            for (int i = m_platesShown; i < m_plateViews.Count; i++)
+                m_plateViews[i].gameObject.SetActive(false);
+        }
+
+        private void showPlate(BackpackItemInstance plate)
+        {
+            while (m_plateViews.Count <= m_platesShown)
+                createPlateView();
+
+            UIShopPlateView view = m_plateViews[m_platesShown];
+            view.gameObject.SetActive(true);
+            view.Setup(plate, m_cellSize, m_cellSpacing, this, m_coinsText.font);
+            m_platesShown++;
+        }
+
+        private void createPlateView()
+        {
+            GameObject plateObject = new GameObject(PLATE_VIEW_NAME, typeof(RectTransform));
+            plateObject.transform.SetParent(m_clothsRect, false);
+            m_plateViews.Add(plateObject.AddComponent<UIShopPlateView>());
+        }
+
+        // 操作条跟着选中的布走：放得下就压在布上边，贴到顶了就挪到布下边
+        private void refreshActionBar()
+        {
+            if (m_selectedPlate == null || m_backpack == null || !m_backpack.Model.Plates.Contains(m_selectedPlate))
+            {
+                m_selectedPlate = null;
+                m_plateBar.gameObject.SetActive(false);
+                return;
+            }
+
+            BackpackItemInstance plate = m_selectedPlate;
+            m_plateCells.Clear();
+            plate.FillWorldCells(m_plateCells);
+
+            int minColumn = int.MaxValue;
+            int minRow = int.MaxValue;
+            int maxRow = int.MinValue;
+
+            for (int i = 0; i < m_plateCells.Count; i++)
+            {
+                Vector2Int cell = m_plateCells[i];
+                minColumn = Mathf.Min(minColumn, cell.x);
+                minRow = Mathf.Min(minRow, cell.y);
+                maxRow = Mathf.Max(maxRow, cell.y);
+            }
+
+            float pitch = m_cellSize + m_cellSpacing;
+            float barWidth = m_plateBar.sizeDelta.x;
+            float barHeight = m_plateBar.sizeDelta.y;
+            float gridWidth = Columns * pitch - m_cellSpacing;
+            float gridHeight = Rows * pitch - m_cellSpacing;
+
+            // 两层都以网格左上角为原点，往下的距离写成负的 anchoredPosition
+            float topEdge = -minRow * pitch;
+            float bottomEdge = -((maxRow + 1) * pitch - m_cellSpacing);
+            // 条的 pivot 在左上角，落在布上方要把整条高度加回来
+            float above = topEdge + BAR_GAP + barHeight;
+            float below = bottomEdge - BAR_GAP;
+
+            m_plateBar.anchoredPosition = new Vector2(
+                Mathf.Clamp(minColumn * pitch, 0f, Mathf.Max(0f, gridWidth - barWidth)),
+                Mathf.Clamp(minRow > 0 ? above : below, barHeight - gridHeight, 0f));
+
+            m_plateRotateButton.interactable = plate.CanRotate;
+
+            int sellPrice = m_shop != null ? m_shop.SellPriceOf(plate.Definition) : 0;
+            m_plateSellText.text = sellPrice > 0 ? $"卖 {sellPrice}" : "不回收";
+            m_plateSellButton.interactable = sellPrice > 0;
+
+            m_plateBar.gameObject.SetActive(true);
+            // 重铺会新插物品视图，条子每次都要重新压到最上面才不会被盖住
+            m_plateBar.SetAsLastSibling();
+        }
+
+        // 三个按钮都只做一件事：把当前选中的布交给宿主的方法，成不成都由它重铺
+        private void handleRotatePlateClicked()
+        {
+            TryRotatePlate(m_selectedPlate);
+        }
+
+        private void handleStashPlateClicked()
+        {
+            TryStashPlate(m_selectedPlate);
+        }
+
+        private void handleSellPlateClicked()
+        {
+            TrySellPlate(m_selectedPlate);
+        }
+
+        private void handleClearPlateSelection()
+        {
+            SelectPlate(null);
         }
 
         // 货架来自服务的库存，卡片顺序与库存顺序一致

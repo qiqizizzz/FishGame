@@ -8,6 +8,7 @@
 * 板块这一整类不在这里摆清单，只挂一张布料总表，加一块布改一处就够
 * 空白布单独一份权重，保证它不会被带加成的布挤出货架
 * 装备售价只认背包配置里的档位价，布料价由总表现算，这里只管浮动比例，避免两处定价打架
+* 卖布只按基准价乘回收比例，随机浮动不参与，免得玩家靠一次好运低买高卖
 */
 
 using System.Collections.Generic;
@@ -43,6 +44,8 @@ namespace Module.Shop.Data
         [Header("价格浮动")]
         [Tooltip("在基准价上下的浮动比例，0.1 即最高低一成、最高高一成")]
         [Range(0f, 0.5f)] [SerializeField] private float PriceJitterRatio = 0.1f;
+        [Tooltip("卖掉一块布能回收基准买价的几成，0.5 即半价，填 0 等于不认出售")]
+        [SerializeField, Range(0f, 1f)] private float ClothSellRatio = 0.5f;
 
         [Header("刷新涨价")]
         [Tooltip("第一次刷新货架的价钱")]
@@ -64,6 +67,7 @@ namespace Module.Shop.Data
         public float ClothWeight => ClothCategoryWeight;
         public float BlankClothWeight => BlankClothCategoryWeight;
         public float JitterRatio => PriceJitterRatio;
+        public float SellRatio => ClothSellRatio;
         public int RefreshBaseCostValue => RefreshBaseCost;
         public float RefreshGrowth => RefreshCostGrowth;
         public int RefreshCostCap => RefreshCostCeiling;
