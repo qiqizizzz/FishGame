@@ -73,11 +73,5 @@ namespace UI.Shop
         /// </summary>
         /// <param name="plate">被点的布</param>
         void SelectPlate(BackpackItemInstance plate);
-
-        /// <summary>
-        /// 问一块布这会儿是不是选中的，视图铺布色时用来提亮
-        /// </summary>
-        /// <param name="plate">要问的布</param>
-        bool IsPlateSelected(BackpackItemInstance plate);
     }
 }

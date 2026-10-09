@@ -9,6 +9,7 @@
 * 买、刷新、取回都由面板转给服务与模型，面板自己不算价格也不改库存
 * 拖拽与旋转的落点校验由本面板作为宿主转给背包模型，成不成都重铺一次，让摆歪的物品弹回原位
 * 布与装备分两层画：布由运行时建的一层垫在装备底下，装备仍走预制体里的模板，两层各自一套手势
+* 布的样子就是底层格子染上布的底色，最上面再叠一层选中框，一格一圈角标，框不吃射线
 * 选中一块布才浮出操作条，旋转、拆到暂存架、卖成金币三件事都在条上按，不给单击直达的机会
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
@@ -48,11 +49,13 @@ namespace UI.Shop
 
         // 布层与板块操作条都由运行时代码创建，预制体里没有这两个节点
         private const string CLOTH_LAYER_NAME = "Layer_Cloths";
+        private const string SELECT_LAYER_NAME = "Layer_Select";
         private const string PLATE_VIEW_NAME = "Plate_View";
         private const string PLATE_BAR_NAME = "Bar_PlateActions";
         private const string PLATE_ROTATE_NAME = "Btn_Rotate";
         private const string PLATE_STASH_NAME = "Btn_Stash";
         private const string PLATE_SELL_NAME = "Btn_Sell";
+        private const string SELECT_FRAME_NAME = "Img_SelectFrame";
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -62,6 +65,10 @@ namespace UI.Shop
         private const float BAR_PADDING = 10f;
         private const float BAR_GAP = 10f;
         private const float BAR_FONT_SIZE = 24f;
+
+        // ==================== 字段[外部设置] ====================
+        [Tooltip("选中一块布时套在每一格上的外框图，取 Button_select_brown 这种四角标，中心要留空")]
+        [SerializeField] private Sprite PlateSelectSprite;
 
         // ==================== 属性 ====================
         public int Columns => m_backpack != null ? m_backpack.Model.Columns : 0;
@@ -103,8 +110,14 @@ namespace UI.Shop
 
         // 布层的视图与计数，和装备层一样只开关不销毁
         private RectTransform m_clothsRect;
+
         private readonly List<UIShopPlateView> m_plateViews = new();
         private int m_platesShown;
+
+        // 选中框层与它的格子框，同样只开关不销毁
+        private RectTransform m_selectRect;
+        private readonly List<Image> m_selectFrames = new();
+        private int m_selectFramesUsed;
 
         // 选中一块布才浮出来的操作条，底板与三个按钮都在运行时建好
         private RectTransform m_plateBar;
@@ -145,6 +158,8 @@ namespace UI.Shop
                 QLog.Error($"背包网格里没有格子，请检查 {GRID_PATH}");
             if (m_storageSlots.Length == 0)
                 QLog.Error($"仓库网格里没有格子，请检查 {STORAGE_PATH}");
+            if (PlateSelectSprite == null)
+                QLog.Error($"没有指定 {nameof(PlateSelectSprite)}，选中一块布不会有外框");
 #endif
 
             m_cellSize = m_grid.cellSize.x;
@@ -159,6 +174,7 @@ namespace UI.Shop
             m_closeButton.onClick.AddListener(handleLeaveShopClicked);
 
             createClothLayer();
+            createSelectLayer();
             createPlateBar();
         }
 
@@ -183,6 +199,7 @@ namespace UI.Shop
             // 重开面板不该带着上一眼的选中态走，先把布层的选择清干净
             m_selectedPlate = null;
             m_plateBar.gameObject.SetActive(false);
+            refreshSelectionFrames();
 
             refreshAll();
         }
@@ -290,11 +307,6 @@ namespace UI.Shop
             m_selectedPlate = plate == null || m_selectedPlate == plate ? null : plate;
             rebuildPlateViews();
             refreshActionBar();
-        }
-
-        public bool IsPlateSelected(BackpackItemInstance plate)
-        {
-            return m_selectedPlate != null && m_selectedPlate == plate;
         }
 
         // ==================== Private Function ====================
@@ -432,6 +444,70 @@ namespace UI.Shop
             m_clothsRect = layer;
         }
 
+        // 选中框层抄布层与物品层同一套 rect，排在物品层之后，框才不会被装备压住
+        private void createSelectLayer()
+        {
+            RectTransform layer = new GameObject(SELECT_LAYER_NAME, typeof(RectTransform)).GetComponent<RectTransform>();
+            layer.SetParent(m_itemsRect.parent, false);
+            layer.anchorMin = new Vector2(0.5f, 1f);
+            layer.anchorMax = new Vector2(0.5f, 1f);
+            layer.pivot = new Vector2(0.5f, 1f);
+            layer.sizeDelta = m_itemsRect.sizeDelta;
+            layer.anchoredPosition = m_itemsRect.anchoredPosition;
+
+            // 排到物品层后面，UI 按兄弟序号后画的压在上面，框才浮在布与装备之上
+            layer.SetSiblingIndex(m_itemsRect.GetSiblingIndex() + 1);
+            m_selectRect = layer;
+        }
+
+        // 选中框只跟着当前选中的布走，一格一圈角标，没选中就把整层收干净
+        private void refreshSelectionFrames()
+        {
+            float pitch = m_cellSize + m_cellSpacing;
+            m_selectFramesUsed = 0;
+
+            if (m_selectedPlate != null && m_backpack != null)
+            {
+                for (int i = 0; i < m_plateCells.Count; i++)
+                {
+                    Vector2Int cell = m_plateCells[i];
+                    showSelectionFrame(cell.x, cell.y, pitch);
+                }
+            }
+
+            for (int i = m_selectFramesUsed; i < m_selectFrames.Count; i++)
+                m_selectFrames[i].gameObject.SetActive(false);
+        }
+
+        // 框的位置与布层那一格完全对齐，尺寸贴着格子本身，不越界到相邻格
+        private void showSelectionFrame(int column, int row, float pitch)
+        {
+            while (m_selectFrames.Count <= m_selectFramesUsed)
+                createSelectFrame();
+
+            Image frame = m_selectFrames[m_selectFramesUsed];
+            frame.gameObject.SetActive(true);
+            frame.rectTransform.anchoredPosition = new Vector2(column * pitch, -row * pitch);
+            frame.rectTransform.sizeDelta = new Vector2(m_cellSize, m_cellSize);
+            m_selectFramesUsed++;
+        }
+
+        private void createSelectFrame()
+        {
+            GameObject frameObject = new GameObject(SELECT_FRAME_NAME, typeof(RectTransform), typeof(Image));
+            RectTransform rect = (RectTransform)frameObject.transform;
+            rect.SetParent(m_selectRect, false);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+
+            Image frame = rect.GetComponent<Image>();
+            frame.sprite = PlateSelectSprite;
+            frame.type = Image.Type.Simple;
+            frame.raycastTarget = false;
+            m_selectFrames.Add(frame);
+        }
+
         // 操作条挂在物品层里，平时收着，只有选中一块布才浮出来
         private void createPlateBar()
         {
@@ -541,6 +617,7 @@ namespace UI.Shop
             {
                 m_selectedPlate = null;
                 m_plateBar.gameObject.SetActive(false);
+                refreshSelectionFrames();
                 return;
             }
 
@@ -586,6 +663,8 @@ namespace UI.Shop
             m_plateBar.gameObject.SetActive(true);
             // 重铺会新插物品视图，条子每次都要重新压到最上面才不会被盖住
             m_plateBar.SetAsLastSibling();
+
+            refreshSelectionFrames();
         }
 
         // 三个按钮都只做一件事：把当前选中的布交给宿主的方法，成不成都由它重铺

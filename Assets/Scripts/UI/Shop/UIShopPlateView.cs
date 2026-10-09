@@ -1,12 +1,13 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 背包里的一块布，逐格铺出布色并在整块布的外轮廓留暗边，可拖动可选中
+* │  描    述: 背包里的一块布，逐格铺一层透明手势区，可拖动可选中，布色由底层格子去画
 * │  类    名: UIShopPlateView.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 布是格子的唯一来源，画在装备底下那一层，所以本视图由面板运行时创建，不进预制体
-* 暗边只出现在整块布的最外圈，相邻两格之间一点不留，读起来是一整块布而不是一堆方块
-* 有没有邻居靠世界格去查，同一块布的格子全收进集合，朝向再怎么变判定也不用改
+* 布面不再自己画：底层格子本来就按这块布的底色染过一遍，再盖一层纯属重复的占位色块
+* 本视图只剩手势，形状占哪几格就在哪几格摆一块透明区，拖与点都只认这几格
+* 选中态也不在这里提亮，改由面板最上层给每一格套一圈选中外框，边界比往布色里掺白清楚得多
 * 单击只负责选中不负责旋转，旋转拆卖都得更正到操作条上按，误点一下不至于把地板抽走
 * 拖动只跟着手指走，落点合不合规矩一律问宿主，摆不成靠重铺把布弹回原位
 */
@@ -25,17 +26,7 @@ namespace UI.Shop
     public sealed class UIShopPlateView : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
     {
         private const string LABEL_NAME = "Txt_Label";
-        private const string BLOCK_NAME = "Img_Block";
-        private const string FACE_NAME = "Img_Face";
-
-        // 外轮廓暗边厚度，只有整块布的最外圈用得上
-        private const float RIM_THICKNESS = 4f;
-
-        // 暗边相对布色压暗的比例，比装备那层再深一点，布读起来更像垫在底下的底布
-        private const float RIM_DARKEN = 0.34f;
-
-        // 选中时往布色里掺的白，只提亮不改色相，一眼认得出还是原来那块布
-        private const float SELECT_WHITEN = 0.22f;
+        private const string HIT_NAME = "Img_HitCell";
 
         // 落点换算用的最小平方距离，位移短到基本没挪就当成没动过
         private const float SNAP_EPSILON = 0.001f;
@@ -48,11 +39,10 @@ namespace UI.Shop
         private RectTransform m_parentRect;
         private TMP_Text m_labelText;
 
-        // 方块只创建不销毁，换形状换朝向时多出来的先藏起来
-        private readonly List<RectTransform> m_blocks = new();
+        // 透明手势区只创建不销毁，换形状换朝向时多出来的先藏起来
+        private readonly List<RectTransform> m_hitCells = new();
         private readonly List<Vector2Int> m_cellBuffer = new();
-        private readonly HashSet<Vector2Int> m_worldCells = new();
-        private int m_blockUsed;
+        private int m_hitCellsUsed;
 
         // 拖拽三件套：落差、锚点差、本轮是否拖过
         private BackpackItemInstance m_plate;
@@ -66,7 +56,7 @@ namespace UI.Shop
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 按板块当前占用的格子铺一块布，颜色取这块布自己的底色，选中时提亮
+        /// 按板块当前占用的格子摆出透明手势区，顺带写上这块布的名字
         /// </summary>
         /// <param name="plate">要铺的板块实例</param>
         /// <param name="cellSize">单格边长，取自背包网格</param>
@@ -88,18 +78,13 @@ namespace UI.Shop
             m_host = host;
             m_wasDragged = false;
 
+            // 布色在这里只用来给名称挑字色，格子那层由面板按同一份底色染过，不必再画一遍
             Color clothColor = plate.Definition.TintColor;
-
-            if (m_host != null && m_host.IsPlateSelected(plate))
-                clothColor = Color.Lerp(clothColor, Color.white, SELECT_WHITEN);
-
-            Color rimColor = Color.Lerp(clothColor, Color.black, RIM_DARKEN);
 
             float pitch = cellSize + cellSpacing;
             m_pitch = pitch;
 
             plate.FillWorldCells(m_cellBuffer);
-            m_worldCells.Clear();
 
             int minColumn = int.MaxValue;
             int minRow = int.MaxValue;
@@ -109,7 +94,6 @@ namespace UI.Shop
             for (int i = 0; i < m_cellBuffer.Count; i++)
             {
                 Vector2Int cell = m_cellBuffer[i];
-                m_worldCells.Add(cell);
                 minColumn = Mathf.Min(minColumn, cell.x);
                 minRow = Mathf.Min(minRow, cell.y);
                 maxColumn = Mathf.Max(maxColumn, cell.x);
@@ -125,16 +109,16 @@ namespace UI.Shop
             m_rect.anchoredPosition = new Vector2(minColumn * pitch, -minRow * pitch);
             m_rect.sizeDelta = new Vector2((maxColumn - minColumn + 1) * pitch, (maxRow - minRow + 1) * pitch);
 
-            m_blockUsed = 0;
+            m_hitCellsUsed = 0;
 
             for (int i = 0; i < m_cellBuffer.Count; i++)
             {
                 Vector2Int cell = m_cellBuffer[i];
-                showBlock(cell.x - minColumn, cell.y - minRow, pitch, cell, clothColor, rimColor);
+                showHitCell(cell.x - minColumn, cell.y - minRow, pitch);
             }
 
-            for (int i = m_blockUsed; i < m_blocks.Count; i++)
-                m_blocks[i].gameObject.SetActive(false);
+            for (int i = m_hitCellsUsed; i < m_hitCells.Count; i++)
+                m_hitCells[i].gameObject.SetActive(false);
 
             ensureLabel(labelFont);
 
@@ -212,50 +196,33 @@ namespace UI.Shop
             return local - new Vector2(m_parentRect.rect.xMin, m_parentRect.rect.yMax);
         }
 
-        // 一格布面：暗底铺满整块，布色只在四条外轮廓边上内缩，有邻居的那条边贴满不断缝
-        private void showBlock(int column, int row, float pitch, Vector2Int worldCell, Color faceColor, Color rimColor)
+        // 一格手势区：透明但吃射线，形状占到的每一格都摆一块，拖与点只认这几格
+        private void showHitCell(int column, int row, float pitch)
         {
-            RectTransform block = m_blockUsed < m_blocks.Count ? m_blocks[m_blockUsed] : createBlock();
-            m_blockUsed++;
+            RectTransform hitCell = m_hitCellsUsed < m_hitCells.Count ? m_hitCells[m_hitCellsUsed] : createHitCell();
+            m_hitCellsUsed++;
 
-            block.gameObject.SetActive(true);
-            block.anchoredPosition = new Vector2(column * pitch, -row * pitch);
-            block.sizeDelta = new Vector2(pitch, pitch);
-            block.GetComponent<Image>().color = rimColor;
-
-            RectTransform face = (RectTransform)block.GetChild(0);
-
-            bool hasLeft = m_worldCells.Contains(new Vector2Int(worldCell.x - 1, worldCell.y));
-            bool hasRight = m_worldCells.Contains(new Vector2Int(worldCell.x + 1, worldCell.y));
-            bool hasTop = m_worldCells.Contains(new Vector2Int(worldCell.x, worldCell.y - 1));
-            bool hasBottom = m_worldCells.Contains(new Vector2Int(worldCell.x, worldCell.y + 1));
-
-            face.offsetMin = new Vector2(hasLeft ? 0f : RIM_THICKNESS, hasBottom ? 0f : RIM_THICKNESS);
-            face.offsetMax = new Vector2(hasRight ? 0f : -RIM_THICKNESS, hasTop ? 0f : -RIM_THICKNESS);
-            face.GetComponent<Image>().color = faceColor;
+            hitCell.gameObject.SetActive(true);
+            hitCell.anchoredPosition = new Vector2(column * pitch, -row * pitch);
+            hitCell.sizeDelta = new Vector2(pitch, pitch);
         }
 
-        // 一块形状格：暗底铺满整块不吃射线，布色面贴在其内并按需留边，只有布色面接指针
-        private RectTransform createBlock()
+        // 透明块按整格加间距铺，相邻两格的手势区接得上，拖到缝上也不脱手
+        private RectTransform createHitCell()
         {
-            GameObject blockObject = new GameObject(BLOCK_NAME, typeof(RectTransform), typeof(Image));
-            RectTransform block = (RectTransform)blockObject.transform;
-            block.SetParent(transform, false);
-            block.anchorMin = new Vector2(0f, 1f);
-            block.anchorMax = new Vector2(0f, 1f);
-            block.pivot = new Vector2(0f, 1f);
-            block.GetComponent<Image>().raycastTarget = false;
+            GameObject hitObject = new GameObject(HIT_NAME, typeof(RectTransform), typeof(Image));
+            RectTransform hitCell = (RectTransform)hitObject.transform;
+            hitCell.SetParent(transform, false);
+            hitCell.anchorMin = new Vector2(0f, 1f);
+            hitCell.anchorMax = new Vector2(0f, 1f);
+            hitCell.pivot = new Vector2(0f, 1f);
 
-            GameObject faceObject = new GameObject(FACE_NAME, typeof(RectTransform), typeof(Image));
-            RectTransform face = (RectTransform)faceObject.transform;
-            face.SetParent(block, false);
-            face.anchorMin = Vector2.zero;
-            face.anchorMax = Vector2.one;
-            face.pivot = new Vector2(0.5f, 0.5f);
-            face.GetComponent<Image>().raycastTarget = true;
+            Image image = hitCell.GetComponent<Image>();
+            image.color = Color.clear;
+            image.raycastTarget = true;
 
-            m_blocks.Add(block);
-            return block;
+            m_hitCells.Add(hitCell);
+            return hitCell;
         }
 
         // 布是运行时建的，名称节点也得运行时建，字体由面板把预制体上那份抄过来

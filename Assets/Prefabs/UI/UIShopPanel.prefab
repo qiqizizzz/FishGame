@@ -1474,6 +1474,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9774c87cca5789748be607943a132c28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  PlateSelectSprite: {fileID: 1197156254, guid: 313c8f1a053756d469eb09370f9c1f4f,
+    type: 3}
 --- !u!1 &2554860878674878299
 GameObject:
   m_ObjectHideFlags: 0
