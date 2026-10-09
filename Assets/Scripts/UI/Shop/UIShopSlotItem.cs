@@ -6,7 +6,7 @@
 * └──────────────────────────────────┘
 * 位置与尺寸交给 GridLayoutGroup，脚本只切底图与颜色
 * 背包格铺的是布，布的底色就是这格的底色，压在布上的装备由 UIShopItemView 单独画一层
-* 仓库格自己就是物品，整格染成品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
+* 仓库格自己就是物品，有图标就贴图、没图标才整格染品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
 * 拖出架子时摆一套幽灵格跟着手指吸附到落点，看见落在哪格就落在哪格，摆不成原样留在架上
 * 只有装了东西的仓库格才吃射线，空格与锁格把射线让出去，免得挡住网格上的拖拽
 */
@@ -24,8 +24,9 @@ namespace UI.Shop
     public sealed class UIShopSlotItem : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler,
         IPointerClickHandler
     {
-        // 仓库格用来标注物品名称，背包格没有这个子节点
+        // 仓库格用来标注物品名称与图标，背包格天生没有这两个子节点
         private const string LABEL_PATH = "Txt_Label";
+        private const string ICON_PATH = "Img_Icon";
 
         // ==================== 字段[外部设置] ====================
         [Tooltip("空格子的底图，锁定格与仓库格是纯色块，不用它")]
@@ -43,6 +44,7 @@ namespace UI.Shop
 
         // ==================== 字段[私有] ====================
         private Image m_bgImage;
+        private Image m_iconImage;
         private TMP_Text m_labelText;
 
         // 装了东西才有的取回入口，空格与锁格清空它，点击就不会误触
@@ -82,6 +84,7 @@ namespace UI.Shop
             m_bgImage.raycastTarget = false;
             clearRecall();
             hideLabel();
+            hideIcon();
         }
 
         /// <summary>
@@ -97,6 +100,7 @@ namespace UI.Shop
             m_bgImage.raycastTarget = false;
             clearRecall();
             hideLabel();
+            hideIcon();
         }
 
         /// <summary>
@@ -111,6 +115,7 @@ namespace UI.Shop
             m_bgImage.raycastTarget = false;
             clearRecall();
             hideLabel();
+            hideIcon();
         }
 
         /// <summary>
@@ -134,13 +139,23 @@ namespace UI.Shop
             m_qualityColor = qualityColor;
             m_wasDragged = false;
 
-            // 图标素材还没切，仓库格靠名称认物品，没有文字节点的格子只染色
+            // 有图标就贴图藏字，没图标的布才靠名称认物品
+            Sprite icon = item.Definition.Icon;
+            if (m_iconImage != null)
+            {
+                m_iconImage.gameObject.SetActive(icon != null);
+                m_iconImage.sprite = icon;
+            }
+
             if (m_labelText != null)
             {
-                m_labelText.gameObject.SetActive(true);
-                m_labelText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
-
-                m_labelText.color = UIShopQuality.LabelColor(qualityColor);
+                bool showLabel = icon == null;
+                m_labelText.gameObject.SetActive(showLabel);
+                if (showLabel)
+                {
+                    m_labelText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
+                    m_labelText.color = UIShopQuality.LabelColor(qualityColor);
+                }
             }
         }
 
@@ -204,6 +219,10 @@ namespace UI.Shop
             Transform label = FindNode(LABEL_PATH);
             m_labelText = label != null ? label.GetComponent<TMP_Text>() : null;
 
+            // 图标节点只有仓库格有，缺了就只走染色与名称，不算配置错误
+            Transform icon = FindNode(ICON_PATH);
+            m_iconImage = icon != null ? icon.GetComponent<Image>() : null;
+
 #if UNITY_EDITOR
             if (m_bgImage == null)
                 QLog.Error($"格子上未挂载 Image：{gameObject.name}");
@@ -240,6 +259,12 @@ namespace UI.Shop
         {
             if (m_labelText != null)
                 m_labelText.gameObject.SetActive(false);
+        }
+
+        private void hideIcon()
+        {
+            if (m_iconImage != null)
+                m_iconImage.gameObject.SetActive(false);
         }
 
         // 模板复制出来的实例可能还没走 Awake，兜一次绑引用

@@ -7,6 +7,7 @@
 * 卡面只照条目本来的样子画，扣钱与入手全部交给回调，卡片自己不改任何状态
 * 买不起只把价钱染红，卡片照样能点，让服务去给「金币不够」的准信
 * 加成一次问定义要一整串，一块布挂三条就写三条，不在这里猜它只有哪一条
+* 图标有就贴图并把染色还原成白色，没图标的布与板块才退回底色色块
 */
 
 using System;
@@ -36,6 +37,11 @@ namespace UI.Shop
 
         // ==================== 字段[私有] ====================
         private Image m_iconImage;
+
+        // 卡片从复用池里拉出来反复填商品，换货时要能还原预制体自带的底图
+        private Sprite m_defaultIconSprite;
+        private bool m_iconDefaultCached;
+
         private TMP_Text m_nameText;
         private TMP_Text m_detailText;
         private TMP_Text m_priceText;
@@ -76,7 +82,7 @@ namespace UI.Shop
             m_entry = entry;
             m_onBuy = onBuy;
 
-            m_iconImage.color = entry.IsSold ? m_soldTint : goodsColor;
+            applyIcon(entry.Definition.Icon, entry.IsSold, goodsColor);
             m_nameText.text = UIShopGoodsName.Of(entry.Definition, entry.Tier);
             m_nameText.color = UIShopQuality.LabelColor(goodsColor);
             m_priceText.text = entry.IsSold ? "已售出" : $"{entry.Price} 金币";
@@ -94,6 +100,15 @@ namespace UI.Shop
         }
 
         // ==================== Private Function ====================
+        // 有图标就贴图并把颜色还原成白色，已售出靠压暗表达；没图标的布与板块沿用档位色块
+        private void applyIcon(Sprite icon, bool isSold, Color goodsColor)
+        {
+            Color tintColor = isSold ? m_soldTint : (icon != null ? Color.white : goodsColor);
+
+            m_iconImage.sprite = icon != null ? icon : m_defaultIconSprite;
+            m_iconImage.color = tintColor;
+        }
+
         private void handleClicked()
         {
             if (m_entry == null)
@@ -105,6 +120,12 @@ namespace UI.Shop
         private void bindNodes()
         {
             m_iconImage = FindComponent<Image>(ICON_PATH);
+            if (!m_iconDefaultCached)
+            {
+                m_defaultIconSprite = m_iconImage != null ? m_iconImage.sprite : null;
+                m_iconDefaultCached = true;
+            }
+
             m_nameText = FindComponent<TMP_Text>(NAME_PATH);
             m_priceText = FindComponent<TMP_Text>(PRICE_PATH);
             m_button = GetComponent<Button>();

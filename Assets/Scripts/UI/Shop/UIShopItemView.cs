@@ -9,6 +9,7 @@
 * 单击只报「选中」，名字与加成由面板的详情区去报，格子上不再常驻文字
 * 旋转、取下、出售都归面板浮出来的操作条，本视图不直接改物品，误点一下也不至于把东西转了向
 * 松手落在暂存架那块面板上就是收进架子，落回网格就是挪位；本轮真的拖过就不再触发点击
+* 装备有图标就在形状之上再盖一层图标，图标不吃射线，点选与拖拽仍然归形状亮面
 */
 
 using System.Collections.Generic;
@@ -25,6 +26,10 @@ namespace UI.Shop
     {
         private const string BLOCK_NAME = "Img_Block";
         private const string FACE_NAME = "Img_Face";
+        private const string ICON_NAME = "Img_Icon";
+
+        // 图标相对整块形状内缩的比例，免得盖住方块之间的暗边凹槽
+        private const float ICON_INSET_RATIO = 0.12f;
 
         // 方块四周留出的暗边厚度，相邻方块之间的凹槽是它的两倍宽
         private const float RIM_THICKNESS = 4f;
@@ -43,6 +48,9 @@ namespace UI.Shop
         private readonly List<RectTransform> m_blocks = new();
         private readonly List<Vector2Int> m_cellBuffer = new();
         private int m_blockUsed;
+
+        // 图标只创建一次，换物品时改贴图，没图标的存放物把它整块关掉
+        private Image m_iconImage;
 
         // 拖拽三件套：落差、锚点差、本轮是否拖过
         private BackpackItemInstance m_item;
@@ -119,6 +127,7 @@ namespace UI.Shop
 
             m_rect.sizeDelta = new Vector2((maxColumn - minColumn + 1) * pitch, (maxRow - minRow + 1) * pitch);
 
+            showIcon(maxColumn - minColumn + 1, maxRow - minRow + 1, pitch);
         }
 
         // ==================== 拖拽与点击 ====================
@@ -234,6 +243,50 @@ namespace UI.Shop
 
             m_blocks.Add(block);
             return block;
+        }
+
+        // 有图标就盖在形状之上；方形图落在 1x3 这类长条形状里会被等比缩成居中一块，不拉伸也不越界
+        private void showIcon(int columns, int rows, float pitch)
+        {
+            Sprite icon = m_item.Definition.Icon;
+            if (icon == null)
+            {
+                if (m_iconImage != null)
+                    m_iconImage.gameObject.SetActive(false);
+                return;
+            }
+
+            if (m_iconImage == null)
+                m_iconImage = createIcon();
+
+            float inset = pitch * ICON_INSET_RATIO;
+            RectTransform rect = (RectTransform)m_iconImage.transform;
+
+            rect.gameObject.SetActive(true);
+            rect.anchoredPosition = new Vector2(inset, -inset);
+            rect.sizeDelta = new Vector2(columns * pitch - inset * 2f, rows * pitch - inset * 2f);
+            m_iconImage.sprite = icon;
+            m_iconImage.color = Color.white;
+
+            // 形状块是后建出来排在后面的，每次刷新都要把图标压回最上层
+            rect.SetAsLastSibling();
+        }
+
+        // 图标沿用形状块那套左上角锚点，整块覆盖住所有方块的包围盒
+        // 图标不吃射线，指针全部让给下面的亮面，点选与拖拽的手感不变
+        private Image createIcon()
+        {
+            GameObject iconObject = new GameObject(ICON_NAME, typeof(RectTransform), typeof(Image));
+            RectTransform icon = (RectTransform)iconObject.transform;
+            icon.SetParent(transform, false);
+            icon.anchorMin = new Vector2(0f, 1f);
+            icon.anchorMax = new Vector2(0f, 1f);
+            icon.pivot = new Vector2(0f, 1f);
+
+            Image image = iconObject.GetComponent<Image>();
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return image;
         }
 
         private void bindNodes()
