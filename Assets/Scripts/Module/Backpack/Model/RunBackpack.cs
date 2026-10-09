@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 一局背包的运行态，网格模型与暂存架的持有者
+* │  描    述: 一局背包的运行态，网格模型与暂存架的持有者，装备与板块共用一条入手链路
 * │  类    名: RunBackpack.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -57,11 +57,11 @@ namespace Module.Backpack.Model
         /// </summary>
         /// <param name="definition">装备定义</param>
         /// <param name="tier">档位，从 1 开始</param>
-        public bool TryAddItem(BackpackItemSO definition, int tier)
+        public bool TryAddItem(IBackpackDef definition, int tier)
         {
             if (definition == null || definition.MaxTier == 0)
             {
-                QLog.Error("装备定义没有可用档位，无法入手");
+                QLog.Error("存放物定义没有可用档位，无法入手");
                 return false;
             }
 
@@ -90,6 +90,29 @@ namespace Module.Backpack.Model
             return true;
         }
 
+        /// <summary>
+        /// 把暂存架里的一件取回网格，网格放不下就原样留在架上
+        /// </summary>
+        /// <param name="stashIndex">暂存架下标</param>
+        public bool TryRecallFromStash(int stashIndex)
+        {
+            if (stashIndex < 0 || stashIndex >= m_stash.Count)
+                return false;
+
+            BackpackItemInstance instance = m_stash[stashIndex];
+
+            if (!tryFindAnchor(instance, out int column, out int row))
+                return false;
+
+            instance.AnchorColumn = column;
+            instance.AnchorRow = row;
+
+            if (!m_model.TryPlace(instance))
+                return false;
+
+            m_stash.RemoveAt(stashIndex);
+            return true;
+        }
         // ==================== Private Function ====================
         // 全表扫锚点取第一个放得下的位置，顺手把朝向定下来，行主序让物品先贴左上角
         private bool tryFindAnchor(BackpackItemInstance instance, out int anchorColumn, out int anchorRow)

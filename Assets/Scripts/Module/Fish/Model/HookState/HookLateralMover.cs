@@ -6,9 +6,9 @@
 * └──────────────────────────────────┘
 * 把本帧拖拽位移折算成期望速度，再按 LateralDamping 指数逼近，
 * 指数插值用 1-exp(-k*dt) 而非 Mathf.Lerp，保证不同帧率下手感一致
+* 限速与收敛系数一律走属性包，背包加成才能同时作用于下潜段和回收段
 */
 
-using Module.Fish.Data;
 using UnityEngine;
 
 namespace Module.Fish.Model
@@ -20,9 +20,9 @@ namespace Module.Fish.Model
         /// </summary>
         public static float Advance(IHookRuntime runtime, float deltaTime)
         {
-            HookConfigSO config = runtime.HookConfig;
-            float desiredSpeed = Mathf.Clamp(runtime.LateralInput / deltaTime, -config.LateralSpeed, config.LateralSpeed);
-            float blend = 1f - Mathf.Exp(-config.LateralDamping * deltaTime);
+            IFishingStats stats = runtime.Stats;
+            float desiredSpeed = Mathf.Clamp(runtime.LateralInput / deltaTime, -stats.LateralSpeed, stats.LateralSpeed);
+            float blend = 1f - Mathf.Exp(-stats.LateralDamping * deltaTime);
 
             runtime.LateralVelocity = Mathf.Lerp(runtime.LateralVelocity, desiredSpeed, blend);
 

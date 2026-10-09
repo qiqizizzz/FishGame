@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GridColumns: 6
   GridRows: 5
-  UnlockMaskList: 0307040400000000
+  UnlockMaskList: 00040c0c00000000
   ExpansionCostList: 
   TierPriceList: 50000000c800000030020000
   StashCapacityLimit: 5

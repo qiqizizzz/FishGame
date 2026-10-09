@@ -23,6 +23,7 @@ using Module.Fish.Data;
 using Module.Fish.Model;
 using Module.Fish.Service;
 using Module.Fish.Type;
+using Module.Shop.Service;
 using Module.Fish.View;
 using UI.RoundHUD;
 using UI.Shop;
@@ -62,6 +63,7 @@ namespace Module.Fish
         private UIRoundHUD m_roundHud;
         private RunState m_run;
         private RunBackpack m_backpack;
+        private ShopService m_shop;
         private GamePhase m_phase = GamePhase.Shop;
         private bool m_running;
         private float m_maxDepth;
@@ -113,7 +115,6 @@ namespace Module.Fish
             registerViews();
 
             m_hook = m_scene.Hook;
-            m_stats = new DefaultFishingStats(m_scene.HookConfig);
             m_factory = new FishFactory();
             m_machine = new HookStateMachine(
                 new IdleHookState(),
@@ -122,11 +123,13 @@ namespace Module.Fish
                 new TangledHookState(),
                 new LandedHookState());
 
-            m_hook.Initialize(m_scene.HookConfig, m_scene.SessionConfig, m_stats, m_machine, this);
+            m_hook.Initialize(m_scene.SessionConfig, m_stats, m_machine, this);
             m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
 
             m_run = newRun();
             m_backpack = newBackpack();
+            m_shop = newShop();
+            rebuildStats();
             startRun().Forget();
         }
 
@@ -134,6 +137,7 @@ namespace Module.Fish
         {
             m_disposed = true;
             m_running = false;
+            (m_stats as IDisposable)?.Dispose();
             m_spawn.EndSession();
             GameApp.UIManager.UnregisterByController(this);
         }
@@ -177,15 +181,15 @@ namespace Module.Fish
         /// <returns>需要进入缠绕态时返回 true</returns>
         public bool ResolveContact(IHookRuntime hook, bool catching)
         {
-            HookConfigSO config = hook.HookConfig;
+            float hookRadius = hook.Stats.HookRadius;
 
             FishInstance fish;
 
             bool found = catching
                 ? m_detection.TryFindTouched(
-                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, true, m_catchFilter, out fish)
+                    hook.CaptureHorizontal, hook.CaptureDepth, hookRadius, true, m_catchFilter, out fish)
                 : m_detection.TryFindTouched(
-                    hook.CaptureHorizontal, hook.CaptureDepth, config.HookRadius, false, m_scareFilter, out fish);
+                    hook.CaptureHorizontal, hook.CaptureDepth, hookRadius, false, m_scareFilter, out fish);
 
             if (!found)
                 return false;
@@ -276,6 +280,19 @@ namespace Module.Fish
             return backpack;
         }
 
+        // 属性包订阅了背包的变动事件，重建前先把旧的摘掉，免得旧背包一直拽着一个没人读的属性包
+        private void rebuildStats()
+        {
+            (m_stats as IDisposable)?.Dispose();
+            m_stats = new BackpackFishingStats(m_scene.HookConfig, m_backpack.Model);
+        }
+
+        // 商店与背包同生命周期，开新局换一间店，刷新价钱一并回到起始档
+        private ShopService newShop()
+        {
+            return new ShopService(m_scene.ShopConfig, m_scene.BackpackConfig, Environment.TickCount);
+        }
+
         // 每回合下潜次数与回合目标曲线都取自会话配置，重开也走这里
         private RunState newRun()
         {
@@ -322,7 +339,7 @@ namespace Module.Fish
             m_running = false;
 
             GameApp.UIManager.Hide<UIFishingHUD>();
-            GameApp.UIManager.Open<UIShopPanel>(m_run, m_backpack).Forget();
+            GameApp.UIManager.Open<UIShopPanel>(m_run, m_backpack, m_shop).Forget();
             m_roundHud.StartRound(m_run.Round, GamePhase.Shop);
 
             QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合商店阶段，" +
@@ -414,7 +431,7 @@ namespace Module.Fish
         private void penalizeHazard(FishInstance fish)
         {
             m_ai.Scatter(fish, m_hook.Horizontal);
-            m_carry.DetachByChance(m_scene.HookConfig.DetachChance, m_buffer);
+            m_carry.DetachByChance(Mathf.Clamp01(m_stats.DetachChance), m_buffer);
 
             for (int i = m_buffer.Count - 1; i >= 0; i--)
             {
@@ -482,7 +499,7 @@ namespace Module.Fish
                     DisplayName = data.DisplayName,
                     Rarity = data.Rarity,
                     Stars = row != null ? row.StarCount : 0,
-                    Coins = Mathf.RoundToInt(data.CoinValue * depthBonus * combo),
+                    Coins = Mathf.RoundToInt(data.CoinValue * depthBonus * combo * (1f + Mathf.Clamp01(m_stats.CoinBonus))),
                     CatchDepth = record.AttachedDepth,
                     PrimaryColor = row != null ? row.PrimaryColor : Color.white
                 });
@@ -540,6 +557,8 @@ namespace Module.Fish
             m_buffer.Clear();
             m_run = newRun();
             m_backpack = newBackpack();
+            m_shop = newShop();
+            rebuildStats();
 
             m_spawn.EndSession();
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
@@ -568,7 +587,8 @@ namespace Module.Fish
                 && m_scene.Hook != null
                 && m_scene.CameraRig != null
                 && m_scene.FishRoot != null
-                && m_scene.BackpackConfig != null;
+                && m_scene.BackpackConfig != null
+                && m_scene.ShopConfig != null;
 
             if (!valid)
                 QLog.Error($"[{nameof(FishingController)}] 场景引用不完整，玩法不会启动，请检查 FishingScene 上的挂载");

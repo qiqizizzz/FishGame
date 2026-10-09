@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dcfc810c4087e2f418972ff328751937, type: 3}
+  m_Name: ShopConfig
+  m_EditorClassIdentifier: 
+  GoodsSlotCount: 4
+  ItemCategoryWeight: 55
+  ClothCategoryWeight: 35
+  BlankClothCategoryWeight: 10
+  TierWeightList:
+  - 70
+  - 25
+  - 5
+  PriceJitterRatio: 0.1
+  RefreshBaseCost: 10
+  RefreshCostGrowth: 1.6
+  RefreshCostCeiling: 60
+  ItemPool:
+  - {fileID: 11400000, guid: 01155f6e0f244dc41aebc7b7fe802e3f, type: 2}
+  - {fileID: 11400000, guid: a437a019a9cfe0043bc1127f02aea897, type: 2}
+  - {fileID: 11400000, guid: 24b3873f8e3991442bf28ffb1c3bc65c, type: 2}
+  - {fileID: 11400000, guid: e9f55f106476fd843ae63edc0feccf68, type: 2}
+  - {fileID: 11400000, guid: 0f89589c1603c9249bd6151d40e483b6, type: 2}
+  - {fileID: 11400000, guid: 95b28702df0519646b2341522a076c17, type: 2}
+  - {fileID: 11400000, guid: 1256537fe0eb5aa4cb68e347a7e1ffa7, type: 2}
+  - {fileID: 11400000, guid: a44631cb04e8ab14cb4d9d18f95b76d9, type: 2}
+  - {fileID: 11400000, guid: d18163a1d0123db4f92559afd0c21a1c, type: 2}
+  - {fileID: 11400000, guid: c57192f5a04e5d444a08d961ee966874, type: 2}
+  - {fileID: 11400000, guid: a84ad8da61aa52e478c957f115fd2bcb, type: 2}
+  - {fileID: 11400000, guid: 0a866a6016e1f60478ae54f35e276e91, type: 2}
+  - {fileID: 11400000, guid: 685e73a3a360b354e8786eb781a1253f, type: 2}
+  - {fileID: 11400000, guid: 8d9bf4013fda0754891dfbd55c3313f0, type: 2}
+  ClothCatalog: {fileID: 11400000, guid: d4808276da18e954ba2b6bbbf1f12b48, type: 2}

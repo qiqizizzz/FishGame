@@ -1,12 +1,13 @@
 /*
  * ┌──────────────────────────────────┐
- * │  描    述: 钩子配置，手感调参与玩家能力基线的唯一来源
+ * │  描    述: 钩子配置，手感调参、玩家能力基线与 BUFF 叠加封顶的唯一来源
  * │  类    名: HookConfigSO.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
  * 能力基线段是 IFishingStats 的默认值来源：常量实现从这里取初值，
  * 背包层接上后由背包物品在其上叠加修改。除 IFishingStats 实现外，禁止直接读能力基线字段
  * 序列化字段用配置语义名（Meters / Ratio / Ceiling），对外属性用运行时语义名
+ * 封顶段与基准值同在一个资产：调基准时一眼能看出还剩多少加成余量，反向线只设地板不设增量
  */
 
 using UnityEngine;
@@ -57,6 +58,22 @@ namespace Module.Fish.Data
         [Tooltip("碰到河豚后缠绕僵直时长（秒）")]
         [SerializeField] private float TangledDurationSeconds = 1.2f;
 
+        [Header("BUFF 叠加封顶")]
+        [Tooltip("以下均为正向线：装备与板块加成叠满后最多再加多少，填 0 等于封死这条线")]
+        [SerializeField, Min(0f)] private float LineLengthBonusCeiling = 30f;
+        [SerializeField, Min(0f)] private float ReelSpeedBonusCeiling = 4f;
+        [SerializeField, Min(0f)] private float DescendSpeedBonusCeiling = 3.8f;
+        [SerializeField, Min(0f)] private float LateralSpeedBonusCeiling = 2.9f;
+        [SerializeField, Min(0f)] private float LateralDampingBonusCeiling = 9.4f;
+        [SerializeField, Min(0f)] private float HookRadiusBonusCeiling = 0.13f;
+        [SerializeField, Min(0f)] private float CarryCountBonusCeiling = 6f;
+        [SerializeField, Min(0f)] private float LurePullBonusCeiling = 1.2f;
+        [SerializeField, Min(0f)] private float CoinBonusCeiling = 0.6f;
+
+        [Tooltip("以下均为负向线：脱钩概率与缠绕时长的地板，叠再多也不会低于它")]
+        [Range(0f, 1f)] [SerializeField] private float DetachChanceRatioFloor = 0.05f;
+        [SerializeField, Min(0f)] private float TangledDurationSecondsFloor = 0.1f;
+
         public float DescendSpeed => DescendSpeedMeters;
         public float LateralSpeed => LateralSpeedMeters;
         public float LateralDamping => LateralDampingRate;
@@ -77,6 +94,18 @@ namespace Module.Fish.Data
         public float DetachChance => DetachChanceRatio;
         public float TangledDuration => TangledDurationSeconds;
 
+        public float LineLengthBonusCap => LineLengthBonusCeiling;
+        public float ReelSpeedBonusCap => ReelSpeedBonusCeiling;
+        public float DescendSpeedBonusCap => DescendSpeedBonusCeiling;
+        public float LateralSpeedBonusCap => LateralSpeedBonusCeiling;
+        public float LateralDampingBonusCap => LateralDampingBonusCeiling;
+        public float HookRadiusBonusCap => HookRadiusBonusCeiling;
+        public float MaxCarryCountBonusCap => CarryCountBonusCeiling;
+        public float LurePullBonusCap => LurePullBonusCeiling;
+        public float CoinBonusCap => CoinBonusCeiling;
+        public float DetachChanceFloor => DetachChanceRatioFloor;
+        public float TangledDurationFloor => TangledDurationSecondsFloor;
+
         private void OnValidate()
         {
             if (DescendSpeedMeters <= 0f)
@@ -87,6 +116,12 @@ namespace Module.Fish.Data
 
             if (CarryCountCeiling <= 0)
                 QLog.Error($"[{nameof(HookConfigSO)}] 钩上条数上限必须大于 0");
+
+            if (HookRadiusMeters <= 0f)
+                QLog.Error($"[{nameof(HookConfigSO)}] 钩头半径必须大于 0");
+
+            if (HookRadiusBonusCeiling <= 0f && HookRadiusMeters <= 0f)
+                QLog.Error($"[{nameof(HookConfigSO)}] 钩头半径与它的加成封顶同时为零，判定半径会失效");
         }
     }
 }

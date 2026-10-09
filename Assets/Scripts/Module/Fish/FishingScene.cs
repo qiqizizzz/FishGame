@@ -11,6 +11,7 @@ using Framework.QTower;
 using Game;
 using Module.Backpack.Data;
 using Module.Fish.Data;
+using Module.Shop.Data;
 using Module.Fish.View;
 using UnityEngine;
 using Utils.log;
@@ -25,6 +26,7 @@ namespace Module.Fish
         [SerializeField] private HookConfigSO HookConfigAsset;
         [SerializeField] private FishingSessionConfigSO SessionConfigAsset;
         [SerializeField] private BackpackConfigSO BackpackConfigAsset;
+        [SerializeField] private ShopConfigSO ShopConfigAsset;
 
         [Header("场景引用")]
         [SerializeField] private HookViewController HookView;
@@ -36,6 +38,7 @@ namespace Module.Fish
         public HookConfigSO HookConfig => HookConfigAsset;
         public FishingSessionConfigSO SessionConfig => SessionConfigAsset;
         public BackpackConfigSO BackpackConfig => BackpackConfigAsset;
+        public ShopConfigSO ShopConfig => ShopConfigAsset;
         public HookViewController Hook => HookView;
         public FishingCameraRig CameraRig => CameraRigView;
         public Transform FishRoot => FishRootNode;
@@ -73,6 +76,9 @@ namespace Module.Fish
 
             if (BackpackConfigAsset == null)
                 QLog.Error($"[{nameof(FishingScene)}] BackpackConfig 未挂，商店阶段开不出背包");
+
+            if (ShopConfigAsset == null)
+                QLog.Error($"[{nameof(FishingScene)}] ShopConfig 未挂，商店一个商品都抽不出来");
 
             if (HookView == null)
                 QLog.Error($"[{nameof(FishingScene)}] Hook 未挂，状态机没有可驱动的钩子");

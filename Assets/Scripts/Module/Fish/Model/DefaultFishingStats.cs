@@ -26,11 +26,17 @@ namespace Module.Fish.Model
 
         public float LineLength => m_config.LineLength;
         public float ReelSpeed => m_config.ReelSpeed;
-        public float TensionMax => m_config.TensionMax;
-        public float TensionRelief => m_config.TensionRelief;
+        public float DescendSpeed => m_config.DescendSpeed;
+        public float LateralSpeed => m_config.LateralSpeed;
+        public float LateralDamping => m_config.LateralDamping;
+        public float HookRadius => m_config.HookRadius;
+        public float DetachChance => m_config.DetachChance;
+        public float TangledDuration => m_config.TangledDuration;
         public int MaxCarryCount => m_config.MaxCarryCount;
         public float LurePull => m_config.LurePull;
         public float DetectRadius => m_config.DetectRadius;
         public float CoinBonus => m_config.CoinBonus;
+        public float TensionMax => m_config.TensionMax;
+        public float TensionRelief => m_config.TensionRelief;
     }
 }

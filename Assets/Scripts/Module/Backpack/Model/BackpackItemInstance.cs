@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 背包内的一件装备实例，记录档位、朝向与摆放锚点
+* │  描    述: 背包内的一件存放物实例，记录档位、朝向与摆放锚点
 * │  类    名: BackpackItemInstance.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -18,7 +18,7 @@ namespace Module.Backpack.Model
     public sealed class BackpackItemInstance
     {
         // ==================== 公共字段 ====================
-        public BackpackItemSO Definition;
+        public IBackpackDef Definition;
         public int Tier = 1;
         public int OrientationIndex;
         public int AnchorColumn;
@@ -27,7 +27,6 @@ namespace Module.Backpack.Model
         // ==================== 属性 ====================
         public GridShapeSO ShapeDef => Definition.ShapeAt(Tier);
         public ShapeMask Shape => ShapeDef.OrientationAt(OrientationIndex);
-        public BackpackStatMod Mod => Definition.Mod;
         public int Cells => Shape.CellCount;
         public bool CanRotate => ShapeDef.OrientationCount > 1;
 

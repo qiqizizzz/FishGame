@@ -32,8 +32,6 @@ namespace Module.Fish.View
         [SerializeField] private Transform HookTip;
 
         // ==================== 属性 ====================
-        public HookConfigSO HookConfig => m_hookConfig;
-
         public IFishingStats Stats => m_stats;
 
         public IFishingEncounter Encounter => m_encounter;
@@ -65,7 +63,6 @@ namespace Module.Fish.View
 
         // ==================== 字段[私有] ====================
         private Transform m_transform;
-        private HookConfigSO m_hookConfig;
         private FishingSessionConfigSO m_session;
         private IFishingStats m_stats;
         private IFishingEncounter m_encounter;
@@ -84,18 +81,14 @@ namespace Module.Fish.View
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 注入配置、属性包与状态机，全部引用由 FishingScene 上的配置统一提供
+        /// 注入会话配置、属性包与状态机，全部引用由 FishingScene 上的配置统一提供
         /// </summary>
-        public void Initialize(HookConfigSO hookConfig, FishingSessionConfigSO session, IFishingStats stats, HookStateMachine machine, IFishingEncounter encounter)
+        public void Initialize(FishingSessionConfigSO session, IFishingStats stats, HookStateMachine machine, IFishingEncounter encounter)
         {
-            m_hookConfig = hookConfig;
             m_session = session;
             m_stats = stats;
             m_machine = machine;
             m_encounter = encounter;
-
-            if (hookConfig == null)
-                QLog.Error($"[{nameof(HookViewController)}] 钓竿配置未注入，下潜与横向速度会取不到");
 
             if (session == null)
                 QLog.Error($"[{nameof(HookViewController)}] 会话配置未注入，井道边界会退化为 0");

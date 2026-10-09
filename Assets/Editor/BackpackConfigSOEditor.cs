@@ -21,9 +21,16 @@ public sealed class BackpackConfigSOEditor : Editor
     // ==================== 常量与静态字段 ====================
     private const int DEFAULT_EXPANSION_COST = 100;
 
+    // ==================== 字段[私有] ====================
+    // 同一次按住拖动只算一步撤销，松开鼠标才算完
+    private bool m_strokeUndoRecorded;
+
     // ==================== Public Function ====================
     public override void OnInspectorGUI()
     {
+        if (Event.current != null && Event.current.type == EventType.MouseUp)
+            m_strokeUndoRecorded = false;
+
         serializedObject.Update();
 
         BackpackConfigSO config = (BackpackConfigSO)target;
@@ -51,6 +58,7 @@ public sealed class BackpackConfigSOEditor : Editor
         EditorGUILayout.LabelField("暂存架", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(serializedObject.FindProperty("StashCapacityLimit"));
 
+        // 2022.3 没有 hasUnappliedModifiedProperties，写回一律交给标准流程
         serializedObject.ApplyModifiedProperties();
     }
 
@@ -77,17 +85,20 @@ public sealed class BackpackConfigSOEditor : Editor
             SerializedProperty element = masks.GetArrayElementAtIndex(stage);
             long previous = stage == 0 ? 0L : masks.GetArrayElementAtIndex(stage - 1).longValue;
 
-            drawStageToolbar(masks, stage, previous, columns, rows);
+            drawStageToolbar(config, masks, stage, previous, columns, rows);
 
             long committed = element.longValue;
-            long painted = MaskPainterControl.Paint(committed, columns, rows, out _);
+            long painted = MaskPainterControl.Paint(committed, columns, rows, out bool edited);
             painted = keepContainment(painted, previous, committed);
 
             if (painted != committed)
             {
+                recordStrokeUndo(config);
                 element.longValue = painted;
-                EditorUtility.SetDirty(config);
             }
+
+            if (edited)
+                Repaint();
 
             drawStageCost(costs, stage);
             EditorGUILayout.Space();
@@ -97,22 +108,42 @@ public sealed class BackpackConfigSOEditor : Editor
     }
 
     // 本级工具条：继承上一级、清空、填满，都在读掩码之前执行，改完立刻反映到画布上
-    private void drawStageToolbar(SerializedProperty masks, int stage, long previous, int columns, int rows)
+    private void drawStageToolbar(BackpackConfigSO config, SerializedProperty masks, int stage, long previous,
+        int columns, int rows)
     {
         SerializedProperty element = masks.GetArrayElementAtIndex(stage);
         EditorGUILayout.BeginHorizontal();
         EditorGUILayout.LabelField($"第 {stage + 1} 级 · {MaskPainterControl.CountCells(element.longValue)} 格", GUILayout.Width(128f));
 
         if (stage > 0 && GUILayout.Button("继承上一级", GUILayout.Width(96f)))
+        {
+            Undo.RecordObject(config, "继承上一级解锁格");
             element.longValue = previous;
+        }
 
         if (GUILayout.Button("清空本级", GUILayout.Width(80f)))
+        {
+            Undo.RecordObject(config, "清空本级解锁格");
             element.longValue = 0L;
+        }
 
         if (GUILayout.Button("填满本级", GUILayout.Width(80f)))
+        {
+            Undo.RecordObject(config, "填满本级解锁格");
             element.longValue = MaskPainterControl.Fill(columns, rows);
+        }
 
         EditorGUILayout.EndHorizontal();
+    }
+
+    // 一次拖动里可能翻好几格，撤销列表里只留一步，不然回退一次要按几十下 Ctrl+Z
+    private void recordStrokeUndo(BackpackConfigSO config)
+    {
+        if (m_strokeUndoRecorded)
+            return;
+
+        Undo.RecordObject(config, "编辑解锁掩码");
+        m_strokeUndoRecorded = true;
     }
 
     // 第 stage 级（从 0 数）对应的价钱是 costs[stage-1]，开局那级不收费
@@ -138,6 +169,7 @@ public sealed class BackpackConfigSOEditor : Editor
 
         if (GUILayout.Button("加一级", GUILayout.Width(76f)))
         {
+            Undo.RecordObject(target, "新增解锁级");
             masks.InsertArrayElementAtIndex(masks.arraySize);
             masks.GetArrayElementAtIndex(masks.arraySize - 1).longValue = lastMask;
             costs.InsertArrayElementAtIndex(costs.arraySize);
@@ -146,11 +178,21 @@ public sealed class BackpackConfigSOEditor : Editor
 
         if (GUILayout.Button("删末级", GUILayout.Width(76f)))
         {
-            if (masks.arraySize > 0)
+            if (masks.arraySize == 0)
+            {
+                EditorGUILayout.LabelField("已无解锁级可删", GUILayout.Width(110f));
+            }
+            else
+            {
+                Undo.RecordObject(target, "删除末级解锁");
                 masks.DeleteArrayElementAtIndex(masks.arraySize - 1);
 
-            if (costs.arraySize > masks.arraySize - 1)
-                costs.DeleteArrayElementAtIndex(costs.arraySize - 1);
+                // 价钱表永远是「解锁级数 - 1」，开局那级不要钱，多出来的尾巴一律剪掉
+                int wantedCosts = Mathf.Max(masks.arraySize - 1, 0);
+
+                while (costs.arraySize > wantedCosts)
+                    costs.DeleteArrayElementAtIndex(costs.arraySize - 1);
+            }
         }
 
         EditorGUILayout.EndHorizontal();

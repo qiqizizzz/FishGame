@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6df6f494f15471544b06a59cb638be97, type: 3}
+  m_Name: plate_blank_line_3
+  m_EditorClassIdentifier: 
+  PlateId: plate_blank_line_3
+  PlateLabel: "\u7A7A\u767D\u7EB8\u9875\xB73\u683C"
+  PlateIcon: {fileID: 0}
+  PageAsset: {fileID: 11400000, guid: 9ffd02ef9a4ec9c4fa2d9bf6d8368386, type: 2}
+  ShapeAsset: {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  Price: 20

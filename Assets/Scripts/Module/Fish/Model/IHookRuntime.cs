@@ -7,7 +7,6 @@
 * 状态只通过这个接口读写运行时，不直接引用 MonoBehaviour，便于脱离场景单测
 */
 
-using Module.Fish.Data;
 using Module.Fish.Type;
 using UnityEngine;
 
@@ -15,7 +14,6 @@ namespace Module.Fish.Model
 {
     public interface IHookRuntime
     {
-        HookConfigSO HookConfig { get; }
         IFishingStats Stats { get; }
 
         /// <summary>接触裁决入口，由玩法控制器实现</summary>

@@ -985,6 +985,7 @@ MonoBehaviour:
   SessionConfigAsset: {fileID: 11400000, guid: a9dac898f4f190748a27a1d70124376f, type: 2}
   BackpackConfigAsset: {fileID: 11400000, guid: bdf40750e09b0d847a7ff9eb9cff0237,
     type: 2}
+  ShopConfigAsset: {fileID: 11400000, guid: 3387bfd8e647ec14988e77a716179ff4, type: 2}
   HookView: {fileID: 330791299}
   CameraRigView: {fileID: 330585548}
   FishRootNode: {fileID: 1339405604}

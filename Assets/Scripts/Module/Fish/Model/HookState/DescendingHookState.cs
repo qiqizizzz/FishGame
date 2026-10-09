@@ -34,7 +34,7 @@ namespace Module.Fish.Model
             }
 
             float x = HookLateralMover.Advance(runtime, deltaTime);
-            float depth = Mathf.Min(runtime.Depth + runtime.HookConfig.DescendSpeed * deltaTime, runtime.MaxDepth);
+            float depth = Mathf.Min(runtime.Depth + runtime.Stats.DescendSpeed * deltaTime, runtime.MaxDepth);
 
             runtime.MoveTo(x, depth);
 

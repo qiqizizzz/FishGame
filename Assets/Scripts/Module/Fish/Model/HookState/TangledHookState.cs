@@ -9,11 +9,15 @@
 */
 
 using Module.Fish.Type;
+using UnityEngine;
 
 namespace Module.Fish.Model
 {
     public sealed class TangledHookState : IHookState
     {
+        // 僵直下限，防止 BUFF 把时长叠成 0 后变成一帧抖动
+        private const float MIN_TANGLED_DURATION = 0.1f;
+
         private float m_elapsed;
 
         public HookPhase Phase => HookPhase.Tangled;
@@ -28,7 +32,7 @@ namespace Module.Fish.Model
         {
             m_elapsed += deltaTime;
 
-            if (m_elapsed >= runtime.HookConfig.TangledDuration)
+            if (m_elapsed >= Mathf.Max(MIN_TANGLED_DURATION, runtime.Stats.TangledDuration))
                 runtime.TransitionTo(HookPhase.Reeling);
         }
 

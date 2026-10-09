@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71ba97f7f8127fb438b08471b6df67bf, type: 3}
+  m_Name: quick_cutter
+  m_EditorClassIdentifier: 
+  ItemId: quick_cutter
+  ItemLabel: "\u5FEB\u89E3\u5200"
+  ItemIcon: {fileID: 0}
+  ModType: 10
+  TierShapes:
+  - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+  TierValues:
+  - -0.2
+  - -0.4
+  - -0.7

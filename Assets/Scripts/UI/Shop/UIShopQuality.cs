@@ -1,13 +1,15 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 商店背包界面的品质色板，提供四档品质色与配套文字色
+* │  描    述: 商店配色规则，布料板块走布自己的底色、装备走档位品质色，文字色随底色深浅翻转
 * │  类    名: UIShopQuality.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
-* 只是显示用色，数据层只出档位不出颜色，色板换风格不动数据
-* 文字色按品质色亮度自动切深棕或浅米，保证任何色块上的名称都看得清
+* 板块一律用这块布自己的颜色，饱和度天生比装备低，一眼就能分出常驻的小额与大头的那件
+* 颜色不再绕阵营与纸页两层去取，布上写什么色就染什么色
+* 装备不靠自身染色，底色只在白蓝紫金四档之间取值
 */
 
+using Module.Backpack.Data;
 using UnityEngine;
 
 namespace UI.Shop
@@ -27,6 +29,22 @@ namespace UI.Shop
         public static Color Gold { get; } = new Color32(0xF5, 0xB9, 0x3B, 0xFF);
 
         // ==================== Public Function ====================
+        /// <summary>
+        /// 取存放物该染的颜色，板块用布自己的底色，装备用档位品质色
+        /// </summary>
+        /// <param name="definition">存放物定义</param>
+        /// <param name="tier">档位，只有装备用得上</param>
+        public static Color ColorFor(IBackpackDef definition, int tier)
+        {
+            if (definition == null)
+                return White;
+
+            if (definition.Kind == BackpackDefKind.Cloth)
+                return definition.TintColor;
+
+            return TierColor(tier);
+        }
+
         /// <summary>
         /// 取档位对应的品质色，一到三级走白蓝紫，再往上的档位留给合成
         /// </summary>

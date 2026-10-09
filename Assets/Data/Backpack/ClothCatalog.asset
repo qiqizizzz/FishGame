@@ -1,0 +1,242 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9c4b3ab6ca1b3b4793178c7d447776b, type: 3}
+  m_Name: ClothCatalog
+  m_EditorClassIdentifier: 
+  RarityTierList:
+  - TierId: common
+    TierLabel: "\u5E38\u89C1"
+    DrawWeight: 62
+    PriceScale: 1
+  - TierId: uncommon
+    TierLabel: "\u5C11\u89C1"
+    DrawWeight: 26
+    PriceScale: 1.6
+  - TierId: rare
+    TierLabel: "\u7A00\u6709"
+    DrawWeight: 10
+    PriceScale: 2.4
+  - TierId: epic
+    TierLabel: "\u73CD\u7F55"
+    DrawWeight: 2
+    PriceScale: 4
+  ClothList:
+  - ClothId: cloth_blank
+    ClothLabel: "\u7A7A\u767D\u5E03"
+    ClothColor: {r: 0.92941177, g: 0.8784314, b: 0.78431374, a: 1}
+    RarityTierIndex: 0
+    CellBasePrice: 8
+    BuffList: []
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+    - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
+  - ClothId: cloth_dive
+    ClothLabel: "\u6DF1\u6F5C\u5E03"
+    ClothColor: {r: 0.65882355, g: 0.7764706, b: 0.9098039, a: 1}
+    RarityTierIndex: 0
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 0
+      PerCell: 1.5
+      Cap: 10
+    ShapeList:
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_sink
+    ClothLabel: "\u5FEB\u6F5C\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 0
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 5
+      PerCell: 0.15
+      Cap: 1.2
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - ClothId: cloth_glide
+    ClothLabel: "\u8FC5\u6377\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 0
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 6
+      PerCell: 0.15
+      Cap: 0.9
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_reel
+    ClothLabel: "\u8F7B\u6536\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 0
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 1
+      PerCell: 0.12
+      Cap: 1.2
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_steady
+    ClothLabel: "\u7A33\u624B\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 1
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 7
+      PerCell: 0.4
+      Cap: 2.4
+    ShapeList:
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_cargo
+    ClothLabel: "\u91CD\u8F7D\u5E03"
+    ClothColor: {r: 0.9411765, g: 0.78431374, b: 0.6039216, a: 1}
+    RarityTierIndex: 1
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 2
+      PerCell: 0.25
+      Cap: 2
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+    - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
+  - ClothId: cloth_lure
+    ClothLabel: "\u8BF1\u9C7C\u5E03"
+    ClothColor: {r: 0.827451, g: 0.7372549, b: 0.9098039, a: 1}
+    RarityTierIndex: 1
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 3
+      PerCell: 0.025
+      Cap: 0.15
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - ClothId: cloth_gape
+    ClothLabel: "\u5E7F\u94A9\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 2
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 8
+      PerCell: 0.005
+      Cap: 0.03
+    ShapeList:
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - ClothId: cloth_coin
+    ClothLabel: "\u8D22\u8FD0\u5E03"
+    ClothColor: {r: 0.9490196, g: 0.87058824, b: 0.61960787, a: 1}
+    RarityTierIndex: 2
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 4
+      PerCell: 0.01
+      Cap: 0.1
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_guard
+    ClothLabel: "\u9632\u8131\u5E03"
+    ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
+    RarityTierIndex: 2
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 9
+      PerCell: -0.01
+      Cap: -0.1
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - ClothId: cloth_cut
+    ClothLabel: "\u5FEB\u89E3\u5E03"
+    ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
+    RarityTierIndex: 2
+    CellBasePrice: 14
+    BuffList:
+    - ModType: 10
+      PerCell: -0.04
+      Cap: -0.4
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - ClothId: cloth_current
+    ClothLabel: "\u987A\u6D41\u5E03"
+    ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
+    RarityTierIndex: 3
+    CellBasePrice: 16
+    BuffList:
+    - ModType: 5
+      PerCell: 0.12
+      Cap: 0.6
+    - ModType: 1
+      PerCell: 0.12
+      Cap: 0.6
+    - ModType: 6
+      PerCell: 0.1
+      Cap: 0.6
+    ShapeList:
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+  - ClothId: cloth_harvest
+    ClothLabel: "\u6EE1\u7BD3\u5E03"
+    ClothColor: {r: 0.9411765, g: 0.78431374, b: 0.6039216, a: 1}
+    RarityTierIndex: 3
+    CellBasePrice: 16
+    BuffList:
+    - ModType: 2
+      PerCell: 0.2
+      Cap: 1.6
+    - ModType: 4
+      PerCell: 0.012
+      Cap: 0.12
+    - ModType: 3
+      PerCell: 0.02
+      Cap: 0.12
+    ShapeList:
+    - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+    - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+  - ClothId: cloth_mesh
+    ClothLabel: "\u97E7\u7F51\u5E03"
+    ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
+    RarityTierIndex: 3
+    CellBasePrice: 16
+    BuffList:
+    - ModType: 9
+      PerCell: -0.012
+      Cap: -0.12
+    - ModType: 10
+      PerCell: -0.03
+      Cap: -0.3
+    - ModType: 8
+      PerCell: 0.004
+      Cap: 0.024
+    ShapeList:
+    - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
+    - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}

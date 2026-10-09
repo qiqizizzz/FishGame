@@ -98,6 +98,33 @@ namespace Module.Fish.Model
         }
 
         /// <summary>
+        /// 花一笔金币，本局已结束或钱不够都不扣，交给调用方决定怎么提示
+        /// </summary>
+        /// <param name="cost">要花的金币，传负数按不花处理</param>
+        public bool TrySpend(int cost)
+        {
+            if (IsRunOver)
+                return false;
+
+            if (cost > Coins)
+                return false;
+
+            Coins -= cost;
+            return true;
+        }
+
+        /// <summary>
+        /// 补一笔金币回银行，只给「钱扣了但东西没到手」这种回滚用
+        /// </summary>
+        /// <param name="amount">要补的金币，非正数直接忽略</param>
+        public void AddCoins(int amount)
+        {
+            if (amount <= 0)
+                return;
+
+            Coins += amount;
+        }
+        /// <summary>
         /// 进入下一回合：本回合目标进度与渔获明细清零，金币银行与整局统计保留
         /// </summary>
         public void AdvanceRound()

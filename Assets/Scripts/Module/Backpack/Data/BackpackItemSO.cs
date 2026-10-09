@@ -7,6 +7,7 @@
 * 模板库解耦点：同一档不同装备可以挂同一个形状资产，形状只是占位外形不是装备身份
 * 升档即换模板，装备变强也变占地，这就是背包格要逼出来的取舍
 * 列表长度即最高档位，配到 3 就是三级封顶，超出部分不参与结算
+* 装备没有阵营概念，界面底色一律按档位取品质色，不再挂阵营资产
 */
 
 using System.Collections.Generic;
@@ -16,7 +17,7 @@ using Utils.log;
 namespace Module.Backpack.Data
 {
     [CreateAssetMenu(menuName = "FishGame/Config/Backpack Item", fileName = "BackpackItem")]
-    public sealed class BackpackItemSO : ScriptableObject
+    public sealed class BackpackItemSO : ScriptableObject, IBackpackDef
     {
         // ==================== 常量 ====================
         public const int MAX_TIER = 3;
@@ -39,8 +40,12 @@ namespace Module.Backpack.Data
         public string Id => ItemId;
         public string Label => ItemLabel;
         public Sprite Icon => ItemIcon;
+        public BackpackDefKind Kind => BackpackDefKind.Item;
         public BackpackStatMod Mod => ModType;
         public int MaxTier => TierShapes.Count;
+
+        // 装备不靠自身染色，底色由界面按档位取品质色
+        public Color TintColor => Color.white;
 
         // ==================== Public Function ====================
         /// <summary>
@@ -60,6 +65,19 @@ namespace Module.Backpack.Data
         {
             int index = clampTier(tier) - 1;
             return index < TierValues.Count ? TierValues[index] : 0f;
+        }
+
+        /// <summary>
+        /// 报出本件在指定档位的加成，装备不设来源封顶，交给能力线自己的全局封顶
+        /// </summary>
+        /// <param name="tier">档位，从 1 开始</param>
+        /// <param name="result">要追加条目的列表，由调用方负责清空</param>
+        public void FillBuffs(int tier, List<BackpackBuff> result)
+        {
+            if (result == null || ModType == BackpackStatMod.None)
+                return;
+
+            result.Add(new BackpackBuff(ModType, ValueAt(tier), null, 0f));
         }
 
         // ==================== Private Function ====================
