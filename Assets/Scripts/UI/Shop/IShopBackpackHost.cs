@@ -9,7 +9,7 @@
 * 宿主做完任何一笔操作都要重铺一次界面，摆不成时靠重铺把物品弹回原位
 * 布与装备分两套入口：装备动的只是压在布上的那一件，布动的是一整块底板
 * 布与装备共用同一条操作条，两者也共用暂存架：拖进 Panel_Storage 那块区域就下架，从暂存格拖回网格按落点摆
-* 格子上不再常驻名称，点中什么由宿主把两行说明报到详情区
+* 格子上不再常驻名称，点中什么由宿主把两行说明报到选中物旁边的详情小窗
 */
 
 using Module.Backpack.Model;
@@ -145,7 +145,7 @@ namespace UI.Shop
         void EndPlateDrag(BackpackItemInstance plate);
 
         /// <summary>
-        /// 把一件存放物的名字与加成报到详情区，布与装备共用这一处出口
+        /// 把一件存放物的名字与加成报到详情小窗，布与装备共用这一处出口
         /// </summary>
         /// <param name="item">被点中的存放物</param>
         void ShowDetail(BackpackItemInstance item);

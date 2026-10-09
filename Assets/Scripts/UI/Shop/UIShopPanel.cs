@@ -12,7 +12,8 @@
 * 布的样子就是底层格子染上布的底色，最上面再叠一层选中框，一格一圈角标，框不吃射线
 * 选中一块布或一件装备才浮出操作条，旋转、拆下架、卖成金币都在条上按，单击不直接改东西
 * 背包与暂存架双向拖：拖到暂存架面板上就下架，从暂存格拖进网格就按幽灵吸附的落点上架
-* 格子上不再常驻名称，点中布或装备都在面板最下方的详情区报两行：第一行名字，第二行能力线
+* 格子上不再常驻名称，点中布或装备都在它旁边浮出详情小窗：第一行名字，第二行能力线
+* 详情小窗是独立预制体 UIShopDetailWindow，脚本只实例化一次并按选中物染色，版式全在预制体里改
 * 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
@@ -63,20 +64,21 @@ namespace UI.Shop
         private const string PLATE_SELL_NAME = "Btn_Sell";
         private const string SELECT_FRAME_NAME = "Img_SelectFrame";
 
-        // 详情区也由运行时创建，预制体里没有这个节点，它卡在货架面板与底部按钮之间那条空隙
-        private const string DETAIL_PANEL_NAME = "Panel_Detail";
-        private const string DETAIL_NAME_TEXT_NAME = "Txt_DetailName";
-        private const string DETAIL_DESC_TEXT_NAME = "Txt_DetailDesc";
-        private const float DETAIL_TOP = -1522f;
-        private const float DETAIL_WIDTH = 940f;
-        private const float DETAIL_HEIGHT = 146f;
-        private const float DETAIL_SIDE_PADDING = 36f;
-        private const float DETAIL_NAME_TOP = -22f;
-        private const float DETAIL_NAME_HEIGHT = 46f;
-        private const float DETAIL_DESC_TOP = -74f;
-        private const float DETAIL_DESC_HEIGHT = 44f;
-        private const float DETAIL_NAME_FONT_SIZE = 30f;
-        private const float DETAIL_DESC_FONT_SIZE = 24f;
+        // 详情小窗是独立预制体，运行时只实例化一次，这里只认它内部的三个子节点
+        private const string DETAIL_WINDOW_NAME = "Panel_Detail";
+        private const string DETAIL_NAME_TEXT_PATH = "Txt_DetailName";
+        private const string DETAIL_DESC_TEXT_PATH = "Txt_DetailDesc";
+        private const string DETAIL_ACCENT_PATH = "Img_Accent";
+        // 宽跟着两行文案走，两头各封一个界，省得长文案把小窗拉成一条横幅
+        private const float DETAIL_MIN_WIDTH = 340f;
+        private const float DETAIL_MAX_WIDTH = 520f;
+        private const float DETAIL_GAP = 14f;
+        private const float DETAIL_SAFE_MARGIN = 20f;
+        // 两行文本离左右缘的留白，抄自预制体里的文本边距，改版式要两边一起动
+        private const float DETAIL_TEXT_INSET_LEFT = 38f;
+        private const float DETAIL_TEXT_INSET_RIGHT = 16f;
+        // 候选摆位一共有六个，试完都不合适才退回收夹
+        private const int DETAIL_CANDIDATE_COUNT = 6;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -90,6 +92,9 @@ namespace UI.Shop
         // ==================== 字段[外部设置] ====================
         [Tooltip("选中一块布时套在每一格上的外框图，取 Button_select_brown 这种四角标，中心要留空")]
         [SerializeField] private Sprite PlateSelectSprite;
+
+        [Tooltip("点中布或装备时浮在旁边的详情小窗预制体，两行文本与左侧色条都在预制体里排")]
+        [SerializeField] private GameObject DetailWindowPrefab;
 
         // ==================== 属性 ====================
         public int Columns => m_backpack != null ? m_backpack.Model.Columns : 0;
@@ -171,13 +176,16 @@ namespace UI.Shop
         // 幽灵格要抄底层格子的底图，整张网格同源，读第一格就够
         private Sprite m_cellSprite;
 
-        // 详情区挂在整块背景上，两行文本与它报的是哪一件
+        // 详情小窗挂在整块背景上，两行文本、左侧色条与它报的是哪一件
         private RectTransform m_backgroundRect;
         private RectTransform m_detailRect;
         private TMP_Text m_detailNameText;
         private TMP_Text m_detailDescText;
+        private Image m_detailAccent;
         private BackpackItemInstance m_detailTarget;
         private readonly List<BackpackBuff> m_detailBuffs = new();
+        // 小窗的高读自预制体，算落点时用它，脚本里不再写死
+        private float m_detailHeight;
 
         // ==================== 生命周期 ====================
         protected override void OnInit()
@@ -199,7 +207,7 @@ namespace UI.Shop
             m_diveButton = FindComponent<Button>(DIVE_PATH);
             m_closeButton = FindComponent<Button>(CLOSE_PATH);
 
-            // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，详情区挂它才卡得进面板缝里
+            // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，小窗挂它才能越过网格的范围摆
             m_backgroundRect = m_itemsRect.transform.parent.parent as RectTransform;
 
 #if UNITY_EDITOR
@@ -213,8 +221,10 @@ namespace UI.Shop
                 QLog.Error($"暂存架面板没找到，拖不进架子：{STORAGE_PANEL_PATH}");
             if (PlateSelectSprite == null)
                 QLog.Error($"没有指定 {nameof(PlateSelectSprite)}，选中一块布不会有外框");
+            if (DetailWindowPrefab == null)
+                QLog.Error($"没有指定 {nameof(DetailWindowPrefab)}，点中布或装备不会有详情小窗");
             if (m_backgroundRect == null)
-                QLog.Error("背景节点没找到，详情区无处可挂");
+                QLog.Error("背景节点没找到，详情小窗无处可挂");
 #endif
 
             m_cellSize = m_grid.cellSize.x;
@@ -233,7 +243,7 @@ namespace UI.Shop
             createClothLayer();
             createSelectLayer();
             createPlateBar();
-            createDetailPanel();
+            bindDetailWindow();
         }
 
         protected override void OnOpen(params object[] args)
@@ -388,10 +398,11 @@ namespace UI.Shop
             refreshActionBar();
         }
 
-        // 装备到手上了，操作条先收起来，免得拖的时候满屏控件
+        // 装备到手上了，操作条与详情小窗先收起来，免得拖的时候满屏控件
         public void BeginItemDrag(BackpackItemInstance item)
         {
             m_plateBar.gameObject.SetActive(false);
+            m_detailRect.gameObject.SetActive(false);
         }
 
         // 手上的装备落下或作废，条子按落点之后的选中态复原
@@ -471,8 +482,9 @@ namespace UI.Shop
                 return;
 
             m_plateInHand = plate;
-            // 布已经离地，压在它下面的操作条跟着收起来，免得拖的时候满屏都是控件
+            // 布已经离地，压在它下面的操作条与详情小窗跟着收起来，免得拖的时候满屏都是控件
             m_plateBar.gameObject.SetActive(false);
+            m_detailRect.gameObject.SetActive(false);
             fillSlotColors();
         }
 
@@ -490,7 +502,7 @@ namespace UI.Shop
             fillSlotColors();
         }
 
-        // 点中的是哪件东西，两行写在详情区：第一行名字，第二行它身上的能力线
+        // 点中的是哪件东西，两行写在详情小窗：第一行名字，第二行它身上的能力线
         public void ShowDetail(BackpackItemInstance item)
         {
             if (item?.Definition == null)
@@ -506,6 +518,8 @@ namespace UI.Shop
             m_detailRect.gameObject.SetActive(true);
             m_detailNameText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
             m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
+            // 左侧色条染成这件东西的对应色，布吃布自己的底色，装备吃档位品质色
+            m_detailAccent.color = UIShopQuality.ColorFor(item.Definition, item.Tier);
         }
 
         // ==================== Private Function ====================
@@ -788,58 +802,148 @@ namespace UI.Shop
             return button;
         }
 
-        // 详情区抄货架面板那张底图与金币文本的字体字色，版式再改也不用回来动这里
-        // 位置卡在货架面板底边与底部按钮顶边中间那条空隙，整块背景下没有第二处空位
-        private void createDetailPanel()
+        // 详情小窗是独立预制体，这里只实例化一次并认好两行文本与色条，版式与配色全在预制体里改
+        // 它挂在整块背景上而不是物品层，摆到选中物左右时才不会被 800 宽的网格卡住
+        private void bindDetailWindow()
         {
-            Image shopBackdrop = FindComponent<Image>(SHOP_PANEL_PATH);
+            // 预制体或挂载点缺失都在 OnInit 里报过错了，这里只跳过绑定，别让整层面板起不来
+            if (DetailWindowPrefab == null || m_backgroundRect == null)
+                return;
 
-            GameObject panelObject = new GameObject(DETAIL_PANEL_NAME, typeof(RectTransform), typeof(Image));
-            Image backdrop = panelObject.GetComponent<Image>();
-            backdrop.sprite = shopBackdrop.sprite;
-            backdrop.type = shopBackdrop.type;
-            backdrop.color = shopBackdrop.color;
-            // 详情区只是给人看的，别把点击挡回去，格子该拖还得能拖
-            backdrop.raycastTarget = false;
+            GameObject windowObject = Instantiate(DetailWindowPrefab, m_backgroundRect);
+            windowObject.name = DETAIL_WINDOW_NAME;
+            m_detailRect = windowObject.GetComponent<RectTransform>();
 
-            m_detailRect = (RectTransform)panelObject.transform;
-            m_detailRect.SetParent(m_backgroundRect, false);
-            m_detailRect.anchorMin = new Vector2(0.5f, 1f);
-            m_detailRect.anchorMax = new Vector2(0.5f, 1f);
-            m_detailRect.pivot = new Vector2(0.5f, 1f);
-            m_detailRect.anchoredPosition = new Vector2(0f, DETAIL_TOP);
-            m_detailRect.sizeDelta = new Vector2(DETAIL_WIDTH, DETAIL_HEIGHT);
-
-            m_detailNameText = createDetailText(DETAIL_NAME_TEXT_NAME, DETAIL_NAME_FONT_SIZE,
-                DETAIL_NAME_TOP, DETAIL_NAME_HEIGHT);
-            m_detailDescText = createDetailText(DETAIL_DESC_TEXT_NAME, DETAIL_DESC_FONT_SIZE,
-                DETAIL_DESC_TOP, DETAIL_DESC_HEIGHT);
+            m_detailNameText = findDetailChildText(windowObject.transform, DETAIL_NAME_TEXT_PATH);
+            m_detailDescText = findDetailChildText(windowObject.transform, DETAIL_DESC_TEXT_PATH);
+            m_detailAccent = findDetailChildImage(windowObject.transform, DETAIL_ACCENT_PATH);
+            // 高跟着预制体走，脚本只留一个数用来算落点，改小窗高度不用回来动这里
+            m_detailHeight = m_detailRect.sizeDelta.y;
 
             m_detailRect.gameObject.SetActive(false);
         }
 
-        // 详情两行都是横向拉满、左边留内边距，字宽随面板一起走，长文案省略号收尾
-        private TMP_Text createDetailText(string name, float fontSize, float top, float height)
+        // 预制体里的子节点少了就是版式被人动过，编辑器下先报明是哪个节点，再让它抛出去
+        private TMP_Text findDetailChildText(Transform windowRoot, string path)
         {
-            GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
-            RectTransform rect = (RectTransform)textObject.transform;
-            rect.SetParent(m_detailRect, false);
-            rect.anchorMin = new Vector2(0f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(0f, 1f);
-            rect.anchoredPosition = new Vector2(DETAIL_SIDE_PADDING, top);
-            // 横向贴着面板拉满，左右各留一份内边距
-            rect.sizeDelta = new Vector2(-DETAIL_SIDE_PADDING * 2f, height);
+            Transform child = windowRoot.Find(path);
+#if UNITY_EDITOR
+            if (child == null)
+                QLog.Error($"详情小窗预制体缺少节点 {path}，请检查 {DetailWindowPrefab.name}");
+#endif
+            return child.GetComponent<TMP_Text>();
+        }
 
-            TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
-            text.font = m_coinsText.font;
-            text.color = m_coinsText.color;
-            text.fontSize = fontSize;
-            text.alignment = TextAlignmentOptions.MidlineLeft;
-            text.enableWordWrapping = false;
-            text.overflowMode = TextOverflowModes.Ellipsis;
-            text.raycastTarget = false;
-            return text;
+        // 色条只是块底色矩形，节点缺失同样先报明再抛，免得运行时对着空引用猜
+        private Image findDetailChildImage(Transform windowRoot, string path)
+        {
+            Transform child = windowRoot.Find(path);
+#if UNITY_EDITOR
+            if (child == null)
+                QLog.Error($"详情小窗预制体缺少节点 {path}，请检查 {DetailWindowPrefab.name}");
+#endif
+            return child.GetComponent<Image>();
+        }
+
+        // 详情小窗跟着选中物浮出来，摆哪一侧从六个候选里挑：右侧贴顶、右侧贴底、左侧贴顶、左侧贴底、正上、正下
+        private void refreshDetailWindow(int minColumn, int maxColumn, int minRow, int maxRow)
+        {
+            if (m_detailRect == null || m_detailTarget == null)
+                return;
+
+            m_detailRect.gameObject.SetActive(true);
+
+            float width = detailWidth();
+            m_detailRect.sizeDelta = new Vector2(width, m_detailHeight);
+
+            // 选中物占的那几格合成包围盒，再整体搬到背景坐标系，小窗才允许越过物品层的边界
+            Vector2 gridCorner = toBackground(new Vector2(m_itemsRect.rect.xMin, m_itemsRect.rect.yMax));
+            float pitch = m_cellSize + m_cellSpacing;
+            float left = gridCorner.x + minColumn * pitch;
+            float right = gridCorner.x + maxColumn * pitch + m_cellSize;
+            float top = gridCorner.y - minRow * pitch;
+            float bottom = gridCorner.y - (maxRow * pitch + m_cellSize);
+
+            m_detailRect.anchoredPosition = detailAnchor(left, right, top, bottom, width);
+            // 小窗要压过货架与暂存架才看得清，它本身不吃点击，压着也不挡住拖拽
+            m_detailRect.SetAsLastSibling();
+        }
+
+        // 名字与文案谁更长就照谁定宽，超出上下限的部分交给省略号
+        private float detailWidth()
+        {
+            float nameWidth = m_detailNameText.GetPreferredValues(m_detailNameText.text).x;
+            float descWidth = m_detailDescText.GetPreferredValues(m_detailDescText.text).x;
+            float widest = Mathf.Max(nameWidth, descWidth) + DETAIL_TEXT_INSET_LEFT + DETAIL_TEXT_INSET_RIGHT;
+            return Mathf.Clamp(widest, DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH);
+        }
+
+        // 物品层里的一个点搬到背景坐标系：两层没有旋转也没有缩放，绕世界坐标走一遍就够
+        private Vector2 toBackground(Vector2 itemsLocal)
+        {
+            Vector3 world = m_itemsRect.TransformPoint(new Vector3(itemsLocal.x, itemsLocal.y, 0f));
+            Vector3 backgroundLocal = m_backgroundRect.InverseTransformPoint(world);
+            return new Vector2(backgroundLocal.x, backgroundLocal.y);
+        }
+
+        // 六个候选位挨个试，越出安全区或压着操作条的都跳过，第一个干净的就当落点
+        private Vector2 detailAnchor(float left, float right, float top, float bottom, float width)
+        {
+            // 只读 RectTransform.rect 的四条边，不新建 Rect，免得踩轴心歧义的坑
+            Rect safe = m_backgroundRect.rect;
+            float safeLeft = safe.xMin + DETAIL_SAFE_MARGIN;
+            float safeRight = safe.xMax - DETAIL_SAFE_MARGIN;
+            float safeTop = safe.yMax - DETAIL_SAFE_MARGIN;
+            float safeBottom = safe.yMin + DETAIL_SAFE_MARGIN;
+
+            float barLeft = 0f, barRight = 0f, barTop = 0f, barBottom = 0f;
+            bool barVisible = m_plateBar != null && m_plateBar.gameObject.activeSelf;
+            if (barVisible)
+            {
+                Vector2 corner = toBackground(new Vector2(m_itemsRect.rect.xMin + m_plateBar.anchoredPosition.x,
+                    m_itemsRect.rect.yMax + m_plateBar.anchoredPosition.y));
+                barLeft = corner.x;
+                barRight = corner.x + m_plateBar.sizeDelta.x;
+                barTop = corner.y;
+                barBottom = corner.y - m_plateBar.sizeDelta.y;
+            }
+
+            for (int index = 0; index < DETAIL_CANDIDATE_COUNT; index++)
+            {
+                Vector2 corner = detailCandidate(index, left, right, top, bottom, width);
+                float windowBottom = corner.y - m_detailHeight;
+
+                if (corner.x < safeLeft || corner.x + width > safeRight)
+                    continue;
+                if (corner.y > safeTop || windowBottom < safeBottom)
+                    continue;
+                if (barVisible && corner.x < barRight && barLeft < corner.x + width &&
+                    windowBottom < barTop && barBottom < corner.y)
+                    continue;
+
+                return new Vector2(corner.x + width * 0.5f, corner.y - m_detailHeight * 0.5f);
+            }
+
+            // 六个位置全被占，就退回右侧贴顶那一个再夹回安全区，总得让玩家看得见名字
+            Vector2 fallback = detailCandidate(0, left, right, top, bottom, width);
+            float centerX = Mathf.Clamp(fallback.x + width * 0.5f, safeLeft + width * 0.5f, safeRight - width * 0.5f);
+            float centerY = Mathf.Clamp(fallback.y - m_detailHeight * 0.5f,
+                safeBottom + m_detailHeight * 0.5f, safeTop - m_detailHeight * 0.5f);
+            return new Vector2(centerX, centerY);
+        }
+
+        // 候选位的排法：0/1 在右侧贴顶与贴底，2/3 在左侧贴顶与贴底，4 正上方，5 正下方，都留一份 DETAIL_GAP；返回小窗左上角
+        private Vector2 detailCandidate(int index, float left, float right, float top, float bottom, float width)
+        {
+            switch (index)
+            {
+                case 0: return new Vector2(right + DETAIL_GAP, top);
+                case 1: return new Vector2(right + DETAIL_GAP, bottom);
+                case 2: return new Vector2(left - DETAIL_GAP - width, top);
+                case 3: return new Vector2(left - DETAIL_GAP - width, bottom);
+                case 4: return new Vector2((left + right - width) * 0.5f, top + DETAIL_GAP + m_detailHeight);
+                default: return new Vector2((left + right - width) * 0.5f, bottom - DETAIL_GAP);
+            }
         }
 
         private void clearDetail()
@@ -919,6 +1023,7 @@ namespace UI.Shop
             bool plateMode = m_selectedPlate != null;
 
             int minColumn = int.MaxValue;
+            int maxColumn = int.MinValue;
             int minRow = int.MaxValue;
             int maxRow = int.MinValue;
 
@@ -926,6 +1031,7 @@ namespace UI.Shop
             {
                 Vector2Int cell = m_selectedCells[i];
                 minColumn = Mathf.Min(minColumn, cell.x);
+                maxColumn = Mathf.Max(maxColumn, cell.x);
                 minRow = Mathf.Min(minRow, cell.y);
                 maxRow = Mathf.Max(maxRow, cell.y);
             }
@@ -960,6 +1066,9 @@ namespace UI.Shop
             m_plateBar.gameObject.SetActive(true);
             // 重铺会新插物品视图，条子每次都要重新压到最上面才不会被盖住
             m_plateBar.SetAsLastSibling();
+
+            // 小窗排在条子之后，它要拿条子已经落好的位置做避让
+            refreshDetailWindow(minColumn, maxColumn, minRow, maxRow);
 
             refreshSelectionFrames();
         }
