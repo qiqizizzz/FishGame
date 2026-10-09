@@ -8,6 +8,7 @@
 * 宿主做完任何一笔操作都要重铺一次界面，摆不成时靠重铺把物品弹回原位
 * 布与装备分两套入口：装备动的只是压在布上的那一件，布动的是一整块底板
 * 布不吃单击旋转，它上头压着装备、卖掉还换金币，误点的代价比装备大得多，一律走选中后的操作条
+* 格子上不再常驻名称，点中什么由宿主把两行说明报到详情区
 */
 
 using Module.Backpack.Model;
@@ -73,5 +74,23 @@ namespace UI.Shop
         /// </summary>
         /// <param name="plate">被点的布</param>
         void SelectPlate(BackpackItemInstance plate);
+
+        /// <summary>
+        /// 一块布被抓到手上，它铺出来的那几格连底板都空了，格子要跟着改脸
+        /// </summary>
+        /// <param name="plate">被拖起的布</param>
+        void BeginPlateDrag(BackpackItemInstance plate);
+
+        /// <summary>
+        /// 手上的布落下或作废，空出来的那几格交还给模型重染
+        /// </summary>
+        /// <param name="plate">被放下的布</param>
+        void EndPlateDrag(BackpackItemInstance plate);
+
+        /// <summary>
+        /// 把一件存放物的名字与加成报到详情区，布与装备共用这一处出口
+        /// </summary>
+        /// <param name="item">被点中的存放物</param>
+        void ShowDetail(BackpackItemInstance item);
     }
 }

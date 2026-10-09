@@ -1,12 +1,13 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 背包里的一块布，逐格铺一层透明手势区，可拖动可选中，布色由底层格子去画
+* │  描    述: 背包里的一块布，逐格铺一层透明手势区，拖动时亮出跟手的幽灵布块
 * │  类    名: UIShopPlateView.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 布是格子的唯一来源，画在装备底下那一层，所以本视图由面板运行时创建，不进预制体
-* 布面不再自己画：底层格子本来就按这块布的底色染过一遍，再盖一层纯属重复的占位色块
-* 本视图只剩手势，形状占哪几格就在哪几格摆一块透明区，拖与点都只认这几格
+* 静止时本视图只剩手势：布的样子就是底层格子染上这块布的底色，这里再盖一层纯属重复的占位色块
+* 拖起来才亮出一套幽灵格，暗边加内缩亮面跟着手指走，玩家手里看见的就是那块布本身而不是别的东西
+* 布名不写在这里，点一下交给面板的详情区报两行，常驻文字会和布上装备的字叠成一团
 * 选中态也不在这里提亮，改由面板最上层给每一格套一圈选中外框，边界比往布色里掺白清楚得多
 * 单击只负责选中不负责旋转，旋转拆卖都得更正到操作条上按，误点一下不至于把地板抽走
 * 拖动只跟着手指走，落点合不合规矩一律问宿主，摆不成靠重铺把布弹回原位
@@ -15,7 +16,6 @@
 using System.Collections.Generic;
 using Framework.QTower.View;
 using Module.Backpack.Model;
-using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -25,24 +25,29 @@ namespace UI.Shop
 {
     public sealed class UIShopPlateView : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
     {
-        private const string LABEL_NAME = "Txt_Label";
         private const string HIT_NAME = "Img_HitCell";
+        private const string CLOTH_NAME = "Img_ClothCell";
+        private const string CLOTH_FACE_NAME = "Img_ClothFace";
 
         // 落点换算用的最小平方距离，位移短到基本没挪就当成没动过
         private const float SNAP_EPSILON = 0.001f;
 
-        // 名称字号，布压在装备底下，字比装备那层稍小一点免得抢视线
-        private const float LABEL_FONT_SIZE = 22f;
+        // 幽灵格四周的暗边厚度，与装备块同一套数值，两层看着才是一路东西
+        private const float RIM_THICKNESS = 4f;
+
+        // 暗边相对布色压暗的比例
+        private const float RIM_DARKEN = 0.28f;
 
         // ==================== 字段[私有] ====================
         private RectTransform m_rect;
         private RectTransform m_parentRect;
-        private TMP_Text m_labelText;
 
-        // 透明手势区只创建不销毁，换形状换朝向时多出来的先藏起来
+        // 透明手势区与幽灵格都只创建不销毁，换形状换朝向时多出来的先藏起来
         private readonly List<RectTransform> m_hitCells = new();
+        private readonly List<RectTransform> m_clothCells = new();
         private readonly List<Vector2Int> m_cellBuffer = new();
         private int m_hitCellsUsed;
+        private int m_clothCellsUsed;
 
         // 拖拽三件套：落差、锚点差、本轮是否拖过
         private BackpackItemInstance m_plate;
@@ -54,17 +59,33 @@ namespace UI.Shop
         private int m_anchorDeltaRow;
         private bool m_wasDragged;
 
+        // 拖布期间整层布被提到最后，松手要按原序号放回去，幽灵格也只在这期间亮着
+        private int m_clothLayerIndex;
+        private bool m_isDragging;
+
+        // ==================== 生命周期 ====================
+        private void Awake()
+        {
+            bindNodes();
+        }
+
+        // 面板关掉、物体被隐藏时走不到 OnEndDrag，这里补一次收摊，免得幽灵格和空地板留在场上
+        private void OnDisable()
+        {
+            endDrag();
+        }
+
         // ==================== Public Function ====================
         /// <summary>
-        /// 按板块当前占用的格子摆出透明手势区，顺带写上这块布的名字
+        /// 按板块当前占用的格子摆出透明手势区与幽灵格，幽灵格只在被拖着的时候亮
         /// </summary>
         /// <param name="plate">要铺的板块实例</param>
         /// <param name="cellSize">单格边长，取自背包网格</param>
         /// <param name="cellSpacing">单格间距，取自背包网格</param>
         /// <param name="host">手势落点的处理方，传 null 则这块布不可交互</param>
-        /// <param name="labelFont">中文字体，运行时创建的名称节点必须自己带一份</param>
+        /// <param name="cellSprite">底层格子的底图，幽灵格抄它才和染过色的格子一个样</param>
         public void Setup(BackpackItemInstance plate, float cellSize, float cellSpacing,
-            IShopBackpackHost host, TMP_FontAsset labelFont)
+            IShopBackpackHost host, Sprite cellSprite)
         {
             ensureBound();
 
@@ -78,7 +99,7 @@ namespace UI.Shop
             m_host = host;
             m_wasDragged = false;
 
-            // 布色在这里只用来给名称挑字色，格子那层由面板按同一份底色染过，不必再画一遍
+            // 布色由底层格子去画，这里只拿它给幽灵格上同样的色，两处必须是一个色才认得出是同一块布
             Color clothColor = plate.Definition.TintColor;
 
             float pitch = cellSize + cellSpacing;
@@ -110,23 +131,26 @@ namespace UI.Shop
             m_rect.sizeDelta = new Vector2((maxColumn - minColumn + 1) * pitch, (maxRow - minRow + 1) * pitch);
 
             m_hitCellsUsed = 0;
+            m_clothCellsUsed = 0;
 
             for (int i = 0; i < m_cellBuffer.Count; i++)
             {
                 Vector2Int cell = m_cellBuffer[i];
-                showHitCell(cell.x - minColumn, cell.y - minRow, pitch);
+                int localColumn = cell.x - minColumn;
+                int localRow = cell.y - minRow;
+
+                showHitCell(localColumn, localRow, pitch);
+                showClothCell(localColumn, localRow, pitch, clothColor, cellSprite);
             }
 
             for (int i = m_hitCellsUsed; i < m_hitCells.Count; i++)
                 m_hitCells[i].gameObject.SetActive(false);
 
-            ensureLabel(labelFont);
+            for (int i = m_clothCellsUsed; i < m_clothCells.Count; i++)
+                m_clothCells[i].gameObject.SetActive(false);
 
-            m_labelText.text = plate.Definition.Label;
-            m_labelText.color = UIShopQuality.LabelColor(clothColor);
-            m_labelText.outlineColor = new Color32(0x1B, 0x12, 0x08, 0xB0);
-            m_labelText.outlineWidth = 0.14f;
-            m_labelText.transform.SetAsLastSibling();
+            // 重铺也可能发生在拖拽中途，摆完按「现在在不在手上」统一决定幽灵格亮不亮
+            applyClothCellsVisible();
         }
 
         // ==================== 拖拽与点击 ====================
@@ -136,9 +160,18 @@ namespace UI.Shop
                 return;
 
             m_wasDragged = true;
+            m_isDragging = true;
             m_startPosition = m_rect.anchoredPosition;
             m_grabOffset = pointerInGrid(eventData) - m_startPosition;
+
+            // 手里的布要压过装备与选中外框，整层提到最后；布层与物品层是同一套 rect，坐标换算不受影响
+            m_clothLayerIndex = m_parentRect.GetSiblingIndex();
+            m_parentRect.SetAsLastSibling();
             m_rect.SetAsLastSibling();
+
+            applyClothCellsVisible();
+            // 布已经到手上了，它铺出来的那几格连底板都空了，落点不成靠重铺弹回原位
+            m_host.BeginPlateDrag(m_plate);
         }
 
         public void OnDrag(PointerEventData eventData)
@@ -156,18 +189,18 @@ namespace UI.Shop
                 return;
 
             Vector2 position = m_rect.anchoredPosition;
+            int anchorColumn = m_plate.AnchorColumn;
+            int anchorRow = m_plate.AnchorRow;
 
             if ((position - m_startPosition).sqrMagnitude > SNAP_EPSILON)
             {
-                int column = Mathf.RoundToInt(position.x / m_pitch) - m_anchorDeltaColumn;
-                int row = Mathf.RoundToInt(-position.y / m_pitch) - m_anchorDeltaRow;
-
-                m_host.TryMovePlate(m_plate, column, row);
-                return;
+                anchorColumn = Mathf.RoundToInt(position.x / m_pitch) - m_anchorDeltaColumn;
+                anchorRow = Mathf.RoundToInt(-position.y / m_pitch) - m_anchorDeltaRow;
             }
+            // 没挪动过就只是把手指抬起，落点回到原来的格子，重铺一次把布弹回去
 
-            // 没挪动过就只是把手指抬起，重铺一次把布弹回原来的格子
-            m_host.TryMovePlate(m_plate, m_plate.AnchorColumn, m_plate.AnchorRow);
+            endDrag();
+            m_host.TryMovePlate(m_plate, anchorColumn, anchorRow);
         }
 
         // 布只认选中不认旋转，旋转拆卖一律走宿主浮出来的操作条
@@ -194,6 +227,29 @@ namespace UI.Shop
                 eventData.pressEventCamera, out local);
 
             return local - new Vector2(m_parentRect.rect.xMin, m_parentRect.rect.yMax);
+        }
+
+        // 收摊顺序不能颠倒：先解除手持再让宿主重铺，否则重铺时这几格还按「布不在家」染
+        private void endDrag()
+        {
+            if (!m_isDragging)
+                return;
+
+            m_isDragging = false;
+            applyClothCellsVisible();
+
+            if (m_parentRect != null)
+                m_parentRect.SetSiblingIndex(m_clothLayerIndex);
+
+            if (m_host != null && m_plate != null)
+                m_host.EndPlateDrag(m_plate);
+        }
+
+        // 幽灵格只在手里拖着这块布时亮着，其余时候整批收掉
+        private void applyClothCellsVisible()
+        {
+            for (int i = 0; i < m_clothCellsUsed; i++)
+                m_clothCells[i].gameObject.SetActive(m_isDragging);
         }
 
         // 一格手势区：透明但吃射线，形状占到的每一格都摆一块，拖与点只认这几格
@@ -225,38 +281,49 @@ namespace UI.Shop
             return hitCell;
         }
 
-        // 布是运行时建的，名称节点也得运行时建，字体由面板把预制体上那份抄过来
-        private void ensureLabel(TMP_FontAsset font)
+        // 一格幽灵布：暗边铺满整格，亮面内缩一圈，底图与底层格子同一张，颜色与布色同一个
+        private void showClothCell(int column, int row, float pitch, Color clothColor, Sprite cellSprite)
         {
-            if (m_labelText != null)
-                return;
+            RectTransform cell = m_clothCellsUsed < m_clothCells.Count ? m_clothCells[m_clothCellsUsed] : createClothCell();
+            m_clothCellsUsed++;
 
-            Transform label = FindNode(LABEL_NAME);
+            cell.anchoredPosition = new Vector2(column * pitch, -row * pitch);
+            cell.sizeDelta = new Vector2(pitch, pitch);
 
-            if (label != null)
-            {
-                m_labelText = label.GetComponent<TMP_Text>();
-                return;
-            }
+            Image rim = cell.GetComponent<Image>();
+            rim.sprite = cellSprite;
+            rim.color = Color.Lerp(clothColor, Color.black, RIM_DARKEN);
 
-            GameObject labelObject = new GameObject(LABEL_NAME, typeof(RectTransform), typeof(TextMeshProUGUI));
-            RectTransform labelRect = (RectTransform)labelObject.transform;
-            labelRect.SetParent(transform, false);
-            labelRect.anchorMin = Vector2.zero;
-            labelRect.anchorMax = Vector2.one;
-            labelRect.pivot = new Vector2(0.5f, 0.5f);
-            labelRect.offsetMin = Vector2.zero;
-            labelRect.offsetMax = Vector2.zero;
+            RectTransform face = (RectTransform)cell.GetChild(0);
+            face.sizeDelta = new Vector2(-RIM_THICKNESS * 2f, -RIM_THICKNESS * 2f);
 
-            TextMeshProUGUI text = labelObject.GetComponent<TextMeshProUGUI>();
-            text.font = font;
-            text.fontSize = LABEL_FONT_SIZE;
-            text.fontStyle = FontStyles.Bold;
-            text.alignment = TextAlignmentOptions.Center;
-            text.enableWordWrapping = false;
-            text.overflowMode = TextOverflowModes.Overflow;
-            text.raycastTarget = false;
-            m_labelText = text;
+            Image faceImage = face.GetComponent<Image>();
+            faceImage.sprite = cellSprite;
+            faceImage.color = clothColor;
+        }
+
+        // 幽灵格不吃射线，拖拽的落点仍然由同一格上的透明手势区接，两套区域重叠也不抢事件
+        private RectTransform createClothCell()
+        {
+            GameObject cellObject = new GameObject(CLOTH_NAME, typeof(RectTransform), typeof(Image));
+            RectTransform cell = (RectTransform)cellObject.transform;
+            cell.SetParent(transform, false);
+            cell.anchorMin = new Vector2(0f, 1f);
+            cell.anchorMax = new Vector2(0f, 1f);
+            cell.pivot = new Vector2(0f, 1f);
+            cell.GetComponent<Image>().raycastTarget = false;
+
+            GameObject faceObject = new GameObject(CLOTH_FACE_NAME, typeof(RectTransform), typeof(Image));
+            RectTransform face = (RectTransform)faceObject.transform;
+            face.SetParent(cell, false);
+            face.anchorMin = Vector2.zero;
+            face.anchorMax = Vector2.one;
+            face.pivot = new Vector2(0.5f, 0.5f);
+            face.sizeDelta = new Vector2(-RIM_THICKNESS * 2f, -RIM_THICKNESS * 2f);
+            face.GetComponent<Image>().raycastTarget = false;
+
+            m_clothCells.Add(cell);
+            return cell;
         }
 
         private void bindNodes()

@@ -28,6 +28,10 @@ namespace UI.Shop
         [Tooltip("空格子的底图，锁定格与仓库格是纯色块，不用它")]
         [SerializeField] private Sprite CellSprite;
 
+        // ==================== 属性 ====================
+        /// <summary>空格底图，拖布时的幽灵格要抄同一张脸，两处才认得出是同一块布</summary>
+        public Sprite EmptyCellSprite => CellSprite;
+
         [Tooltip("空格子的颜色，靠透明度压成位置提示，别调到不透明")]
         [SerializeField] private Color EmptyColor = new Color32(0xFF, 0xFF, 0xFF, 0x3C);
 

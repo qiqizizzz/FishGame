@@ -11,6 +11,8 @@
 * 布与装备分两层画：布由运行时建的一层垫在装备底下，装备仍走预制体里的模板，两层各自一套手势
 * 布的样子就是底层格子染上布的底色，最上面再叠一层选中框，一格一圈角标，框不吃射线
 * 选中一块布才浮出操作条，旋转、拆到暂存架、卖成金币三件事都在条上按，不给单击直达的机会
+* 格子上不再常驻名称，点中布或装备都在面板最下方的详情区报两行：第一行名字，第二行能力线
+* 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
@@ -21,6 +23,7 @@ using System.Linq;
 using Framework.QTower.Common.Defines;
 using Framework.QTower.Event;
 using Framework.QTower.View;
+using Module.Backpack.Data;
 using Module.Backpack.Model;
 using Module.Fish.Model;
 using Module.Shop.Model;
@@ -41,7 +44,8 @@ namespace UI.Shop
         private const string ITEMS_PATH = "Bg/Panel_Backpack/Layer_Items";
         private const string ITEM_TEMPLATE_PATH = ITEMS_PATH + "/Item_Template";
         private const string STORAGE_PATH = "Bg/Panel_Storage/Grid_Storage";
-        private const string GOODS_PATH = "Bg/Panel_Shop/Row_Goods";
+        private const string SHOP_PANEL_PATH = "Bg/Panel_Shop";
+        private const string GOODS_PATH = SHOP_PANEL_PATH + "/Row_Goods";
         private const string GOODS_TEMPLATE_PATH = GOODS_PATH + "/Goods_Template";
         private const string REFRESH_PATH = "Bg/Panel_Shop/Btn_Refresh";
         private const string DIVE_PATH = "Bg/Btns/Btn_Dive";
@@ -56,6 +60,21 @@ namespace UI.Shop
         private const string PLATE_STASH_NAME = "Btn_Stash";
         private const string PLATE_SELL_NAME = "Btn_Sell";
         private const string SELECT_FRAME_NAME = "Img_SelectFrame";
+
+        // 详情区也由运行时创建，预制体里没有这个节点，它卡在货架面板与底部按钮之间那条空隙
+        private const string DETAIL_PANEL_NAME = "Panel_Detail";
+        private const string DETAIL_NAME_TEXT_NAME = "Txt_DetailName";
+        private const string DETAIL_DESC_TEXT_NAME = "Txt_DetailDesc";
+        private const float DETAIL_TOP = -1522f;
+        private const float DETAIL_WIDTH = 940f;
+        private const float DETAIL_HEIGHT = 146f;
+        private const float DETAIL_SIDE_PADDING = 36f;
+        private const float DETAIL_NAME_TOP = -22f;
+        private const float DETAIL_NAME_HEIGHT = 46f;
+        private const float DETAIL_DESC_TOP = -74f;
+        private const float DETAIL_DESC_HEIGHT = 44f;
+        private const float DETAIL_NAME_FONT_SIZE = 30f;
+        private const float DETAIL_DESC_FONT_SIZE = 24f;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -132,6 +151,20 @@ namespace UI.Shop
         // 量一块布的外框用，操作条定位靠它
         private readonly List<Vector2Int> m_plateCells = new();
 
+        // 被抓到手上的那块布，它铺过的格子在这期间显示成锁格，因为底板确实跟着手指走了
+        private BackpackItemInstance m_plateInHand;
+
+        // 幽灵格要抄底层格子的底图，整张网格同源，读第一格就够
+        private Sprite m_cellSprite;
+
+        // 详情区挂在整块背景上，两行文本与它报的是哪一件
+        private RectTransform m_backgroundRect;
+        private RectTransform m_detailRect;
+        private TMP_Text m_detailNameText;
+        private TMP_Text m_detailDescText;
+        private BackpackItemInstance m_detailTarget;
+        private readonly List<BackpackBuff> m_detailBuffs = new();
+
         // ==================== 生命周期 ====================
         protected override void OnInit()
         {
@@ -151,6 +184,9 @@ namespace UI.Shop
             m_diveButton = FindComponent<Button>(DIVE_PATH);
             m_closeButton = FindComponent<Button>(CLOSE_PATH);
 
+            // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，详情区挂它才卡得进面板缝里
+            m_backgroundRect = m_itemsRect.transform.parent.parent as RectTransform;
+
 #if UNITY_EDITOR
             if (m_grid == null)
                 QLog.Error($"网格上没有 GridLayoutGroup，读不到单格尺寸：{GRID_PATH}");
@@ -160,10 +196,14 @@ namespace UI.Shop
                 QLog.Error($"仓库网格里没有格子，请检查 {STORAGE_PATH}");
             if (PlateSelectSprite == null)
                 QLog.Error($"没有指定 {nameof(PlateSelectSprite)}，选中一块布不会有外框");
+            if (m_backgroundRect == null)
+                QLog.Error("背景节点没找到，详情区无处可挂");
 #endif
 
             m_cellSize = m_grid.cellSize.x;
             m_cellSpacing = m_grid.spacing.x;
+
+            m_cellSprite = m_slots.Length > 0 ? m_slots[0].EmptyCellSprite : null;
 
             // 模板本身不上架，留着当复制源，否则布局里会多出一块空位
             m_itemTemplate.gameObject.SetActive(false);
@@ -176,6 +216,7 @@ namespace UI.Shop
             createClothLayer();
             createSelectLayer();
             createPlateBar();
+            createDetailPanel();
         }
 
         protected override void OnOpen(params object[] args)
@@ -199,7 +240,9 @@ namespace UI.Shop
             // 重开面板不该带着上一眼的选中态走，先把布层的选择清干净
             m_selectedPlate = null;
             m_plateBar.gameObject.SetActive(false);
+            m_plateInHand = null;
             refreshSelectionFrames();
+            clearDetail();
 
             refreshAll();
         }
@@ -304,9 +347,60 @@ namespace UI.Shop
         // 点同一块布是取消选中，点另一块是换选中，选中态只存在面板这一份
         public void SelectPlate(BackpackItemInstance plate)
         {
-            m_selectedPlate = plate == null || m_selectedPlate == plate ? null : plate;
+            bool cancel = plate == null || m_selectedPlate == plate;
+            m_selectedPlate = cancel ? null : plate;
+
+            if (cancel)
+                clearDetail();
+            else
+                ShowDetail(plate);
+
             rebuildPlateViews();
             refreshActionBar();
+        }
+
+        // 布到手上了只重染格子：整盘重铺会把正在拖的那块视图掀回原位，拖拽当场就废了
+        public void BeginPlateDrag(BackpackItemInstance plate)
+        {
+            if (plate == null || m_backpack == null)
+                return;
+
+            m_plateInHand = plate;
+            // 布已经离地，压在它下面的操作条跟着收起来，免得拖的时候满屏都是控件
+            m_plateBar.gameObject.SetActive(false);
+            fillSlotColors();
+        }
+
+        // 松手之前先解除手持，格子才有机会按布落下之后的样子重染
+        public void EndPlateDrag(BackpackItemInstance plate)
+        {
+            if (m_plateInHand == null)
+                return;
+
+            if (plate != null && m_plateInHand != plate)
+                return;
+
+            m_plateInHand = null;
+            // 操作条不用在这里补回来：落下之后一定走 TryMovePlate 的重铺，那时会自己浮回来
+            fillSlotColors();
+        }
+
+        // 点中的是哪件东西，两行写在详情区：第一行名字，第二行它身上的能力线
+        public void ShowDetail(BackpackItemInstance item)
+        {
+            if (item?.Definition == null)
+            {
+                clearDetail();
+                return;
+            }
+
+            m_detailTarget = item;
+            m_detailBuffs.Clear();
+            item.Definition.FillBuffs(item.Tier, m_detailBuffs);
+
+            m_detailRect.gameObject.SetActive(true);
+            m_detailNameText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
+            m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
         }
 
         // ==================== Private Function ====================
@@ -327,6 +421,7 @@ namespace UI.Shop
             fillBackpack();
             fillStorage();
             refreshActionBar();
+            validateDetail();
         }
 
         private void refreshStorage()
@@ -342,8 +437,15 @@ namespace UI.Shop
             m_divesText.text = $"下潜 {m_run.DivesRemaining} 次";
         }
 
-        // 每一格是布还是锁格，问模型这块格归哪块布，布的颜色就是格子的底色
         private void fillBackpack()
+        {
+            fillSlotColors();
+            rebuildPlateViews();
+            rebuildItemViews();
+        }
+
+        // 每一格是布还是锁格，问模型这块格归哪块布，布的颜色就是格子的底色
+        private void fillSlotColors()
         {
             BackpackModel model = m_backpack.Model;
             int columns = m_grid.constraintCount;
@@ -366,14 +468,18 @@ namespace UI.Shop
 
                 BackpackItemInstance plate = model.FindPlateAt(column, row);
 
+                // 布被抓到手上，它铺出来的那几格连底板都没了，跟没铺过一样显示成锁格
+                if (plate == m_plateInHand)
+                {
+                    m_slots[i].SetLocked();
+                    continue;
+                }
+
                 if (plate != null)
                     m_slots[i].SetCloth(plate.Definition.TintColor);
                 else
                     m_slots[i].SetEmpty();
             }
-
-            rebuildPlateViews();
-            rebuildItemViews();
         }
 
         // 网格上的物品全部来自模型，一件一个视图，形状格与颜色由视图自己问实例
@@ -576,6 +682,79 @@ namespace UI.Shop
             return button;
         }
 
+        // 详情区抄货架面板那张底图与金币文本的字体字色，版式再改也不用回来动这里
+        // 位置卡在货架面板底边与底部按钮顶边中间那条空隙，整块背景下没有第二处空位
+        private void createDetailPanel()
+        {
+            Image shopBackdrop = FindComponent<Image>(SHOP_PANEL_PATH);
+
+            GameObject panelObject = new GameObject(DETAIL_PANEL_NAME, typeof(RectTransform), typeof(Image));
+            Image backdrop = panelObject.GetComponent<Image>();
+            backdrop.sprite = shopBackdrop.sprite;
+            backdrop.type = shopBackdrop.type;
+            backdrop.color = shopBackdrop.color;
+            // 详情区只是给人看的，别把点击挡回去，格子该拖还得能拖
+            backdrop.raycastTarget = false;
+
+            m_detailRect = (RectTransform)panelObject.transform;
+            m_detailRect.SetParent(m_backgroundRect, false);
+            m_detailRect.anchorMin = new Vector2(0.5f, 1f);
+            m_detailRect.anchorMax = new Vector2(0.5f, 1f);
+            m_detailRect.pivot = new Vector2(0.5f, 1f);
+            m_detailRect.anchoredPosition = new Vector2(0f, DETAIL_TOP);
+            m_detailRect.sizeDelta = new Vector2(DETAIL_WIDTH, DETAIL_HEIGHT);
+
+            m_detailNameText = createDetailText(DETAIL_NAME_TEXT_NAME, DETAIL_NAME_FONT_SIZE,
+                DETAIL_NAME_TOP, DETAIL_NAME_HEIGHT);
+            m_detailDescText = createDetailText(DETAIL_DESC_TEXT_NAME, DETAIL_DESC_FONT_SIZE,
+                DETAIL_DESC_TOP, DETAIL_DESC_HEIGHT);
+
+            m_detailRect.gameObject.SetActive(false);
+        }
+
+        // 详情两行都是横向拉满、左边留内边距，字宽随面板一起走，长文案省略号收尾
+        private TMP_Text createDetailText(string name, float fontSize, float top, float height)
+        {
+            GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+            RectTransform rect = (RectTransform)textObject.transform;
+            rect.SetParent(m_detailRect, false);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(DETAIL_SIDE_PADDING, top);
+            // 横向贴着面板拉满，左右各留一份内边距
+            rect.sizeDelta = new Vector2(-DETAIL_SIDE_PADDING * 2f, height);
+
+            TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+            text.font = m_coinsText.font;
+            text.color = m_coinsText.color;
+            text.fontSize = fontSize;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
+            text.enableWordWrapping = false;
+            text.overflowMode = TextOverflowModes.Ellipsis;
+            text.raycastTarget = false;
+            return text;
+        }
+
+        private void clearDetail()
+        {
+            m_detailTarget = null;
+            m_detailRect.gameObject.SetActive(false);
+        }
+
+        // 卖掉、拆走、被挤进暂存架之后，详情里那件东西已经不在网格上了，不能留一张空壳文案
+        private void validateDetail()
+        {
+            if (m_detailTarget == null || m_backpack == null)
+                return;
+
+            if (m_backpack.Model.Items.Contains(m_detailTarget) ||
+                m_backpack.Model.Plates.Contains(m_detailTarget))
+                return;
+
+            clearDetail();
+        }
+
         // 布层重铺，模型里有几块布就铺几个视图，多出来的藏起来
         private void rebuildPlateViews()
         {
@@ -599,7 +778,7 @@ namespace UI.Shop
 
             UIShopPlateView view = m_plateViews[m_platesShown];
             view.gameObject.SetActive(true);
-            view.Setup(plate, m_cellSize, m_cellSpacing, this, m_coinsText.font);
+            view.Setup(plate, m_cellSize, m_cellSpacing, this, m_cellSprite);
             m_platesShown++;
         }
 
