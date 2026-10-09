@@ -11,6 +11,7 @@
 * 选中态也不在这里提亮，改由面板最上层给每一格套一圈选中外框，边界比往布色里掺白清楚得多
 * 单击只负责选中不负责旋转，旋转拆卖都得更正到操作条上按，误点一下不至于把地板抽走
 * 拖动只跟着手指走，落点合不合规矩一律问宿主，摆不成靠重铺把布弹回原位
+* 松手落在暂存架那块面板上就是把布拆进架子，和按操作条上的「拆下」是同一件事
 */
 
 using System.Collections.Generic;
@@ -200,6 +201,14 @@ namespace UI.Shop
             // 没挪动过就只是把手指抬起，落点回到原来的格子，重铺一次把布弹回去
 
             endDrag();
+
+            // 松手在暂存架那块面板上就是拆下架，压在布上的装备由宿主一并挪进架子
+            if (m_host.IsPointerInStash(eventData.position))
+            {
+                m_host.TryStashPlate(m_plate);
+                return;
+            }
+
             m_host.TryMovePlate(m_plate, anchorColumn, anchorRow);
         }
 

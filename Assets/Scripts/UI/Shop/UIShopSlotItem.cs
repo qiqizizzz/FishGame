@@ -6,11 +6,13 @@
 * └──────────────────────────────────┘
 * 位置与尺寸交给 GridLayoutGroup，脚本只切底图与颜色
 * 背包格铺的是布，布的底色就是这格的底色，压在布上的装备由 UIShopItemView 单独画一层
-* 仓库格自己就是物品，整格染成品质色并标出名称，点一下取回上网格
-* 只有装了东西的仓库格才吃点击，空格与锁格把射线让出去，免得挡住网格上的拖拽
+* 仓库格自己就是物品，整格染成品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
+* 拖出架子时摆一套幽灵格跟着手指吸附到落点，看见落在哪格就落在哪格，摆不成原样留在架上
+* 只有装了东西的仓库格才吃射线，空格与锁格把射线让出去，免得挡住网格上的拖拽
 */
 
 using Framework.QTower.View;
+using Module.Backpack.Model;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -19,7 +21,8 @@ using Utils.log;
 
 namespace UI.Shop
 {
-    public sealed class UIShopSlotItem : UIItemBase, IPointerClickHandler
+    public sealed class UIShopSlotItem : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler,
+        IPointerClickHandler
     {
         // 仓库格用来标注物品名称，背包格没有这个子节点
         private const string LABEL_PATH = "Txt_Label";
@@ -46,10 +49,23 @@ namespace UI.Shop
         private IShopBackpackHost m_host;
         private int m_stashIndex = -1;
 
+        // 拖出架子要按这件的形状摆幽灵，落点摆不成也靠它弹回原格
+        private BackpackItemInstance m_item;
+        private RectTransform m_ghost;
+        private Color m_qualityColor;
+        private bool m_wasDragged;
+
         // ==================== 生命周期 ====================
         private void Awake()
         {
             bindNodes();
+        }
+
+        // 面板关掉时走不到 OnEndDrag，这里补一次收摊，免得幽灵格留在场上
+        private void OnDisable()
+        {
+            UIShopShapeGhost.Recycle(m_ghost);
+            m_ghost = null;
         }
 
         // ==================== Public Function ====================
@@ -98,38 +114,82 @@ namespace UI.Shop
         }
 
         /// <summary>
-        /// 仓库格放入一件物品，整格染成品质色，并接上点一下取回
+        /// 仓库格放入一件物品，整格染成品质色，并接上点一下取回与拖上网格两个入口
         /// </summary>
-        /// <param name="itemName">物品名称</param>
-        /// <param name="qualityColor">品质色，决定整格颜色</param>
+        /// <param name="item">架上的这件物品</param>
         /// <param name="stashIndex">在暂存架里的下标</param>
-        /// <param name="host">取回时通知的宿主</param>
-        public void SetStored(string itemName, Color qualityColor, int stashIndex, IShopBackpackHost host)
+        /// <param name="host">落点与取回都由它处理</param>
+        public void SetStored(BackpackItemInstance item, int stashIndex, IShopBackpackHost host)
         {
             ensureBound();
+
+            Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
 
             m_bgImage.sprite = null;
             m_bgImage.color = qualityColor;
             m_bgImage.raycastTarget = true;
             m_host = host;
             m_stashIndex = stashIndex;
+            m_item = item;
+            m_qualityColor = qualityColor;
+            m_wasDragged = false;
 
             // 图标素材还没切，仓库格靠名称认物品，没有文字节点的格子只染色
             if (m_labelText != null)
             {
                 m_labelText.gameObject.SetActive(true);
-                m_labelText.text = itemName;
+                m_labelText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
 
                 m_labelText.color = UIShopQuality.LabelColor(qualityColor);
             }
         }
 
+        // ==================== 拖拽与点击 ====================
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            if (m_host == null || m_item == null)
+                return;
+
+            m_wasDragged = true;
+            m_ghost = UIShopShapeGhost.Build(m_item, m_qualityColor, m_host.CellPitch,
+                m_host.GhostCellSprite, m_host.GhostLayer);
+            moveGhost(eventData.position);
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            moveGhost(eventData.position);
+        }
+
+        // 松手按幽灵吸附的那格摆放，指到网格外就什么都不做，东西留在架上
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (m_host == null || m_item == null)
+                return;
+
+            Vector2 screenPoint = eventData.position;
+            UIShopShapeGhost.Recycle(m_ghost);
+            m_ghost = null;
+
+            if (!m_host.TryPointerCell(screenPoint, out int anchorColumn, out int anchorRow))
+                return;
+
+            m_host.TryPlaceFromStashAt(m_stashIndex, anchorColumn, anchorRow);
+        }
+
         /// <summary>
-        /// 点一下把这件从暂存架取回上网格
+        /// 点一下把这件从暂存架取回上网格，落点由模型自己找
         /// </summary>
         /// <param name="eventData">点击事件数据</param>
         public void OnPointerClick(PointerEventData eventData)
         {
+            // 拖过就只是松手，点击紧跟其后触发，不能当成「按一下取回」
+            if (m_wasDragged)
+            {
+                m_wasDragged = false;
+                return;
+            }
+
             if (m_host == null || m_stashIndex < 0)
                 return;
 
@@ -156,6 +216,24 @@ namespace UI.Shop
         {
             m_host = null;
             m_stashIndex = -1;
+            m_item = null;
+            m_qualityColor = default;
+        }
+
+        // 幽灵整块吸附到指针所在的那一格，指到网格外就收起来，免得飘在不知哪儿
+        private void moveGhost(Vector2 screenPoint)
+        {
+            if (m_ghost == null)
+                return;
+
+            if (m_host == null || !m_host.TryPointerCell(screenPoint, out int anchorColumn, out int anchorRow))
+            {
+                m_ghost.gameObject.SetActive(false);
+                return;
+            }
+
+            m_ghost.gameObject.SetActive(true);
+            UIShopShapeGhost.PlaceAt(m_ghost, anchorColumn, anchorRow, m_host.CellPitch);
         }
 
         private void hideLabel()

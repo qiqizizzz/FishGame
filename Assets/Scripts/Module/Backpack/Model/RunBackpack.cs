@@ -189,6 +189,64 @@ namespace Module.Backpack.Model
         }
 
         /// <summary>
+        /// 把暂存架里的一件按指定锚点摆回网格，摆不下就原样留在架上
+        /// </summary>
+        /// <param name="stashIndex">暂存架下标</param>
+        /// <param name="anchorColumn">落点包围盒左上角列</param>
+        /// <param name="anchorRow">落点包围盒左上角行</param>
+        public bool TryRecallFromStashAt(int stashIndex, int anchorColumn, int anchorRow)
+        {
+            if (stashIndex < 0 || stashIndex >= m_stash.Count)
+                return false;
+
+            BackpackItemInstance instance = m_stash[stashIndex];
+            bool isPlate = instance.Definition.Kind == BackpackDefKind.Cloth;
+
+            // 摆不成只是留了个没落地的锚点，两条放置入口都会自己重算，不必回滚
+            instance.AnchorColumn = anchorColumn;
+            instance.AnchorRow = anchorRow;
+
+            bool placed = isPlate ? m_model.TryPlacePlate(instance) : m_model.TryPlace(instance);
+
+            if (!placed)
+                return false;
+
+            m_stash.RemoveAt(stashIndex);
+            return true;
+        }
+
+        /// <summary>
+        /// 把网格上的一件装备收进暂存架，装备不托着别的东西，摘走不会有谁悬空
+        /// </summary>
+        /// <param name="item">待收装备</param>
+        public bool TryRemoveItemToStash(BackpackItemInstance item)
+        {
+            if (item == null)
+                return false;
+
+            if (StashRemaining < 1)
+            {
+                QLog.Error($"暂存架已满，收不下：{item.Definition.Label}");
+                return false;
+            }
+
+            if (!m_model.Remove(item))
+                return false;
+
+            m_stash.Add(item);
+            return true;
+        }
+
+        /// <summary>
+        /// 把一件装备从网格摘走并直接丢弃，出售走这条，装备不进暂存架
+        /// </summary>
+        /// <param name="item">待摘装备</param>
+        public bool TryRemoveItem(BackpackItemInstance item)
+        {
+            return item != null && m_model.Remove(item);
+        }
+
+        /// <summary>
         /// 把一块布挪到新的锚点，失去底子的装备自动退到暂存架
         /// </summary>
         /// <param name="plate">待移板块</param>

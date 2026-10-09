@@ -10,7 +10,8 @@
 * 拖拽与旋转的落点校验由本面板作为宿主转给背包模型，成不成都重铺一次，让摆歪的物品弹回原位
 * 布与装备分两层画：布由运行时建的一层垫在装备底下，装备仍走预制体里的模板，两层各自一套手势
 * 布的样子就是底层格子染上布的底色，最上面再叠一层选中框，一格一圈角标，框不吃射线
-* 选中一块布才浮出操作条，旋转、拆到暂存架、卖成金币三件事都在条上按，不给单击直达的机会
+* 选中一块布或一件装备才浮出操作条，旋转、拆下架、卖成金币都在条上按，单击不直接改东西
+* 背包与暂存架双向拖：拖到暂存架面板上就下架，从暂存格拖进网格就按幽灵吸附的落点上架
 * 格子上不再常驻名称，点中布或装备都在面板最下方的详情区报两行：第一行名字，第二行能力线
 * 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
@@ -43,7 +44,8 @@ namespace UI.Shop
         private const string GRID_PATH = "Bg/Panel_Backpack/Grid_Slots";
         private const string ITEMS_PATH = "Bg/Panel_Backpack/Layer_Items";
         private const string ITEM_TEMPLATE_PATH = ITEMS_PATH + "/Item_Template";
-        private const string STORAGE_PATH = "Bg/Panel_Storage/Grid_Storage";
+        private const string STORAGE_PANEL_PATH = "Bg/Panel_Storage";
+        private const string STORAGE_PATH = STORAGE_PANEL_PATH + "/Grid_Storage";
         private const string SHOP_PANEL_PATH = "Bg/Panel_Shop";
         private const string GOODS_PATH = SHOP_PANEL_PATH + "/Row_Goods";
         private const string GOODS_TEMPLATE_PATH = GOODS_PATH + "/Goods_Template";
@@ -94,6 +96,13 @@ namespace UI.Shop
 
         public int Rows => m_backpack != null ? m_backpack.Model.Rows : 0;
 
+        // 幽灵格与落点换算都以物品层为准，它的左上角正是网格第 0 格的左上角
+        public RectTransform GhostLayer => m_itemsRect;
+
+        public float CellPitch => m_cellSize + m_cellSpacing;
+
+        public Sprite GhostCellSprite => m_cellSprite;
+
         // ==================== 字段[私有] ====================
         private TMP_Text m_coinsText;
         private TMP_Text m_targetText;
@@ -143,13 +152,18 @@ namespace UI.Shop
         private Button m_plateRotateButton;
         private Button m_plateStashButton;
         private Button m_plateSellButton;
+        private TMP_Text m_plateStashText;
         private TMP_Text m_plateSellText;
 
-        // 当前选中的布只有面板这一份，视图铺布色时来问，拆掉卖掉之后由面板清空
+        // 选中态只有面板这一份，布与装备共用同一套外框与操作条，拆走卖掉之后由面板清空
         private BackpackItemInstance m_selectedPlate;
+        private BackpackItemInstance m_selectedItem;
 
-        // 量一块布的外框用，操作条定位靠它
-        private readonly List<Vector2Int> m_plateCells = new();
+        // 量当前选中物的外框用，操作条定位与逐格选中外框都靠它
+        private readonly List<Vector2Int> m_selectedCells = new();
+
+        // 暂存架那块面板是拖拽下架的落点，只判指针在不在它的矩形里
+        private RectTransform m_storagePanelRect;
 
         // 被抓到手上的那块布，它铺过的格子在这期间显示成锁格，因为底板确实跟着手指走了
         private BackpackItemInstance m_plateInHand;
@@ -176,6 +190,7 @@ namespace UI.Shop
             m_grid = gridRect.GetComponent<GridLayoutGroup>();
             m_slots = gridRect.GetComponentsInChildren<UIShopSlotItem>();
             m_storageSlots = FindComponent<RectTransform>(STORAGE_PATH).GetComponentsInChildren<UIShopSlotItem>();
+            m_storagePanelRect = FindComponent<RectTransform>(STORAGE_PANEL_PATH);
             m_itemsRect = FindComponent<RectTransform>(ITEMS_PATH);
             m_itemTemplate = FindComponent<UIShopItemView>(ITEM_TEMPLATE_PATH);
             m_goodsRect = FindComponent<RectTransform>(GOODS_PATH);
@@ -194,6 +209,8 @@ namespace UI.Shop
                 QLog.Error($"背包网格里没有格子，请检查 {GRID_PATH}");
             if (m_storageSlots.Length == 0)
                 QLog.Error($"仓库网格里没有格子，请检查 {STORAGE_PATH}");
+            if (m_storagePanelRect == null)
+                QLog.Error($"暂存架面板没找到，拖不进架子：{STORAGE_PANEL_PATH}");
             if (PlateSelectSprite == null)
                 QLog.Error($"没有指定 {nameof(PlateSelectSprite)}，选中一块布不会有外框");
             if (m_backgroundRect == null)
@@ -237,12 +254,11 @@ namespace UI.Shop
             if (m_run == null)
                 return;
 
-            // 重开面板不该带着上一眼的选中态走，先把布层的选择清干净
+            // 重开面板不该带着上一眼的选中态走，条子、外框与详情一起清干净
             m_selectedPlate = null;
-            m_plateBar.gameObject.SetActive(false);
+            m_selectedItem = null;
             m_plateInHand = null;
-            refreshSelectionFrames();
-            clearDetail();
+            refreshActionBar();
 
             refreshAll();
         }
@@ -255,8 +271,7 @@ namespace UI.Shop
                 return false;
 
             bool moved = m_backpack.Model.TryRotate(item);
-            rebuildItemViews();
-            refreshStorage();
+            refreshBackpack();
             return moved;
         }
 
@@ -266,8 +281,7 @@ namespace UI.Shop
                 return false;
 
             bool moved = m_backpack.Model.TryMove(item, anchorColumn, anchorRow);
-            rebuildItemViews();
-            refreshStorage();
+            refreshBackpack();
             return moved;
         }
 
@@ -349,14 +363,105 @@ namespace UI.Shop
         {
             bool cancel = plate == null || m_selectedPlate == plate;
             m_selectedPlate = cancel ? null : plate;
+            m_selectedItem = null;
 
             if (cancel)
                 clearDetail();
             else
                 ShowDetail(plate);
 
-            rebuildPlateViews();
             refreshActionBar();
+        }
+
+        // 装备同样只有一份选中态，点同一件取消，点另一件换人，布跟着让位
+        public void SelectItem(BackpackItemInstance item)
+        {
+            bool cancel = item == null || m_selectedItem == item;
+            m_selectedItem = cancel ? null : item;
+            m_selectedPlate = null;
+
+            if (cancel)
+                clearDetail();
+            else
+                ShowDetail(item);
+
+            refreshActionBar();
+        }
+
+        // 装备到手上了，操作条先收起来，免得拖的时候满屏控件
+        public void BeginItemDrag(BackpackItemInstance item)
+        {
+            m_plateBar.gameObject.SetActive(false);
+        }
+
+        // 手上的装备落下或作废，条子按落点之后的选中态复原
+        public void EndItemDrag(BackpackItemInstance item)
+        {
+            refreshActionBar();
+        }
+
+        // 装备摘进暂存架：架子满了收不动，收不成也要重铺一次把视图弹回原格
+        public bool TryStashItem(BackpackItemInstance item)
+        {
+            if (m_backpack == null || item == null)
+                return false;
+
+            bool stashed = m_backpack.TryRemoveItemToStash(item);
+            if (stashed)
+                m_selectedItem = null;
+
+            refreshBackpack();
+            return stashed;
+        }
+
+        // 从暂存架按落点摆上网格，摆不成原样留在架上，幽灵随视图重铺一起收掉
+        public bool TryPlaceFromStashAt(int stashIndex, int anchorColumn, int anchorRow)
+        {
+            if (m_backpack == null)
+                return false;
+
+            bool placed = m_backpack.TryRecallFromStashAt(stashIndex, anchorColumn, anchorRow);
+            refreshBackpack();
+            return placed;
+        }
+
+        // 暂存架那块面板就是下架落点，指针落在面板矩形里才算
+        public bool IsPointerInStash(Vector2 screenPoint)
+        {
+            if (m_storagePanelRect == null)
+                return false;
+
+            return RectTransformUtility.RectangleContainsScreenPoint(m_storagePanelRect, screenPoint, null);
+        }
+
+        // 把屏幕坐标换算成网格落点格，与视图铺块用的是同一套坐标，指到网格外返回 false
+        public bool TryPointerCell(Vector2 screenPoint, out int anchorColumn, out int anchorRow)
+        {
+            anchorColumn = 0;
+            anchorRow = 0;
+
+            if (m_itemsRect == null || m_backpack == null)
+                return false;
+
+            int columns = Columns;
+            int rows = Rows;
+            if (columns < 1 || rows < 1)
+                return false;
+
+            Vector2 local;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_itemsRect, screenPoint, null, out local);
+
+            Vector2 grid = local - new Vector2(m_itemsRect.rect.xMin, m_itemsRect.rect.yMax);
+            float pitch = m_cellSize + m_cellSpacing;
+            int column = Mathf.RoundToInt(grid.x / pitch);
+            int row = Mathf.RoundToInt(-grid.y / pitch);
+
+            if (column < 0 || column >= columns || row < 0 || row >= rows)
+                return false;
+
+            anchorColumn = column;
+            anchorRow = row;
+            return true;
         }
 
         // 布到手上了只重染格子：整盘重铺会把正在拖的那块视图掀回原位，拖拽当场就废了
@@ -511,8 +616,7 @@ namespace UI.Shop
             for (int i = 0; i < m_storageSlots.Length; i++)
             {
                 if (i < stash.Count)
-                    m_storageSlots[i].SetStored(UIShopGoodsName.Of(stash[i].Definition, stash[i].Tier),
-                                                UIShopQuality.ColorFor(stash[i].Definition, stash[i].Tier), i, this);
+                    m_storageSlots[i].SetStored(stash[i], i, this);
                 else
                     m_storageSlots[i].SetEmpty();
             }
@@ -566,19 +670,16 @@ namespace UI.Shop
             m_selectRect = layer;
         }
 
-        // 选中框只跟着当前选中的布走，一格一圈角标，没选中就把整层收干净
+        // 选中框跟着当前选中物占的那几格走，布与装备共用，没选中就把整层收干净
         private void refreshSelectionFrames()
         {
             float pitch = m_cellSize + m_cellSpacing;
             m_selectFramesUsed = 0;
 
-            if (m_selectedPlate != null && m_backpack != null)
+            for (int i = 0; i < m_selectedCells.Count; i++)
             {
-                for (int i = 0; i < m_plateCells.Count; i++)
-                {
-                    Vector2Int cell = m_plateCells[i];
-                    showSelectionFrame(cell.x, cell.y, pitch);
-                }
+                Vector2Int cell = m_selectedCells[i];
+                showSelectionFrame(cell.x, cell.y, pitch);
             }
 
             for (int i = m_selectFramesUsed; i < m_selectFrames.Count; i++)
@@ -637,8 +738,13 @@ namespace UI.Shop
             clearButton.onClick.AddListener(handleClearPlateSelection);
 
             m_plateRotateButton = createPlateBarButton(PLATE_ROTATE_NAME, "旋转", 0, out _);
-            m_plateStashButton = createPlateBarButton(PLATE_STASH_NAME, "拆下", 1, out _);
+            m_plateStashButton = createPlateBarButton(PLATE_STASH_NAME, "拆下", 1, out m_plateStashText);
             m_plateSellButton = createPlateBarButton(PLATE_SELL_NAME, "出售", 2, out m_plateSellText);
+
+            // 三个按钮各管一件事，建完当场就绑上，少绑一个条上就有一个键按了没反应
+            m_plateRotateButton.onClick.AddListener(handleRotateClicked);
+            m_plateStashButton.onClick.AddListener(handleStashClicked);
+            m_plateSellButton.onClick.AddListener(handleSellClicked);
             m_plateBar.gameObject.SetActive(false);
         }
 
@@ -789,28 +895,36 @@ namespace UI.Shop
             m_plateViews.Add(plateObject.AddComponent<UIShopPlateView>());
         }
 
-        // 操作条跟着选中的布走：放得下就压在布上边，贴到顶了就挪到布下边
+        // 操作条跟着当前选中物走：放得下就压在它上边，贴到顶了就挪到下边
         private void refreshActionBar()
         {
-            if (m_selectedPlate == null || m_backpack == null || !m_backpack.Model.Plates.Contains(m_selectedPlate))
+            m_selectedCells.Clear();
+
+            BackpackItemInstance target = m_selectedPlate != null ? m_selectedPlate : m_selectedItem;
+            bool onGrid = target != null && m_backpack != null &&
+                          (m_backpack.Model.Plates.Contains(target) || m_backpack.Model.Items.Contains(target));
+
+            // 选中的东西被卖掉、拆走或挤进暂存架，条子、外框与详情一起收掉
+            if (!onGrid)
             {
                 m_selectedPlate = null;
+                m_selectedItem = null;
                 m_plateBar.gameObject.SetActive(false);
+                clearDetail();
                 refreshSelectionFrames();
                 return;
             }
 
-            BackpackItemInstance plate = m_selectedPlate;
-            m_plateCells.Clear();
-            plate.FillWorldCells(m_plateCells);
+            target.FillWorldCells(m_selectedCells);
+            bool plateMode = m_selectedPlate != null;
 
             int minColumn = int.MaxValue;
             int minRow = int.MaxValue;
             int maxRow = int.MinValue;
 
-            for (int i = 0; i < m_plateCells.Count; i++)
+            for (int i = 0; i < m_selectedCells.Count; i++)
             {
-                Vector2Int cell = m_plateCells[i];
+                Vector2Int cell = m_selectedCells[i];
                 minColumn = Mathf.Min(minColumn, cell.x);
                 minRow = Mathf.Min(minRow, cell.y);
                 maxRow = Mathf.Max(maxRow, cell.y);
@@ -825,7 +939,7 @@ namespace UI.Shop
             // 两层都以网格左上角为原点，往下的距离写成负的 anchoredPosition
             float topEdge = -minRow * pitch;
             float bottomEdge = -((maxRow + 1) * pitch - m_cellSpacing);
-            // 条的 pivot 在左上角，落在布上方要把整条高度加回来
+            // 条的 pivot 在左上角，落在选中物上方要把整条高度加回来
             float above = topEdge + BAR_GAP + barHeight;
             float below = bottomEdge - BAR_GAP;
 
@@ -833,9 +947,13 @@ namespace UI.Shop
                 Mathf.Clamp(minColumn * pitch, 0f, Mathf.Max(0f, gridWidth - barWidth)),
                 Mathf.Clamp(minRow > 0 ? above : below, barHeight - gridHeight, 0f));
 
-            m_plateRotateButton.interactable = plate.CanRotate;
+            m_plateRotateButton.interactable = target.CanRotate;
 
-            int sellPrice = m_shop != null ? m_shop.SellPriceOf(plate.Definition) : 0;
+            // 布拆下来叫拆下，装备摘下来叫取下，两件事本质一样：都进暂存架
+            m_plateStashText.text = plateMode ? "拆下" : "取下";
+
+            // 回收价只有布料总表算得出来，装备在这条上一直显示不回收
+            int sellPrice = m_shop != null ? m_shop.SellPriceOf(target.Definition) : 0;
             m_plateSellText.text = sellPrice > 0 ? $"卖 {sellPrice}" : "不回收";
             m_plateSellButton.interactable = sellPrice > 0;
 
@@ -846,25 +964,62 @@ namespace UI.Shop
             refreshSelectionFrames();
         }
 
-        // 三个按钮都只做一件事：把当前选中的布交给宿主的方法，成不成都由它重铺
-        private void handleRotatePlateClicked()
+        // 条上三个按钮都只看选中者是布还是装备，成不成都由各自那条链路重铺
+        private void handleRotateClicked()
         {
-            TryRotatePlate(m_selectedPlate);
+            if (m_selectedPlate != null)
+                TryRotatePlate(m_selectedPlate);
+            else
+                TryRotate(m_selectedItem);
         }
 
-        private void handleStashPlateClicked()
+        private void handleStashClicked()
         {
-            TryStashPlate(m_selectedPlate);
+            if (m_selectedPlate != null)
+                TryStashPlate(m_selectedPlate);
+            else
+                TryStashItem(m_selectedItem);
         }
 
-        private void handleSellPlateClicked()
+        private void handleSellClicked()
         {
-            TrySellPlate(m_selectedPlate);
+            if (m_selectedPlate != null)
+                TrySellPlate(m_selectedPlate);
+            else
+                TrySellItem(m_selectedItem);
         }
 
         private void handleClearPlateSelection()
         {
+            m_selectedItem = null;
             SelectPlate(null);
+        }
+
+        // 卖装备先摘再收钱：算不出回收价就一分不收，条上的键这时本来就是灰的
+        private bool TrySellItem(BackpackItemInstance item)
+        {
+            if (m_backpack == null || item == null)
+                return false;
+
+            if (m_shop == null)
+            {
+                QLog.Error("没有传入 ShopService，装备算不出回收价");
+                return false;
+            }
+
+            int price = m_shop.SellPriceOf(item.Definition);
+            if (price <= 0)
+                return false;
+
+            if (!m_backpack.TryRemoveItem(item))
+                return false;
+
+            m_run.AddCoins(price);
+            m_selectedItem = null;
+            QLog.Info($"{UIShopGoodsName.Of(item.Definition, item.Tier)} 已卖出，回收 {price} 金币");
+            refreshBackpack();
+            refreshCounters();
+            return true;
         }
 
         // 货架来自服务的库存，卡片顺序与库存顺序一致

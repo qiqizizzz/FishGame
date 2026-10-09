@@ -6,8 +6,9 @@
 * └──────────────────────────────────┘
 * 方块四周留暗边、亮面内缩，相邻方块之间的凹槽由两侧暗边拼出来，形状轮廓一眼可辨
 * 拖动时视图只跟着手指走，落点合不合规矩一律问模型，摆不成靠宿主重铺把物品弹回原位
-* 单击是原地转一档，顺带把这件的名字与加成报到详情区，格子上不再常驻文字
-* 本轮真的拖过就不再触发旋转，免得松手那下误转
+* 单击只报「选中」，名字与加成由面板的详情区去报，格子上不再常驻文字
+* 旋转、取下、出售都归面板浮出来的操作条，本视图不直接改物品，误点一下也不至于把东西转了向
+* 松手落在暂存架那块面板上就是收进架子，落回网格就是挪位；本轮真的拖过就不再触发点击
 */
 
 using System.Collections.Generic;
@@ -130,6 +131,8 @@ namespace UI.Shop
             m_startPosition = m_rect.anchoredPosition;
             m_grabOffset = pointerInGrid(eventData) - m_startPosition;
             m_rect.SetAsLastSibling();
+            // 东西离手了，压在它上面的操作条先收起来，免得拖的时候满屏控件
+            m_host.BeginItemDrag(m_item);
         }
 
         public void OnDrag(PointerEventData eventData)
@@ -148,17 +151,22 @@ namespace UI.Shop
 
             Vector2 position = m_rect.anchoredPosition;
 
-            if ((position - m_startPosition).sqrMagnitude > SNAP_EPSILON)
+            // 松手在暂存架那块面板上就是下架，摘进架子之后不用再算网格落点
+            if (m_host.IsPointerInStash(eventData.position))
+                m_host.TryStashItem(m_item);
+            else if ((position - m_startPosition).sqrMagnitude > SNAP_EPSILON)
             {
                 int column = Mathf.RoundToInt(position.x / m_pitch) - m_anchorDeltaColumn;
                 int row = Mathf.RoundToInt(-position.y / m_pitch) - m_anchorDeltaRow;
 
                 m_host.TryMove(m_item, column, row);
-                return;
             }
-
             // 没挪动过就只是把手指抬起，重铺一次把物品弹回原来的格子
-            m_host.TryMove(m_item, m_item.AnchorColumn, m_item.AnchorRow);
+            else
+                m_host.TryMove(m_item, m_item.AnchorColumn, m_item.AnchorRow);
+
+            // 落点定完了才补回操作条，它按新位置浮出来才对得上手上的东西
+            m_host.EndItemDrag(m_item);
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -172,9 +180,8 @@ namespace UI.Shop
                 return;
             }
 
-            // 详情跟着单击走，旋转仍是既有手势，两件事互不影响
-            m_host.ShowDetail(m_item);
-            m_host.TryRotate(m_item);
+            // 单击只管选中与详情，旋转交给操作条，免得误点把东西转了向
+            m_host.SelectItem(m_item);
         }
 
         // ==================== Private Function ====================
