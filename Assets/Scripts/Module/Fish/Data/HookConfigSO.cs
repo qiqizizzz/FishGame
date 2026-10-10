@@ -40,7 +40,7 @@ namespace Module.Fish.Data
         [Tooltip("断线前的缓冲窗口比例（0-1）")]
         [Range(0f, 1f)] [SerializeField] private float ReliefRatio;
         [Tooltip("钩上可同时挂着的鱼条数上限，每条鱼一律占 1 个名额")]
-        [SerializeField] private int CarryCountCeiling = 10;
+        [SerializeField] private int CarryCountCeiling = 3;
         [Tooltip("稀有度权重放大系数，作用于加权随机表")]
         [SerializeField] private float LureWeightScale = 1f;
         [Tooltip("鱼显形半径（米），深水区关键")]
@@ -66,9 +66,9 @@ namespace Module.Fish.Data
         [SerializeField, Min(0f)] private float LateralSpeedBonusCeiling = 2.9f;
         [SerializeField, Min(0f)] private float LateralDampingBonusCeiling = 9.4f;
         [SerializeField, Min(0f)] private float HookRadiusBonusCeiling = 0.13f;
-        [SerializeField, Min(0f)] private float CarryCountBonusCeiling = 6f;
+        [SerializeField, Min(0f)] private float CarryCountBonusCeiling = 2f;
         [SerializeField, Min(0f)] private float LurePullBonusCeiling = 1.2f;
-        [SerializeField, Min(0f)] private float CoinBonusCeiling = 0.6f;
+        [SerializeField, Min(0f)] private float CoinBonusCeiling = 0.3f;
 
         [Tooltip("以下均为负向线：脱钩概率与缠绕时长的地板，叠再多也不会低于它")]
         [Range(0f, 1f)] [SerializeField] private float DetachChanceRatioFloor = 0.05f;

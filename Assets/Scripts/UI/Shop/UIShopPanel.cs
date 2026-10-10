@@ -21,6 +21,7 @@
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 装备被布挤下网格就自己飞进暂存架那一格，飞完格子才显形，玩家看得见它去了哪
+* 详情小窗点它以外的空白处就收起，按钮、商品卡、物品与已上架的格子这些自己会响应点击的控件不算空白
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
 
@@ -37,12 +38,13 @@ using Module.Shop.Model;
 using Module.Shop.Service;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Utils.log;
 
 namespace UI.Shop
 {
-    public sealed class UIShopPanel : UIBase, IShopBackpackHost
+    public sealed class UIShopPanel : UIBase, IShopBackpackHost, IPointerClickHandler
     {
         private const string COINS_PATH = "Bg/Panel_Info/Txt_Coins";
         private const string TARGET_PATH = "Bg/Panel_Info/Txt_Target";
@@ -182,6 +184,9 @@ namespace UI.Shop
         // 选中态只有面板这一份，布与装备共用同一套外框与操作条，拆走卖掉之后由面板清空
         private BackpackItemInstance m_selectedPlate;
         private BackpackItemInstance m_selectedItem;
+
+        // 判断点击落在谁身上时逐节点取组件用的缓存，一次点击最多走几层，不反复分配
+        private readonly List<Component> m_hitComponents = new();
 
         // 量当前选中物的外框用，操作条定位与逐格选中外框都靠它
         private readonly List<Vector2Int> m_selectedCells = new();
@@ -460,31 +465,52 @@ namespace UI.Shop
         // 点同一块布是取消选中，点另一块是换选中，选中态只存在面板这一份
         public void SelectPlate(BackpackItemInstance plate)
         {
-            bool cancel = plate == null || m_selectedPlate == plate;
-            m_selectedPlate = cancel ? null : plate;
+            if (plate == null || m_selectedPlate == plate)
+            {
+                deselectAll();
+                return;
+            }
+
+            m_selectedPlate = plate;
             m_selectedItem = null;
-
-            if (cancel)
-                clearDetail();
-            else
-                ShowDetail(plate);
-
+            ShowDetail(plate);
             refreshActionBar();
         }
 
         // 装备同样只有一份选中态，点同一件取消，点另一件换人，布跟着让位
         public void SelectItem(BackpackItemInstance item)
         {
-            bool cancel = item == null || m_selectedItem == item;
-            m_selectedItem = cancel ? null : item;
+            if (item == null || m_selectedItem == item)
+            {
+                deselectAll();
+                return;
+            }
+
+            m_selectedItem = item;
             m_selectedPlate = null;
-
-            if (cancel)
-                clearDetail();
-            else
-                ShowDetail(item);
-
+            ShowDetail(item);
             refreshActionBar();
+        }
+
+        // 点小窗以外的空白处收起它：小窗、逐格外框与操作条是一起浮出来的，要收就一起收
+        // 这一下落在按钮或商品卡上时不插手，那些控件自己会响应，冒泡上来也不算点了空白
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (m_detailRect == null || !m_detailRect.gameObject.activeSelf)
+                return;
+
+            // 手里还拖着商品或布，这一下是松手不是取消，落点没定之前不碰选中态
+            if (m_pendingPurchase != null || m_plateInHand != null)
+                return;
+
+            // 小窗整块不吃射线，点在它身上的点击照样冒泡到这里，按矩形挡掉才算点了窗里
+            if (RectTransformUtility.RectangleContainsScreenPoint(m_detailRect, eventData.position, null))
+                return;
+
+            if (isClickHandledBy(eventData.pointerCurrentRaycast.gameObject))
+                return;
+
+            deselectAll();
         }
 
         // 装备到手上了，操作条与详情小窗先收起来，免得拖的时候满屏控件
@@ -1471,6 +1497,38 @@ namespace UI.Shop
                 return;
 
             clearDetail();
+        }
+
+        // 取消选中：小窗、逐格外框与操作条一起收，点空白与点同一件走同一条路
+        private void deselectAll()
+        {
+            m_selectedPlate = null;
+            m_selectedItem = null;
+            clearDetail();
+            refreshActionBar();
+        }
+
+        // 从命中的节点往上找到本面板为止，路上有会响应点击的控件就说明这一下不是点空白
+        // 空格子与布底本来就不吃射线，命中只会落在背景上，一路没有 handler，正好该收
+        private bool isClickHandledBy(GameObject hit)
+        {
+            if (hit == null)
+                return false;
+
+            Transform current = hit.transform;
+
+            while (current != null && current != transform)
+            {
+                current.GetComponents(m_hitComponents);
+
+                for (int i = 0; i < m_hitComponents.Count; i++)
+                    if (m_hitComponents[i] is IPointerClickHandler)
+                        return true;
+
+                current = current.parent;
+            }
+
+            return false;
         }
 
         // 布层重铺，模型里有几块布就铺几个视图，多出来的藏起来

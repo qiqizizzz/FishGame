@@ -21,7 +21,7 @@ MonoBehaviour:
   ReelSpeedMeters: 4.5
   TensionCeiling: 100
   ReliefRatio: 0
-  CarryCountCeiling: 10
+  CarryCountCeiling: 3
   LureWeightScale: 1
   DetectRadiusMeters: 0.8
   CoinBonusRatio: 0
@@ -29,3 +29,14 @@ MonoBehaviour:
   TensionReliefPerSecond: 5
   DetachChanceRatio: 0.35
   TangledDurationSeconds: 1.2
+  LineLengthBonusCeiling: 30
+  ReelSpeedBonusCeiling: 4
+  DescendSpeedBonusCeiling: 3.8
+  LateralSpeedBonusCeiling: 2.9
+  LateralDampingBonusCeiling: 9.4
+  HookRadiusBonusCeiling: 0.13
+  CarryCountBonusCeiling: 2
+  LurePullBonusCeiling: 1.2
+  CoinBonusCeiling: 0.3
+  DetachChanceRatioFloor: 0.05
+  TangledDurationSecondsFloor: 0.1

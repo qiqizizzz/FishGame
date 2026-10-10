@@ -46,7 +46,7 @@ namespace Module.Backpack.Data
 
         [Header("暂存架")]
         [Tooltip("暂存架可放的件数，按件计不参与网格")]
-        [SerializeField, Range(1, 12)] private int StashCapacityLimit = 5;
+        [SerializeField, Range(1, 12)] private int StashCapacityLimit = 7;
 
         [Header("开局装备")]
         [Tooltip("新背包开局就带着的装备，一律按一级放入，网格放不下自动退到暂存架")]

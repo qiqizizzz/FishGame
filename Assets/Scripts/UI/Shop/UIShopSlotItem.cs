@@ -6,7 +6,7 @@
 * └──────────────────────────────────┘
 * 位置与尺寸交给 GridLayoutGroup，脚本只切底图与颜色
 * 背包格铺的是布，布的底色就是这格的底色，压在布上的装备由 UIShopItemView 单独画一层
-* 仓库格自己就是物品，有图标就贴图、没图标才整格染品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
+* 仓库格自己就是物品，底格沿用暂存架默认那张脸，有图标就贴图、没图标才标出名称，点一下自动取回，也可以直接拖着摆上网格
 * 拖出架子时摆一套幽灵跟着手指：有图标就一路亮着图标，格子垫在底下逐格染色，盖得住的压深、缺格子的染红
 * 指针还没进网格就只留图标跟着手，落点摆不成原样留在架上
 * 架子上的布照它真实的异形逐格画出来，架上看几格回家就铺几格，整格染色会把二格和六格读成一样大
@@ -128,7 +128,7 @@ namespace UI.Shop
         }
 
         /// <summary>
-        /// 仓库格放入一件物品，装备整格染成品质色，布照它此刻的朝向逐格画出异形，并接上点一下取回与拖上网格两个入口
+        /// 仓库格放入一件物品，底格保持暂存架默认外观，装备只贴图标，布照它此刻的朝向逐格画出异形，并接上点一下取回与拖上网格两个入口
         /// </summary>
         /// <param name="item">架上的这件物品</param>
         /// <param name="stashIndex">在暂存架里的下标</param>
@@ -140,9 +140,10 @@ namespace UI.Shop
             Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
             bool isCloth = item.Definition.Kind == BackpackDefKind.Cloth;
 
-            // 布染满整格只剩一块方块，占几格什么形全读不出来，改画异形，底格退回空格那点淡底
-            m_bgImage.sprite = isCloth ? CellSprite : null;
-            m_bgImage.color = isCloth ? EmptyColor : qualityColor;
+            // 底格一律用空格那张淡底，物品只往上贴图标，不再整块染品质色把架子默认栏盖掉
+            // 布也不染满格，那样只剩一块方块，占几格什么形全读不出来，另走异形
+            m_bgImage.sprite = CellSprite;
+            m_bgImage.color = EmptyColor;
             m_bgImage.raycastTarget = true;
 
             if (m_clothShape != null)

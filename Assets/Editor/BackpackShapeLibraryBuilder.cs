@@ -24,7 +24,7 @@ public static class BackpackShapeLibraryBuilder
 
     private const int CONTAINER_COLUMNS = 6;
     private const int CONTAINER_ROWS = 5;
-    private const int STASH_CAPACITY = 5;
+    private const int STASH_CAPACITY = 7;
 
     // 多米诺 2 格，竖着的一条
     private static readonly Vector2Int[] m_dominoCells =

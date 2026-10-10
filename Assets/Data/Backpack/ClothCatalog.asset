@@ -116,7 +116,7 @@ MonoBehaviour:
     BuffList:
     - ModType: 2
       PerCell: 0.25
-      Cap: 2
+      Cap: 1
     ShapeList:
     - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
     - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}

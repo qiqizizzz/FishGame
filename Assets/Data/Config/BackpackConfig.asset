@@ -27,6 +27,6 @@ MonoBehaviour:
     CellColumn: 3
     CellRow: 0
   TierPriceList: 50000000c800000030020000
-  StashCapacityLimit: 5
+  StashCapacityLimit: 7
   StartingItemList:
   - {fileID: 11400000, guid: d18163a1d0123db4f92559afd0c21a1c, type: 2}

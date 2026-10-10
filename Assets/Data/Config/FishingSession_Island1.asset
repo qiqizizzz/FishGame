@@ -55,6 +55,6 @@ MonoBehaviour:
   BaseFishCountPerSlice: 2
   HazardSpawnChance: 0.15
   BonusDepthReferenceMeters: 40
-  DepthBonusFactor: 1
-  ComboStepPerCatch: 0.15
+  DepthBonusFactor: 0.6
+  ComboStepPerCatch: 0.08
   FishPayoutRatio: 0.5
