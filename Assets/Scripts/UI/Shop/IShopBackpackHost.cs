@@ -9,6 +9,7 @@
 * 宿主做完任何一笔操作都要重铺一次界面，摆不成时靠重铺把物品弹回原位
 * 布与装备分两套入口：装备动的只是压在布上的那一件，布动的是一整块底板
 * 布与装备共用同一条操作条，两者也共用暂存架：拖进 Panel_Storage 那块区域就下架，从暂存格拖回网格按落点摆
+* 拖拽途中每一格放不放得下由本接口逐格回答，视图只管按答案把格子染成深色或红，不自己猜落点
 * 格子上不再常驻名称，点中什么由宿主把两行说明报到选中物旁边的详情小窗
 */
 
@@ -75,6 +76,14 @@ namespace UI.Shop
         /// <param name="anchorColumn">落点锚列</param>
         /// <param name="anchorRow">落点锚行</param>
         bool TryPointerCell(Vector2 screenPoint, out int anchorColumn, out int anchorRow);
+
+        /// <summary>
+        /// 拖拽预览用：问某一格此刻放不放得下这一件，越界、没布铺底、被别的装备压住都算放不下
+        /// </summary>
+        /// <param name="dragging">正被抓在手上的那件，它自己占的格不算冲突；从暂存架拖来时它压根不在网格上</param>
+        /// <param name="column">要预览的网格列</param>
+        /// <param name="row">要预览的网格行</param>
+        bool IsPreviewCellValid(BackpackItemInstance dragging, int column, int row);
 
         /// <summary>
         /// 把一块布挪到新的锚点格，压在它上面的装备会跟着让位

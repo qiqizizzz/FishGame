@@ -7,7 +7,8 @@
 * 位置与尺寸交给 GridLayoutGroup，脚本只切底图与颜色
 * 背包格铺的是布，布的底色就是这格的底色，压在布上的装备由 UIShopItemView 单独画一层
 * 仓库格自己就是物品，有图标就贴图、没图标才整格染品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
-* 拖出架子时摆一套幽灵格跟着手指吸附到落点，看见落在哪格就落在哪格，摆不成原样留在架上
+* 拖出架子时摆一套幽灵跟着手指：有图标就一路亮着图标，格子垫在底下逐格染色，盖得住的压深、缺格子的染红
+* 指针还没进网格就只留图标跟着手，落点摆不成原样留在架上
 * 只有装了东西的仓库格才吃射线，空格与锁格把射线让出去，免得挡住网格上的拖拽
 */
 
@@ -239,20 +240,32 @@ namespace UI.Shop
             m_qualityColor = default;
         }
 
-        // 幽灵整块吸附到指针所在的那一格，指到网格外就收起来，免得飘在不知哪儿
+        // 幽灵整块吸附到指针所在的那一格，顺带逐格问宿主放不放得下；指针还在网格外就只留图标跟着手
         private void moveGhost(Vector2 screenPoint)
         {
-            if (m_ghost == null)
+            if (m_ghost == null || m_host == null)
                 return;
 
-            if (m_host == null || !m_host.TryPointerCell(screenPoint, out int anchorColumn, out int anchorRow))
+            if (m_host.TryPointerCell(screenPoint, out int anchorColumn, out int anchorRow))
             {
-                m_ghost.gameObject.SetActive(false);
+                UIShopShapeGhost.PlaceAt(m_ghost, m_item, anchorColumn, anchorRow, m_host.CellPitch, m_host);
                 return;
             }
 
-            m_ghost.gameObject.SetActive(true);
-            UIShopShapeGhost.PlaceAt(m_ghost, anchorColumn, anchorRow, m_host.CellPitch);
+            UIShopShapeGhost.FollowPointer(m_ghost, m_item, pointerInGrid(screenPoint), m_host.CellPitch);
+        }
+
+        // 把屏幕坐标换算成「网格左上角为原点」的平面坐标，与幽灵格用的是同一套算法
+        private Vector2 pointerInGrid(Vector2 screenPoint)
+        {
+            RectTransform layer = m_host.GhostLayer;
+            if (layer == null)
+                return Vector2.zero;
+
+            Vector2 local;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(layer, screenPoint, null, out local);
+
+            return local - new Vector2(layer.rect.xMin, layer.rect.yMax);
         }
 
         private void hideLabel()

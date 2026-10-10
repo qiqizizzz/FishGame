@@ -544,6 +544,24 @@ namespace UI.Shop
             return true;
         }
 
+        // 拖拽预览逐格问这里：越界、脚下没布、布正被抓在手上、被别的装备压住，四种都算缺格
+        // 手上这件自己占的那几格要豁免，否则原地挪一格的瞬间就会把自己染成一片红
+        public bool IsPreviewCellValid(BackpackItemInstance dragging, int column, int row)
+        {
+            BackpackModel model = m_backpack != null ? m_backpack.Model : null;
+            if (model == null)
+                return false;
+
+            if (column < 0 || column >= model.Columns || row < 0 || row >= model.Rows)
+                return false;
+
+            BackpackItemInstance plate = model.FindPlateAt(column, row);
+            if (plate == null || plate == m_plateInHand)
+                return false;
+
+            return model.IsCellFree(column, row) || model.ItemCovers(dragging, column, row);
+        }
+
         // 布到手上了只重染格子：整盘重铺会把正在拖的那块视图掀回原位，拖拽当场就废了
         public void BeginPlateDrag(BackpackItemInstance plate)
         {
@@ -746,7 +764,7 @@ namespace UI.Shop
             {
                 RectTransform rect = (RectTransform)m_itemViews[i].transform;
                 m_flyCenters[items[i]] = rectCenter(rect);
-                // 起飞姿态照抄图标自己那一份，转了 90 度的那件飞起来也躺着，不会看着换了个东西
+                // 起飞姿态照抄图标自己那一份，拧着摆的那件飞起来也拧着，不会看着换了个东西
                 m_flySizes[items[i]] = m_itemViews[i].IconSize;
                 m_flyAngles[items[i]] = m_itemViews[i].IconAngle;
             }
@@ -813,6 +831,8 @@ namespace UI.Shop
 
                 flyRect.anchoredPosition = Vector2.Lerp(start, toFlyLocal(rectCenter(slot)), t);
                 flyRect.sizeDelta = Vector2.Lerp(startSize, slot.rect.size, t);
+                // 图标可以拧着摆，架子那一格却是正的，转角一路归零才对得上落地的样子
+                flyRect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(startAngle, 0f, t));
 
                 flown += Time.deltaTime;
                 yield return null;
