@@ -1450,7 +1450,8 @@ namespace UI.Shop
 
             UIShopGoodsItem goods = m_goodsItems[m_goodsShown];
             goods.gameObject.SetActive(true);
-            goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier), affordable, handleBuyClicked);
+            goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier), affordable, handleBuyClicked,
+                m_cellSprite);
             m_goodsShown++;
         }
 
