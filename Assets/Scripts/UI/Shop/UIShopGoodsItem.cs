@@ -12,6 +12,7 @@
 * 拖商品与拖暂存架里的东西共用同一套幽灵：吸附到落点格逐格染色，缺格染红，出了网格只留图标跟着手
 * 松手压在网格上就按那一格入手，落在暂存架面板上就直接进架，两处都没挨上等于没买，钱一分不动
 * 点一下只报详情不扣钱，真拖过之后紧跟的那次点击按拖过标记挡掉，免得拖完又弹出小窗
+* 已售出的卡不再露出商品本来的样子，预览区整块换成一枚禁止图标，卖完的东西没必要再端详
 */
 
 using Framework.QTower.View;
@@ -35,9 +36,15 @@ namespace UI.Shop
         // 布形预览带，与 Img_Icon 占同一块地方，两类商品在这块地方互斥
         private const string CLOTH_SHAPE_PATH = "Node_ClothShape";
 
+        // 已售出占位图，同样占在预览区那块地方，与上面两类互斥
+        private const string SOLD_OUT_PATH = "Img_SoldOut";
+
         // ==================== 字段[私有] ====================
         private Image m_iconImage;
         private UIShopClothShape m_clothShape;
+
+        // 卖完就把预览区让给它，卡上只剩名字与「已售出」两行
+        private Image m_soldOutImage;
 
         // 卡片从复用池里拉出来反复填商品，换货时要能还原预制体自带的底图
         private Sprite m_defaultIconSprite;
@@ -170,9 +177,17 @@ namespace UI.Shop
         }
 
         // ==================== Private Function ====================
-        // 布把上半格让给异形预览，装备照旧贴图，已售出都靠压暗表达
+        // 已售出只留一枚禁止图标，图标与异形布都收掉；在卖的才照布与装备两类各画各的
         private void applyVisual(ShopStockEntry entry, Color goodsColor, Sprite cellSprite)
         {
+            m_soldOutImage.gameObject.SetActive(entry.IsSold);
+            if (entry.IsSold)
+            {
+                m_clothShape.SetVisible(false);
+                m_iconImage.gameObject.SetActive(false);
+                return;
+            }
+
             bool isCloth = entry.Definition.Kind == BackpackDefKind.Cloth;
 
             m_clothShape.SetVisible(isCloth);
@@ -180,15 +195,14 @@ namespace UI.Shop
 
             if (isCloth)
             {
-                m_clothShape.Setup(entry.Definition.ShapeAt(entry.Tier),
-                    entry.IsSold ? UIShopQuality.SoldTint : goodsColor, cellSprite);
+                m_clothShape.Setup(entry.Definition.ShapeAt(entry.Tier), goodsColor, cellSprite);
                 return;
             }
 
             Sprite icon = entry.Definition.Icon;
 
             m_iconImage.sprite = icon != null ? icon : m_defaultIconSprite;
-            m_iconImage.color = entry.IsSold ? UIShopQuality.SoldTint : (icon != null ? Color.white : goodsColor);
+            m_iconImage.color = icon != null ? Color.white : goodsColor;
         }
 
         // 幽灵整块吸附到指针所在的那一格，顺带逐格问宿主放不放得下；指针还在网格外就只留图标跟着手
@@ -244,6 +258,7 @@ namespace UI.Shop
             }
 
             m_clothShape = FindComponent<UIShopClothShape>(CLOTH_SHAPE_PATH);
+            m_soldOutImage = FindComponent<Image>(SOLD_OUT_PATH);
             m_nameText = FindComponent<TMP_Text>(NAME_PATH);
             m_priceText = FindComponent<TMP_Text>(PRICE_PATH);
             m_button = GetComponent<Button>();
@@ -260,7 +275,8 @@ namespace UI.Shop
         // 模板复制出来的实例可能还没走 Awake，兜一次绑引用
         private void ensureBound()
         {
-            if (m_iconImage == null || m_clothShape == null || m_nameText == null || m_priceText == null)
+            if (m_iconImage == null || m_clothShape == null || m_soldOutImage == null
+                || m_nameText == null || m_priceText == null)
                 bindNodes();
         }
     }

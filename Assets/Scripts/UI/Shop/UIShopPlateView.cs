@@ -10,7 +10,8 @@
 * 布名不写在这里，点一下交给面板的详情区报两行，常驻文字会和布上装备的字叠成一团
 * 选中态也不在这里提亮，改由面板最上层给每一格套一圈选中外框，边界比往布色里掺白清楚得多
 * 单击只负责选中不负责旋转，旋转拆卖都得更正到操作条上按，误点一下不至于把地板抽走
-* 拖动只跟着手指走，落点合不合规矩一律问宿主，摆不成靠重铺把布弹回原位
+* 指针还在网格内就一格一格吸附着走，出了网格才恢复成跟着手指自由挪
+* 落点合不合规矩一律问宿主，摆不成靠重铺把布弹回原位
 * 松手落在暂存架那块面板上就是把布拆进架子，和按操作条上的「拆下」是同一件事
 */
 
@@ -180,7 +181,15 @@ namespace UI.Shop
             if (m_host == null || m_plate == null)
                 return;
 
-            m_rect.anchoredPosition = pointerInGrid(eventData) - m_grabOffset;
+            Vector2 free = pointerInGrid(eventData) - m_grabOffset;
+
+            // 指针还在网格内就把包围盒左上角吸附到整格，抓着手感那点偏移照算，手指底下那一格不会跳走
+            // 幽灵格是本 rect 的子节点，rect 吸附了它们自然跟着对齐，不必单独摆
+            if (m_host.TryPointerCell(eventData.position, out _, out _))
+                m_rect.anchoredPosition = new Vector2(Mathf.RoundToInt(free.x / m_pitch) * m_pitch,
+                    Mathf.RoundToInt(free.y / m_pitch) * m_pitch);
+            else
+                m_rect.anchoredPosition = free;
         }
 
         // 松手即落点，四舍五入到最近的格，行主序与铺块时的算法完全一致

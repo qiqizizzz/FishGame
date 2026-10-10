@@ -681,7 +681,6 @@ namespace UI.Shop
             m_detailCardRect = cardRect;
 
             Color goodsColor = UIShopQuality.ColorFor(entry.Definition, entry.Tier);
-            bool showPrice = !entry.IsSold;
 
             m_detailNameText.text = UIShopGoodsName.Of(entry.Definition, entry.Tier);
             m_detailBuffs.Clear();
@@ -689,24 +688,19 @@ namespace UI.Shop
             m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
             m_detailAccent.color = goodsColor;
 
-            m_detailPriceText.gameObject.SetActive(showPrice);
-            if (showPrice)
-            {
-                m_detailPriceText.text = $"{entry.Price} 金币";
-                m_detailPriceText.color = m_run != null && entry.Price > m_run.Coins
-                    ? UIShopQuality.PriceUnaffordable
-                    : m_detailPriceDefaultColor;
-            }
+            // 能点开的一定还在卖，价钱照直写，买不起才染红
+            m_detailPriceText.text = $"{entry.Price} 金币";
+            m_detailPriceText.color = m_run != null && entry.Price > m_run.Coins
+                ? UIShopQuality.PriceUnaffordable
+                : m_detailPriceDefaultColor;
+            m_detailPriceText.gameObject.SetActive(true);
 
             // 名字行要给右上角的价钱让位，让出的宽度按价钱自己量出来
-            setDetailNameReserve(showPrice
-                ? m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
-                  + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
-                : 0f);
+            setDetailNameReserve(m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
+                + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP);
 
             if (entry.Definition.Kind == BackpackDefKind.Cloth)
-                setDetailClothPreview(entry.Definition.ShapeAt(entry.Tier),
-                    entry.IsSold ? UIShopQuality.SoldTint : goodsColor, 0);
+                setDetailClothPreview(entry.Definition.ShapeAt(entry.Tier), goodsColor, 0);
             else
                 clearDetailClothPreview();
 

@@ -31,9 +31,6 @@ namespace UI.Shop
         // 买不起时的价钱色，压在木色底上够扎眼又不刺眼，商品卡与详情小窗共用这一个
         public static Color PriceUnaffordable { get; } = new Color32(0xB0, 0x3A, 0x2E, 0xFF);
 
-        // 已售出时的压暗色，卡面与布形预览一起变灰，一眼看出这件已经没了
-        public static Color SoldTint { get; } = new Color32(0x8C, 0x8C, 0x8C, 0xFF);
-
         // ==================== Public Function ====================
         /// <summary>
         /// 取存放物该染的颜色，板块用布自己的底色，装备用档位品质色
