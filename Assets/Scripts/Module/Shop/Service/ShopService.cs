@@ -5,7 +5,9 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 抽商品分三步：先抽类别，是装备再抽档位并从装备池抽款式，是布料则先按稀有度权重抽一块布再等概率剪一个异形
-* 售价基准只有一个来源，装备取背包配置的档位价，布料按「单格基准价 × 占格数 × 稀有度系数」现算，两边都只再乘一次浮动
+* 售价基准只有一个来源，装备优先取自己身上配的档位价、没配才回落背包配置的档位价，布料按「单格基准价 × 占格数 × 稀有度系数」现算
+* 装备自带价是为了让「占 2 格」和「占 6 格」不再同价：格子是本玩法的核心资源，它不进价格就逼不出取舍
+* 两边都只再乘一次浮动，回收价走同一条基准公式，只差一次回收比例，两处不会算出两个数
 * 稀有度同时驱动两件事：越稀有的布抽中权重越低、价钱越高，两个数都写在总表的同一行里
 * 回收价与上架价同一条公式，只差最后一次浮动与回收比例，两处不会算出两个数
 * 扣钱与入手是分开的两步，入手失败原额退回，不会出现钱花了东西没影
@@ -141,22 +143,25 @@ namespace Module.Shop.Service
         }
 
         /// <summary>
-        /// 折算一块布的回收价，按上架的基准价乘回收比例，随机浮动不参与
+        /// 折算一件存放物的回收价，装备与布料都按上架基准价乘回收比例，随机浮动不参与
         /// </summary>
-        /// <param name="definition">要卖的存放物定义，只有布料板块算得出价钱</param>
-        public int SellPriceOf(IBackpackDef definition)
+        /// <param name="definition">要卖的存放物定义</param>
+        /// <param name="tier">要卖的那件是几档，布料恒为 1，只有装备那一支会读它</param>
+        public int SellPriceOf(IBackpackDef definition, int tier)
         {
-            if (definition is not ClothPieceDef piece || piece.Cloth == null || piece.Shape == null)
-                return 0;
+            if (definition is ClothPieceDef piece)
+            {
+                // 只挂装备池的配置可以不填总表，这时货架上根本不会有布，这条链路也就问不到这里
+                if (piece.Cloth == null || piece.Shape == null || m_catalog == null)
+                    return 0;
 
-            // 只挂装备池的配置可以不填总表，这时货架上根本不会有布，这条链路也就问不到这里
-            if (m_catalog == null)
-                return 0;
+                return toSellPrice(clothBasePriceOf(piece));
+            }
 
-            int basePrice = Mathf.RoundToInt(piece.Cloth.CellBasePriceValue * piece.Shape.CellCount
-                                            * m_catalog.PriceScaleOf(piece.Cloth.RarityIndex));
+            if (definition is BackpackItemSO item)
+                return toSellPrice(itemBasePriceOf(item, tier));
 
-            return Mathf.Max(MIN_PRICE, Mathf.RoundToInt(basePrice * m_shopConfig.SellRatio));
+            return 0;
         }
 
         // ==================== Private Function ====================
@@ -310,7 +315,12 @@ namespace Module.Shop.Service
             if (!m_tierTable.TrySample(nextRoll01(), out int tier))
                 tier = FIRST_TIER;
 
-            return new ShopStockEntry(item, tier, applyJitter(m_backpackConfig.TierPrice(tier)));
+            int basePrice = item.TierPriceAt(tier);
+
+            if (basePrice <= 0)
+                basePrice = m_backpackConfig.TierPrice(tier);
+
+            return new ShopStockEntry(item, tier, applyJitter(basePrice));
         }
 
         // 抽布只看稀有度权重，抽到之后剪成哪种异形是等概率，异形本身不参与稀有度
@@ -332,10 +342,30 @@ namespace Module.Shop.Service
             if (piece == null)
                 return null;
 
-            int basePrice = Mathf.RoundToInt(cloth.CellBasePriceValue * piece.Shape.CellCount *
-                                             m_catalog.PriceScaleOf(cloth.RarityIndex));
+            return new ShopStockEntry(piece, piece.MaxTier, applyJitter(clothBasePriceOf(piece)));
+        }
 
-            return new ShopStockEntry(piece, piece.MaxTier, applyJitter(basePrice));
+        // 布料的基准价：单格价 × 占格数 × 稀有度系数，上架与回收共用这一条，改价只改总表那一行
+        private int clothBasePriceOf(ClothPieceDef piece)
+        {
+            return Mathf.RoundToInt(piece.Cloth.CellBasePriceValue * piece.Shape.CellCount
+                                     * m_catalog.PriceScaleOf(piece.Cloth.RarityIndex));
+        }
+
+        // 装备的基准价：自带档位价优先，没配才回落全局档位定价，与上架那一条口径完全一致
+        private int itemBasePriceOf(BackpackItemSO item, int tier)
+        {
+            int ownPrice = item.TierPriceAt(tier);
+            return ownPrice > 0 ? ownPrice : m_backpackConfig.TierPrice(tier);
+        }
+
+        // 回收价只在基准价上乘一次比例，不重复算稀有度与占格，避免出现第二个价源
+        private int toSellPrice(int basePrice)
+        {
+            if (basePrice <= 0)
+                return 0;
+
+            return Mathf.Max(MIN_PRICE, Mathf.RoundToInt(basePrice * m_shopConfig.SellRatio));
         }
 
         private static string buildKey(ShopStockEntry entry)

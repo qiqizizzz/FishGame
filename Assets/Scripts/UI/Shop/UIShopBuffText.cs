@@ -23,6 +23,10 @@ namespace UI.Shop
 
         // 多条 BUFF 之间的分隔，全角空格比半角宽，挤在一行里也分得开
         private const string SEPARATOR = "　";
+
+        // 兑现不了的负载要说在前头，灰字压在深底小窗上既显眼又不跟主文案抢色
+        private const string MUTED_OPEN = "<color=#8E9AA8>";
+        private const string MUTED_CLOSE = "</color>";
         // ==================== Public Function ====================
         /// <summary>
         /// 把一条能力线的加成写成一行短说明
@@ -85,7 +89,38 @@ namespace UI.Shop
             return builder.ToString();
         }
 
+        /// <summary>
+        /// 写清这件商品在负载线上能兑现几条，兑现不了的部分必须买之前就讲明白
+        /// </summary>
+        /// <param name="buff">商品给出的那条负载加成</param>
+        /// <param name="headroom">负载总线当前还剩多少额度</param>
+        /// <param name="ownerSpent">这块布的载量是否已经被同款吃满，成立时再买一条也加不上</param>
+        public static string CarryShortfall(BackpackBuff buff, int headroom, bool ownerSpent)
+        {
+            if (buff.Mod != BackpackStatMod.MaxCarryCount)
+                return string.Empty;
+
+            if (ownerSpent)
+                return muted("这种布的载量已经吃满，再买一块不会加载量");
+
+            int offered = Mathf.RoundToInt(buff.Value);
+            int realizable = Mathf.Min(offered, headroom);
+
+            if (realizable >= offered)
+                return string.Empty;
+
+            if (realizable <= 0)
+                return muted("负载已满，买下去一条也不会多");
+
+            return muted($"总线只剩 {headroom} 条，这件只能兑现 {realizable} 条");
+        }
+
         // ==================== Private Function ====================
+        private static string muted(string text)
+        {
+            return $"{MUTED_OPEN}{text}{MUTED_CLOSE}";
+        }
+
         private static string signed(float value, string suffix)
         {
             string sign = value < 0f ? "-" : "+";

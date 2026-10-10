@@ -7,6 +7,9 @@
 * 模板库解耦点：同一档不同装备可以挂同一个形状资产，形状只是占位外形不是装备身份
 * 升档即换模板，装备变强也变占地，这就是背包格要逼出来的取舍
 * 列表长度即最高档位，配到 3 就是三级封顶，超出部分不参与结算
+* 价钱留三元素数组可选自带：紧凑件该卖贵、大件该卖便宜，「格子换数值」要落到价格上才成立
+* 留空即回落全局的档位定价，只有一两件想单独定价时才填
+* 负载这类取整生效的能力线，三档数值必须全填整数，卡面显示多少进背包就是多少
 * 装备没有阵营概念，界面底色一律按档位取品质色，不再挂阵营资产
 */
 
@@ -35,6 +38,10 @@ namespace Module.Backpack.Data
         [SerializeField] private List<GridShapeSO> TierShapes = new();
         [Tooltip("与形状列表等长，该档对本件能力线的修改量")]
         [SerializeField] private List<float> TierValues = new();
+        [Tooltip("与形状列表等长的三档基准价，留空则回落全局档位定价")]
+        [SerializeField, Min(0)] private List<int> TierPrices = new();
+        [Tooltip("详情小窗第二行的说明文案，一句话讲清这件装备在换什么")]
+        [SerializeField, Multiline(2)] private string Description;
 
         // ==================== 属性 ====================
         public string Id => ItemId;
@@ -46,6 +53,10 @@ namespace Module.Backpack.Data
 
         // 装备不靠自身染色，底色由界面按档位取品质色
         public Color TintColor => Color.white;
+
+        // 自带价只在这件装备填了档位价时才生效，没填就交给全局档位定价
+        public int TierPriceCount => TierPrices.Count;
+        public string Desc => Description;
 
         // ==================== Public Function ====================
         /// <summary>
@@ -68,6 +79,19 @@ namespace Module.Backpack.Data
         }
 
         /// <summary>
+        /// 取指定档位的基准价，没配自带价或档位越界时返回 0，由调用方回落全局定价
+        /// </summary>
+        /// <param name="tier">档位，从 1 开始</param>
+        public int TierPriceAt(int tier)
+        {
+            if (TierPrices.Count == 0)
+                return 0;
+
+            int index = clampTier(tier) - 1;
+            return index < TierPrices.Count ? TierPrices[index] : 0;
+        }
+
+        /// <summary>
         /// 报出本件在指定档位的加成，装备不设来源封顶，交给能力线自己的全局封顶
         /// </summary>
         /// <param name="tier">档位，从 1 开始</param>
@@ -81,6 +105,18 @@ namespace Module.Backpack.Data
         }
 
         // ==================== Private Function ====================
+        // 负载是取整生效的线，档位值带小数就会出现「卡面 +0.5、进背包 +0」这种花钱买废品的事故
+        private void checkWholeTierValues()
+        {
+            for (int i = 0; i < TierValues.Count; i++)
+            {
+                float value = TierValues[i];
+
+                if (Mathf.Abs(value - Mathf.Round(value)) > 0.0001f)
+                    QLog.Error($"[BackpackItemSO] 负载线的档位值必须填整数，取整后卡面显示值与实际生效值不一致：{ItemId} 第 {i + 1} 档 {value}");
+            }
+        }
+
         private int clampTier(int tier)
         {
             return Mathf.Clamp(tier, 1, TierShapes.Count);
@@ -103,11 +139,20 @@ namespace Module.Backpack.Data
             if (TierShapes.Count != TierValues.Count)
                 QLog.Error($"形状档数与数值档数不等：{ItemId} 形状 {TierShapes.Count} 数值 {TierValues.Count}");
 
+            if (TierPrices.Count > 0 && TierPrices.Count != TierShapes.Count)
+                QLog.Error($"[BackpackItemSO] 自带价的档数与形状档数不等：{ItemId} 价 {TierPrices.Count} 形状 {TierShapes.Count}");
+
             for (int i = 0; i < TierShapes.Count; i++)
             {
                 if (TierShapes[i] == null)
                     QLog.Error($"第 {i + 1} 档形状模板为空：{ItemId}");
+
+                if (TierPrices.Count == TierShapes.Count && TierPrices[i] <= 0)
+                    QLog.Error($"[BackpackItemSO] 自带价填了 0 会让这件装备白送：{ItemId} 第 {i + 1} 档");
             }
+
+            if (ModType == BackpackStatMod.MaxCarryCount)
+                checkWholeTierValues();
         }
     }
 }

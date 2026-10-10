@@ -19,6 +19,7 @@ using Framework.QTower.Event;
 using Game;
 using Module.Backpack.Data;
 using Module.Backpack.Model;
+using Module.Craft.Service;
 using Module.Fish.Data;
 using Module.Fish.Model;
 using Module.Fish.Service;
@@ -64,6 +65,7 @@ namespace Module.Fish
         private RunState m_run;
         private RunBackpack m_backpack;
         private ShopService m_shop;
+        private CraftService m_craft;
         private GamePhase m_phase = GamePhase.Shop;
         private bool m_running;
         private float m_maxDepth;
@@ -127,7 +129,8 @@ namespace Module.Fish
             m_run = newRun();
             m_backpack = newBackpack();
             m_shop = newShop();
-            rebuildStats();
+            m_craft = newCraft();
+            attachStats();
 
             m_hook.Initialize(m_scene.SessionConfig, m_stats, m_machine, this);
             m_scene.CameraRig.Configure(m_scene.SessionConfig.ShaftDepth);
@@ -139,7 +142,7 @@ namespace Module.Fish
         {
             m_disposed = true;
             m_running = false;
-            (m_stats as IDisposable)?.Dispose();
+            m_backpack?.Dispose();
             m_spawn.EndSession();
             GameApp.UIManager.UnregisterByController(this);
         }
@@ -285,19 +288,18 @@ namespace Module.Fish
         // 开局先铺布再放装备：格子全是布铺出来的，顺序反了装备一件都压不上去
         private RunBackpack newBackpack()
         {
-            RunBackpack backpack = new RunBackpack(m_scene.BackpackConfig);
+            RunBackpack backpack = new RunBackpack(m_scene.BackpackConfig, m_scene.HookConfig);
             backpack.SeedStartingCloths();
             backpack.SeedStartingItems();
 
             return backpack;
         }
 
-        // 属性包订阅了背包的变动事件，重建前先把旧的摘掉，免得旧背包一直拽着一个没人读的属性包
-        // 这里是 stats 唯一的生成点，生成后立刻回注给钩子，换一局时钩子才不会攥着上一个已 Dispose 的旧包
-        private void rebuildStats()
+        // 属性包跟着背包一起生一起灭，这里只负责把当前背包那份注给钩子
+        // 换一局时旧背包已在重建前 Dispose，钩子不会攥着上一个已解订阅的属性包
+        private void attachStats()
         {
-            (m_stats as IDisposable)?.Dispose();
-            m_stats = new BackpackFishingStats(m_scene.HookConfig, m_backpack.Model);
+            m_stats = m_backpack.Stats;
 
             m_hook.AttachStats(m_stats);
         }
@@ -306,6 +308,12 @@ namespace Module.Fish
         private ShopService newShop()
         {
             return new ShopService(m_scene.ShopConfig, m_scene.BackpackConfig, Environment.TickCount);
+        }
+
+        // 合成服务跟着商店一起换，规则表读的是同一份配置，本身不带可变状态
+        private CraftService newCraft()
+        {
+            return new CraftService(m_scene.ShopConfig.CraftRules);
         }
 
         // 每回合下潜次数、逐回合目标表、开局金币与渔获折算比例都取自会话配置，重开也走这里
@@ -355,7 +363,7 @@ namespace Module.Fish
             m_running = false;
 
             GameApp.UIManager.Hide<UIFishingHUD>();
-            GameApp.UIManager.Open<UIShopPanel>(m_run, m_backpack, m_shop).Forget();
+            GameApp.UIManager.Open<UIShopPanel>(m_run, m_backpack, m_shop, m_craft).Forget();
             m_roundHud.StartRound(m_run.Round, GamePhase.Shop);
 
             QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合商店阶段，" +
@@ -572,10 +580,12 @@ namespace Module.Fish
 
             m_maxDepth = 0f;
             m_buffer.Clear();
+            m_backpack?.Dispose();
             m_run = newRun();
             m_backpack = newBackpack();
             m_shop = newShop();
-            rebuildStats();
+            m_craft = newCraft();
+            attachStats();
 
             m_spawn.EndSession();
             m_carry.BeginSession(m_stats, m_scene.RarityTable);
@@ -605,7 +615,8 @@ namespace Module.Fish
                 && m_scene.CameraRig != null
                 && m_scene.FishRoot != null
                 && m_scene.BackpackConfig != null
-                && m_scene.ShopConfig != null;
+                && m_scene.ShopConfig != null
+                && m_scene.ShopConfig.CraftRules != null;
 
             if (!valid)
                 QLog.Error($"[{nameof(FishingController)}] 场景引用不完整，玩法不会启动，请检查 FishingScene 上的挂载");

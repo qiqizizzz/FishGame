@@ -7,6 +7,7 @@
 * 一条布就是一个颜色，颜色只用来让玩家认出这块布在往哪几条线上堆，不再挂阵营资产
 * BUFF 用数组存，常见布一条，珍罕布三条，一块布能挂几条完全看配置
 * 形状用数组存，同一块布可以刷出好几种异形，抽中哪种在抽货架时现定
+* BUFF 的计价方式由 ClothBuffEntry.Mode 决定：按格累加走 PerCell，整块定额走 Flat
 * 价钱只填单格基准价，最终价由总表按「基准 × 占格数 × 稀有度系数」现算，省得一块形状改尺寸就得重定价
 * 空白布就是 BuffList 留空的那一块，它只占格不给加成，是玩家腾格子的唯一出路
 */
@@ -61,7 +62,7 @@ namespace Module.Backpack.Data
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 取这块布在指定形状下的加成量，占格越多给得越多
+        /// 取这块布在指定形状下的加成量，按这条 BUFF 的计价方式分流
         /// </summary>
         /// <param name="buff">本布的一条 BUFF</param>
         /// <param name="cells">异形占用的格子数</param>
@@ -70,7 +71,9 @@ namespace Module.Backpack.Data
             if (buff == null)
                 return 0f;
 
-            return buff.PerCellValue * cells;
+            return buff.ModeValue == ClothBuffMode.Flat
+                ? buff.FlatValueOf
+                : buff.PerCellValue * cells;
         }
     }
 }

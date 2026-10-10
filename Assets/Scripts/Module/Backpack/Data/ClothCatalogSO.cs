@@ -219,7 +219,7 @@ namespace Module.Backpack.Data
             }
         }
 
-        // 逐条 BUFF 查符号是否一致：每格额度与封顶必须同号，反向填会夹出一个永远取不到的界
+        // 逐条 BUFF 查配置是否自洽：额度与封顶必须同号，负载这种要取整的线必须整块定额且填整数
         private void checkBuffs(ClothEntry cloth, string label)
         {
             IReadOnlyList<ClothBuffEntry> buffs = cloth.Buffs;
@@ -236,20 +236,52 @@ namespace Module.Backpack.Data
 
                 if (buff.Mod == BackpackStatMod.None)
                 {
-                    if (buff.PerCellValue != 0f || buff.CapValue != 0f)
+                    if (buff.PerCellValue != 0f || buff.FlatValueOf != 0f || buff.CapValue != 0f)
                         QLog.Error($"[{nameof(ClothCatalogSO)}] 空白布不该带加成：{label} 第 {i} 条选的是 None 却填了数值");
 
                     continue;
                 }
 
-                if (buff.PerCellValue == 0f)
-                    QLog.Error($"[{nameof(ClothCatalogSO)}] 这条 BUFF 每格给零，等于没配：{label} 第 {i} 条 {buff.Mod}");
+                bool isFlat = buff.ModeValue == ClothBuffMode.Flat;
+                float amount = isFlat ? buff.FlatValueOf : buff.PerCellValue;
+
+                if (isFlat && buff.PerCellValue != 0f)
+                    QLog.Error($"[{nameof(ClothCatalogSO)}] 整块定额的 BUFF 不该再填每格额度，取量只会读定额：{label} 第 {i} 条 {buff.Mod}");
+
+                if (amount == 0f)
+                    QLog.Error($"[{nameof(ClothCatalogSO)}] 这条 BUFF 给零，等于没配：{label} 第 {i} 条 {buff.Mod} 计价 {buff.ModeValue}");
 
                 if (buff.CapValue == 0f)
                     QLog.Error($"[{nameof(ClothCatalogSO)}] 这条 BUFF 的封顶填了 0，等于把这条线封死：{label} 第 {i} 条 {buff.Mod}");
-                else if (Mathf.Sign(buff.PerCellValue) != Mathf.Sign(buff.CapValue))
-                    QLog.Error($"[{nameof(ClothCatalogSO)}] 每格额度与封顶符号相反，加成会被夹成零：{label} 第 {i} 条 {buff.Mod} 每格 {buff.PerCellValue} 封顶 {buff.CapValue}");
+                else if (Mathf.Sign(amount) != Mathf.Sign(buff.CapValue))
+                    QLog.Error($"[{nameof(ClothCatalogSO)}] 加成额度与封顶符号相反，加成会被夹成零：{label} 第 {i} 条 {buff.Mod} 额度 {amount} 封顶 {buff.CapValue}");
+
+                if (buff.Mod == BackpackStatMod.MaxCarryCount)
+                    checkCarryBuff(buff, label, i, isFlat, amount);
             }
+        }
+
+        // 负载是全工程唯一被取整的能力线：按格给小数会在「3 格 x 0.25 = 0.75」这类组合上被取整吞成 0，
+        // 玩家花整件的钱买回一块零收益的布，所以这条线只允许整块定额、整数额度、整数封顶
+        private void checkCarryBuff(ClothBuffEntry buff, string label, int index, bool isFlat, float amount)
+        {
+            if (!isFlat)
+                QLog.Error($"[{nameof(ClothCatalogSO)}] 负载线必须用整块定额计价，按格给小数会被取整吞掉：{label} 第 {index} 条 每格 {amount}");
+
+            if (amount <= 0f)
+                QLog.Error($"[{nameof(ClothCatalogSO)}] 负载线的额度必须为正整数：{label} 第 {index} 条 额度 {amount}");
+
+            if (!isWholeNumber(amount))
+                QLog.Error($"[{nameof(ClothCatalogSO)}] 负载线的额度带小数，卡面显示值与进背包的实际值不一致：{label} 第 {index} 条 额度 {amount}");
+
+            if (!isWholeNumber(buff.CapValue))
+                QLog.Error($"[{nameof(ClothCatalogSO)}] 负载线的封顶带小数，取整后这块布的负载上限会缩水：{label} 第 {index} 条 封顶 {buff.CapValue}");
+        }
+
+        // 判断一个数是否落在整数上，留一点浮点容差，免得 1.0000001 这类误报
+        private bool isWholeNumber(float value)
+        {
+            return Mathf.Abs(value - Mathf.Round(value)) <= 0.0001f;
         }
     }
 }

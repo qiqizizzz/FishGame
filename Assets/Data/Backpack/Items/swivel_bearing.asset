@@ -21,6 +21,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
   - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
   TierValues:
-  - 2
-  - 4
-  - 7
+  - 2.5
+  - 5
+  - 8
+  TierPrices:
+  - 60
+  - 140
+  - 320
+  Description: "\u8F6C\u73AF\u987A\u6ED1\uFF0C\u9493\u94A9\u8DDF\u624B\u4E0D\u98D8\uFF0C\u5168\u51ED\u624B\u611F\u7684\u4E00\u6761\u7EBF"

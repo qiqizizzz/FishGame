@@ -35,8 +35,9 @@ MonoBehaviour:
   LateralSpeedBonusCeiling: 2.9
   LateralDampingBonusCeiling: 9.4
   HookRadiusBonusCeiling: 0.13
-  CarryCountBonusCeiling: 2
+  CarryCountBonusCeiling: 3
   LurePullBonusCeiling: 1.2
-  CoinBonusCeiling: 0.3
+  CoinBonusCeiling: 0.45
+  MaxCarryCountTotalBonusCeiling: 3
   DetachChanceRatioFloor: 0.05
   TangledDurationSecondsFloor: 0.1

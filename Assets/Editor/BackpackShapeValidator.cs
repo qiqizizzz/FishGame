@@ -17,6 +17,7 @@ using UnityEditor;
 using UnityEngine;
 using Module.Backpack.Data;
 using Module.Backpack.Model;
+using Module.Fish.Data;
 using Utils.log;
 
 public static class BackpackShapeValidator
@@ -25,6 +26,7 @@ public static class BackpackShapeValidator
     private const string SHAPES_FOLDER = "Assets/Data/Backpack/Shapes";
     private const string ITEMS_FOLDER = "Assets/Data/Backpack/Items";
     private const string CONFIG_PATH = "Assets/Data/Config/BackpackConfig.asset";
+    private const string HOOK_CONFIG_PATH = "Assets/Data/Config/HookConfig.asset";
     private const int CONTAINER_COLUMNS = 6;
     private const int CONTAINER_ROWS = 5;
 
@@ -437,7 +439,15 @@ public static class BackpackShapeValidator
             return;
         }
 
-        RunBackpack backpack = new RunBackpack(config);
+        HookConfigSO hookConfig = AssetDatabase.LoadAssetAtPath<HookConfigSO>(HOOK_CONFIG_PATH);
+
+        if (hookConfig == null)
+        {
+            m_failures.Add($"钓竿参数未找到，开局落位校验跳过：{HOOK_CONFIG_PATH}");
+            return;
+        }
+
+        RunBackpack backpack = new RunBackpack(config, hookConfig);
         backpack.SeedStartingCloths();
         backpack.SeedStartingItems();
 

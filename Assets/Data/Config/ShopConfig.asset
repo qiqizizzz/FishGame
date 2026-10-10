@@ -41,3 +41,4 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 685e73a3a360b354e8786eb781a1253f, type: 2}
   - {fileID: 11400000, guid: 8d9bf4013fda0754891dfbd55c3313f0, type: 2}
   ClothCatalog: {fileID: 11400000, guid: d4808276da18e954ba2b6bbbf1f12b48, type: 2}
+  CraftRuleList: {fileID: 11400000, guid: cd21b46ce5ed06048857a55ee44e0c3a, type: 2}

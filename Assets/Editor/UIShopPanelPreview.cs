@@ -13,8 +13,11 @@ using Cysharp.Threading.Tasks;
 using Game;
 using Module.Backpack.Data;
 using Module.Backpack.Model;
+using Module.Craft.Service;
 using Module.Fish.Data;
 using Module.Fish.Model;
+using Module.Shop.Data;
+using Module.Shop.Service;
 using UI.Shop;
 using UnityEditor;
 using UnityEngine;
@@ -26,14 +29,21 @@ public static class UIShopPanelPreview
     private const string UI_ROOT_NAME = "UIRoot";
     private const string SESSION_PATH = "Assets/Data/Config/FishingSession_Island1.asset";
     private const string BACKPACK_CONFIG_PATH = "Assets/Data/Config/BackpackConfig.asset";
+    private const string HOOK_CONFIG_PATH = "Assets/Data/Config/HookConfig.asset";
+    private const string SHOP_CONFIG_PATH = "Assets/Data/Config/ShopConfig.asset";
+
+    // 预览用固定种子滚货架，同一份配置每次摆出来的商品一模一样，改版式时才有可比性
+    private const int PREVIEW_SEED = 20261010;
 
     [MenuItem("Tools/钓鱼游戏/预览 商店背包面板")]
     private static void openPanel()
     {
         RunState run = createRunState();
         RunBackpack backpack = createBackpack();
+        ShopService shop = createShop();
+        CraftService craft = createCraft();
 
-        if (run == null || backpack == null)
+        if (run == null || backpack == null || shop == null || craft == null)
             return;
 
         if (EditorApplication.isPlaying)
@@ -44,15 +54,15 @@ public static class UIShopPanelPreview
                 return;
             }
 
-            GameApp.UIManager.Open<UIShopPanel>(run, backpack).Forget();
+            GameApp.UIManager.Open<UIShopPanel>(run, backpack, shop, craft).Forget();
             return;
         }
 
-        previewInEditMode(run, backpack);
+        previewInEditMode(run, backpack, shop, craft);
     }
 
     // 编辑模式手动跑一遍 Init 与 Open，让真实数据摆到版式上
-    private static void previewInEditMode(RunState run, RunBackpack backpack)
+    private static void previewInEditMode(RunState run, RunBackpack backpack, ShopService shop, CraftService craft)
     {
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PANEL_PATH);
         if (prefab == null)
@@ -74,7 +84,7 @@ public static class UIShopPanelPreview
 
         UIShopPanel panel = instance.GetComponent<UIShopPanel>();
         panel.Init();
-        panel.Open(run, backpack);
+        panel.Open(run, backpack, shop, craft);
 
         Selection.activeGameObject = instance;
         Debug.Log($"[{nameof(UIShopPanelPreview)}] 已生成预览实例，看完撤销即可，不要保存场景");
@@ -105,11 +115,64 @@ public static class UIShopPanelPreview
             return null;
         }
 
-        RunBackpack backpack = new RunBackpack(config);
+        HookConfigSO hookConfig = AssetDatabase.LoadAssetAtPath<HookConfigSO>(HOOK_CONFIG_PATH);
+
+        if (hookConfig == null)
+        {
+            Debug.LogError($"[{nameof(UIShopPanelPreview)}] 钓竿参数未找到：{HOOK_CONFIG_PATH}");
+            return null;
+        }
+
+        RunBackpack backpack = new RunBackpack(config, hookConfig);
         backpack.SeedStartingCloths();
         backpack.SeedStartingItems();
 
         return backpack;
+    }
+
+    // 货架同样从配置资产现滚，预览里少了货架等于少看半张脸
+    private static ShopService createShop()
+    {
+        ShopConfigSO shopConfig = AssetDatabase.LoadAssetAtPath<ShopConfigSO>(SHOP_CONFIG_PATH);
+
+        if (shopConfig == null)
+        {
+            Debug.LogError($"[{nameof(UIShopPanelPreview)}] 商店配置未找到：{SHOP_CONFIG_PATH}");
+            return null;
+        }
+
+        BackpackConfigSO backpackConfig = AssetDatabase.LoadAssetAtPath<BackpackConfigSO>(BACKPACK_CONFIG_PATH);
+
+        if (backpackConfig == null)
+        {
+            Debug.LogError($"[{nameof(UIShopPanelPreview)}] 背包配置未找到：{BACKPACK_CONFIG_PATH}");
+            return null;
+        }
+
+        ShopService shop = new ShopService(shopConfig, backpackConfig, PREVIEW_SEED);
+        shop.RollStock();
+
+        return shop;
+    }
+
+    // 合成服务也照配置现造，规则表挂在商店配置上，预览里没有它等于少一个按钮
+    private static CraftService createCraft()
+    {
+        ShopConfigSO shopConfig = AssetDatabase.LoadAssetAtPath<ShopConfigSO>(SHOP_CONFIG_PATH);
+
+        if (shopConfig == null)
+        {
+            Debug.LogError($"[{nameof(UIShopPanelPreview)}] 商店配置未找到：{SHOP_CONFIG_PATH}");
+            return null;
+        }
+
+        if (shopConfig.CraftRules == null)
+        {
+            Debug.LogError($"[{nameof(UIShopPanelPreview)}] 商店配置没挂合成规则表");
+            return null;
+        }
+
+        return new CraftService(shopConfig.CraftRules);
     }
 
     // 只认场景根层的 UIRoot，与 GameScene 的取法保持一致

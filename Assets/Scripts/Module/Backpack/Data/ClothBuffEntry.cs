@@ -1,12 +1,13 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 一块布上的一条 BUFF，写死能力线、每格额度与本布在这条线上的封顶
+* │  描    述: 一块布上的一条 BUFF，写死能力线、计价方式、额度与本布在这条线上的封顶
 * │  类    名: ClothBuffEntry.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 一块布可以挂好几条，珍罕布就是靠同时堆几条线才卖得贵
 * 正负一律存带符号的值，每格额度与封顶同号，聚合侧按封顶符号决定夹上界还是下界
 * 本类必须是引用类型：聚合时靠实例身份给同一块布散在包里的所有碎片归组封顶
+* 整块定额的线额度不随格数变，负载那条必须整数，卡面显示值必须等于实际生效值
 * 校验放在 ClothCatalogSO 里统一做，这里只存不判
 */
 
@@ -25,15 +26,23 @@ namespace Module.Backpack.Data
         [Tooltip("这条 BUFF 堆的能力线")]
         [SerializeField] private BackpackStatMod ModType;
 
-        [Tooltip("每占一格给多少，负向线填负数")]
+        [Tooltip("计价方式：按格累加还是整块定额，负载这类要取整的线必须选整块定额")]
+        [SerializeField] private ClothBuffMode Mode;
+
+        [Tooltip("每占一格给多少，只在计价方式为 PerCell 时生效，负向线填负数")]
         [SerializeField] private float PerCell;
+
+        [Tooltip("整块布定额给多少，只在计价方式为 Flat 时生效，负载线必须填正整数")]
+        [SerializeField] private float FlatValue;
 
         [Tooltip("这块布在所有碎片上最多叠到多少，负向线填负数，0 表示这条线不给加成")]
         [SerializeField] private float Cap;
 
         // ==================== 属性 ====================
         public BackpackStatMod Mod => ModType;
+        public ClothBuffMode ModeValue => Mode;
         public float PerCellValue => PerCell;
+        public float FlatValueOf => FlatValue;
         public float CapValue => Cap;
     }
 }

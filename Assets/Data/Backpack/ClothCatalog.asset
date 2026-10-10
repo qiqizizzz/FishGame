@@ -115,7 +115,9 @@ MonoBehaviour:
     CellBasePrice: 18
     BuffList:
     - ModType: 2
-      PerCell: 0.25
+      Mode: 1
+      PerCell: 0
+      FlatValue: 1
       Cap: 1
     ShapeList:
     - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
@@ -211,8 +213,10 @@ MonoBehaviour:
     CellBasePrice: 20
     BuffList:
     - ModType: 2
-      PerCell: 0.2
-      Cap: 1.6
+      Mode: 1
+      PerCell: 0
+      FlatValue: 1
+      Cap: 1
     - ModType: 4
       PerCell: 0.012
       Cap: 0.12

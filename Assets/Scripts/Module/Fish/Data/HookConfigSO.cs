@@ -66,9 +66,12 @@ namespace Module.Fish.Data
         [SerializeField, Min(0f)] private float LateralSpeedBonusCeiling = 2.9f;
         [SerializeField, Min(0f)] private float LateralDampingBonusCeiling = 9.4f;
         [SerializeField, Min(0f)] private float HookRadiusBonusCeiling = 0.13f;
-        [SerializeField, Min(0f)] private float CarryCountBonusCeiling = 2f;
+        [SerializeField, Min(0f)] private float CarryCountBonusCeiling = 3f;
         [SerializeField, Min(0f)] private float LurePullBonusCeiling = 1.2f;
-        [SerializeField, Min(0f)] private float CoinBonusCeiling = 0.3f;
+        [SerializeField, Min(0f)] private float CoinBonusCeiling = 0.45f;
+
+        [Tooltip("负载总线封顶：装备与布料两条负载线合起来最多再加多少，取整后生效，必须不小于上面那条装备线封顶")]
+        [SerializeField, Min(0f)] private float MaxCarryCountTotalBonusCeiling = 3f;
 
         [Tooltip("以下均为负向线：脱钩概率与缠绕时长的地板，叠再多也不会低于它")]
         [Range(0f, 1f)] [SerializeField] private float DetachChanceRatioFloor = 0.05f;
@@ -101,6 +104,7 @@ namespace Module.Fish.Data
         public float LateralDampingBonusCap => LateralDampingBonusCeiling;
         public float HookRadiusBonusCap => HookRadiusBonusCeiling;
         public float MaxCarryCountBonusCap => CarryCountBonusCeiling;
+        public float MaxCarryCountTotalBonusCap => MaxCarryCountTotalBonusCeiling;
         public float LurePullBonusCap => LurePullBonusCeiling;
         public float CoinBonusCap => CoinBonusCeiling;
         public float DetachChanceFloor => DetachChanceRatioFloor;
@@ -117,11 +121,23 @@ namespace Module.Fish.Data
             if (CarryCountCeiling <= 0)
                 QLog.Error($"[{nameof(HookConfigSO)}] 钩上条数上限必须大于 0");
 
+            if (!isWholeNumber(CarryCountBonusCeiling) || !isWholeNumber(MaxCarryCountTotalBonusCeiling))
+                QLog.Error($"[{nameof(HookConfigSO)}] 负载是取整生效的线，两条封顶都必须填整数：装备线 {CarryCountBonusCeiling} 总线 {MaxCarryCountTotalBonusCeiling}");
+
+            if (MaxCarryCountTotalBonusCeiling < CarryCountBonusCeiling)
+                QLog.Error($"[{nameof(HookConfigSO)}] 负载总线封顶低于装备线封顶，布料那份加成会把装备档直接挤掉：总 {MaxCarryCountTotalBonusCeiling} 装备 {CarryCountBonusCeiling}");
+
             if (HookRadiusMeters <= 0f)
                 QLog.Error($"[{nameof(HookConfigSO)}] 钩头半径必须大于 0");
 
             if (HookRadiusBonusCeiling <= 0f && HookRadiusMeters <= 0f)
                 QLog.Error($"[{nameof(HookConfigSO)}] 钩头半径与它的加成封顶同时为零，判定半径会失效");
+        }
+
+        // 判断一个数是否落在整数上，留一点浮点容差，免得 1.0000001 这类误报
+        private static bool isWholeNumber(float value)
+        {
+            return Mathf.Abs(value - Mathf.Round(value)) <= 0.0001f;
         }
     }
 }

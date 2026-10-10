@@ -22,6 +22,7 @@
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 装备被布挤下网格就自己飞进暂存架那一格，飞完格子才显形，玩家看得见它去了哪
 * 详情小窗点它以外的空白处就收起，按钮、商品卡、物品与已上架的格子这些自己会响应点击的控件不算空白
+* 合成按钮只报「现在能合几组」，配对、落位与回滚全在模型与服务里，面板不自己算品质链
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
 
@@ -33,6 +34,8 @@ using Framework.QTower.Event;
 using Framework.QTower.View;
 using Module.Backpack.Data;
 using Module.Backpack.Model;
+using Module.Craft.Model;
+using Module.Craft.Service;
 using Module.Fish.Model;
 using Module.Shop.Model;
 using Module.Shop.Service;
@@ -58,6 +61,7 @@ namespace UI.Shop
         private const string GOODS_PATH = SHOP_PANEL_PATH + "/Row_Goods";
         private const string GOODS_TEMPLATE_PATH = GOODS_PATH + "/Goods_Template";
         private const string REFRESH_PATH = "Bg/Panel_Shop/Btn_Refresh";
+        private const string CRAFT_PATH = "Bg/Panel_Storage/Btn_CraftAll";
         private const string DIVE_PATH = "Bg/Btns/Btn_Dive";
         private const string CLOSE_PATH = "Bg/Btns/Btn_Close";
 
@@ -94,6 +98,8 @@ namespace UI.Shop
         private const float DETAIL_PRICE_GAP = 12f;
         // 窗里多一条布形预览就得多长出这么多，长出来的量跟着预览带的高走
         private const float DETAIL_PREVIEW_EXTRA = 38f;
+        // 详情文案多出一条灰字提示就要多让出一行，30 号字带行距实量 34
+        private const float DETAIL_NOTE_EXTRA = 34f;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -143,6 +149,8 @@ namespace UI.Shop
         private Button m_refreshButton;
         private Button m_diveButton;
         private Button m_closeButton;
+        private Button m_craftButton;
+        private TMP_Text m_craftText;
 
         // 本局金币与次数，面板只读
         private RunState m_run;
@@ -152,6 +160,7 @@ namespace UI.Shop
 
         // 本局商店，货架与刷新涨价都由它算
         private ShopService m_shop;
+        private CraftService m_craft;
 
         // 从网格读出来的单格尺寸，摆物品时算跨格用
         private float m_cellSize;
@@ -243,10 +252,21 @@ namespace UI.Shop
         private RectTransform m_detailCardRect;
         // 预制体不带预览带时的高，收起预览要还原到它
         private float m_detailBaseHeight;
+        // 预览与灰字各占一段加高，两条同时成立时小窗要加两倍
+        private bool m_detailPreviewShown;
+        private bool m_detailNoteShown;
+        // 文案那格的高读自预制体，收起灰字要还原到它
+        private float m_detailDescBaseHeight;
 
         // 量商品卡四角用的数组，逐帧重摆也不反复分配
         private readonly Vector3[] m_detailCorners = new Vector3[4];
 
+        // 合成候选池与配对结果：池子按「先网格再暂存架」的顺序拼，服务靠这个顺序分辨谁在格子上
+        private readonly List<BackpackItemInstance> m_craftPool = new();
+        private readonly List<CraftPair> m_craftPairs = new();
+
+        // 还在飞的合成飞行物，一笔一个，面板关掉时一并收干净
+        private readonly List<GameObject> m_craftFlyers = new();
         // 正被抓在手上的那件商品，预览按「买不买得起它」整块染色，松手没落到位置就什么也不扣
         private ShopStockEntry m_pendingPurchase;
 
@@ -269,6 +289,7 @@ namespace UI.Shop
             m_refreshButton = FindComponent<Button>(REFRESH_PATH);
             m_diveButton = FindComponent<Button>(DIVE_PATH);
             m_closeButton = FindComponent<Button>(CLOSE_PATH);
+            m_craftButton = FindComponent<Button>(CRAFT_PATH);
 
             // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，小窗挂它才能越过网格的范围摆
             m_backgroundRect = m_itemsRect.transform.parent.parent as RectTransform;
@@ -287,6 +308,8 @@ namespace UI.Shop
                 QLog.Error($"没有指定 {nameof(PlateSelectSprite)}，选中一块布不会有外框");
             if (DetailWindowPrefab == null)
                 QLog.Error($"没有指定 {nameof(DetailWindowPrefab)}，点中布或装备不会有详情小窗");
+            if (m_craftButton == null)
+                QLog.Error($"合成按钮没找到，商店阶段合不了东西：{CRAFT_PATH}");
             if (m_backgroundRect == null)
                 QLog.Error("背景节点没找到，详情小窗无处可挂");
             if (m_backpackPanelRect == null)
@@ -306,6 +329,9 @@ namespace UI.Shop
             m_diveButton.onClick.AddListener(handleLeaveShopClicked);
             m_closeButton.onClick.AddListener(handleLeaveShopClicked);
 
+            m_craftText = m_craftButton.GetComponentInChildren<TMP_Text>();
+            m_craftButton.onClick.AddListener(handleCraftAllClicked);
+
             createClothLayer();
             createSelectLayer();
             createPlateBar();
@@ -317,6 +343,7 @@ namespace UI.Shop
             m_run = args.Length > 0 ? args[0] as RunState : null;
             m_backpack = args.Length > 1 ? args[1] as RunBackpack : null;
             m_shop = args.Length > 2 ? args[2] as ShopService : null;
+            m_craft = args.Length > 3 ? args[3] as CraftService : null;
 
 #if UNITY_EDITOR
             if (m_run == null)
@@ -325,6 +352,8 @@ namespace UI.Shop
                 QLog.Error("没有传入 RunBackpack，背包与仓库不会填充");
             if (m_shop == null)
                 QLog.Error("没有传入 ShopService，货架留空");
+            if (m_craft == null)
+                QLog.Error("没有传入 CraftService，合成按钮点不动");
 #endif
 
             if (m_run == null)
@@ -348,6 +377,7 @@ namespace UI.Shop
         {
             restoreBackpackPanel();
             stopFlights();
+            clearCraftFlyers();
         }
 
         // ==================== Public Function ====================
@@ -443,7 +473,7 @@ namespace UI.Shop
                 return false;
             }
 
-            int price = m_shop.SellPriceOf(plate.Definition);
+            int price = m_shop.SellPriceOf(plate.Definition, plate.Tier);
             captureStashLanding();
 
             if (!m_backpack.TryRemovePlate(plate))
@@ -678,7 +708,7 @@ namespace UI.Shop
 
             m_detailRect.gameObject.SetActive(true);
             m_detailNameText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
-            m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
+            setDetailDesc(UIShopBuffText.OfMany(m_detailBuffs), string.Empty);
             // 左侧色条染成这件东西的对应色，布吃布自己的底色，装备吃档位品质色
             Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
             m_detailAccent.color = qualityColor;
@@ -711,7 +741,7 @@ namespace UI.Shop
             m_detailNameText.text = UIShopGoodsName.Of(entry.Definition, entry.Tier);
             m_detailBuffs.Clear();
             entry.Definition.FillBuffs(entry.Tier, m_detailBuffs);
-            m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
+            setDetailDesc(UIShopBuffText.OfMany(m_detailBuffs), carryShortfallNote());
             m_detailAccent.color = goodsColor;
 
             // 能点开的一定还在卖，价钱照直写，买不起才染红
@@ -790,6 +820,7 @@ namespace UI.Shop
             fillBackpack();
             fillStorage();
             refreshActionBar();
+            refreshCraftUI();
             validateDetail();
         }
 
@@ -1090,6 +1121,191 @@ namespace UI.Shop
             }
         }
 
+        // ==================== 一键合成 ====================
+        // 按钮文案就是「现在按下去能合几组」，0 组直接禁用，免得玩家对着不会动的按钮连点
+        private void refreshCraftUI()
+        {
+            if (m_craftButton == null || m_craftText == null)
+                return;
+
+            int groups = countCraftMerges();
+
+            m_craftText.text = groups > 0 ? $"可合成 {groups} 组" : "无可合成";
+            m_craftButton.interactable = groups > 0;
+        }
+
+        // 候选池按「先网格再暂存架」拼，服务拿前段长度分辨谁在格子上、该留谁当落点基准
+        private void buildCraftPool()
+        {
+            m_craftPool.Clear();
+
+            if (m_backpack == null)
+                return;
+
+            IReadOnlyList<BackpackItemInstance> items = m_backpack.Model.Items;
+
+            for (int i = 0; i < items.Count; i++)
+                m_craftPool.Add(items[i]);
+
+            IReadOnlyList<BackpackItemInstance> stash = m_backpack.Stash;
+
+            for (int i = 0; i < stash.Count; i++)
+                m_craftPool.Add(stash[i]);
+        }
+
+        private int countCraftMerges()
+        {
+            if (m_backpack == null || m_craft == null)
+                return 0;
+
+            buildCraftPool();
+            return m_craft.CountMerges(m_craftPool, m_backpack.Model.ItemCount);
+        }
+
+        // 一次点下去把所有配得成的同款全升一档，逐笔执行；某笔落不进就整笔作废，不替玩家挑别的落点
+        private void handleCraftAllClicked()
+        {
+            if (m_backpack == null || m_craft == null)
+                return;
+
+            buildCraftPool();
+            m_craftPairs.Clear();
+
+            if (m_craft.PlanMerges(m_craftPool, m_backpack.Model.ItemCount, m_craftPairs) == 0)
+            {
+                QLog.Info("背包里没有可以合成的同款装备");
+                return;
+            }
+
+            int done = 0;
+
+            for (int i = 0; i < m_craftPairs.Count; i++)
+            {
+                CraftPair pair = m_craftPairs[i];
+
+                // 起飞姿态必须在摘件之前抄好，事后视图重铺就再也问不到它原来躺在哪
+                bool hasStart = tryGetCraftPose(pair.Material, out Vector3 start,
+                    out Vector2 startSize, out float startAngle);
+
+                if (!m_craft.TryCraft(pair, m_backpack, m_run))
+                    continue;
+
+                done++;
+                refreshBackpack();
+                refreshCounters();
+
+                if (hasStart && tryGetCraftPose(pair.Kept, out Vector3 landing,
+                    out Vector2 landingSize, out float landingAngle))
+                {
+                    GameObject flyer = createCraftFlyer(pair.Material, start, startSize, startAngle);
+                    StartCoroutine(flyCraftedCoroutine(flyer, start, landing, startSize, landingSize, startAngle, landingAngle));
+                }
+            }
+
+            QLog.Info($"合成完成 {done} 组");
+            refreshCraftUI();
+        }
+
+        // 借暂存架那套飞行物：有图标贴图，没图标染品质色，登记下来好让面板关掉时一起收掉
+        private GameObject createCraftFlyer(BackpackItemInstance material, Vector3 startCenter, Vector2 startSize, float startAngle)
+        {
+            GameObject flyer = createFlyer(material, startCenter, startSize, startAngle);
+            m_craftFlyers.Add(flyer);
+            return flyer;
+        }
+
+        // 从被吃掉那件原来的位置飞到留下来的那件上，落定就消失，读起来像被吞进去
+        private IEnumerator flyCraftedCoroutine(GameObject flyer, Vector3 worldStart, Vector3 worldLanding,
+            Vector2 startSize, Vector2 landingSize, float startAngle, float landingAngle)
+        {
+            RectTransform flyRect = (RectTransform)flyer.transform;
+            Vector2 start = toFlyLocal(worldStart);
+            Vector2 end = toFlyLocal(worldLanding);
+            float flown = 0f;
+
+            while (flown < FLY_DURATION)
+            {
+                // 面板中途关掉已经把这块飞行物收了，这段就没必要演下去
+                if (flyer == null)
+                    yield break;
+
+                float t = Mathf.SmoothStep(0f, 1f, flown / FLY_DURATION);
+
+                flyRect.anchoredPosition = Vector2.Lerp(start, end, t);
+                flyRect.sizeDelta = Vector2.Lerp(startSize, landingSize, t);
+                flyRect.localEulerAngles = new Vector3(0f, 0f, Mathf.Lerp(startAngle, landingAngle, t));
+
+                flown += Time.deltaTime;
+                yield return null;
+            }
+
+            removeCraftFlyer(flyer);
+        }
+
+        private void removeCraftFlyer(GameObject flyer)
+        {
+            if (flyer == null)
+                return;
+
+            m_craftFlyers.Remove(flyer);
+            Destroy(flyer);
+        }
+
+        // 飞着的合成物一律作废，重开面板直接按模型的最新状态铺
+        private void clearCraftFlyers()
+        {
+            for (int i = 0; i < m_craftFlyers.Count; i++)
+            {
+                if (m_craftFlyers[i] != null)
+                    Destroy(m_craftFlyers[i]);
+            }
+
+            m_craftFlyers.Clear();
+        }
+
+        // 抄一件东西此刻在屏幕上的姿态：在网格就取它的视图，在暂存架就取那一格
+        private bool tryGetCraftPose(BackpackItemInstance item, out Vector3 center, out Vector2 size, out float angle)
+        {
+            center = default;
+            size = default;
+            angle = 0f;
+
+            int gridIndex = modelItemIndexOf(item);
+
+            if (gridIndex >= 0 && gridIndex < m_itemsShown)
+            {
+                RectTransform rect = (RectTransform)m_itemViews[gridIndex].transform;
+                center = rectCenter(rect);
+                size = m_itemViews[gridIndex].IconSize;
+                angle = m_itemViews[gridIndex].IconAngle;
+                return true;
+            }
+
+            int stashIndex = stashIndexOf(item);
+
+            if (stashIndex < 0 || stashIndex >= m_storageSlots.Length)
+                return false;
+
+            RectTransform slot = (RectTransform)m_storageSlots[stashIndex].transform;
+            center = rectCenter(slot);
+            size = slot.rect.size;
+            return true;
+        }
+
+        // 物品视图与 Model.Items 同序，这条只读列表没有 IndexOf，一共十几件，线性找一遍就够
+        private int modelItemIndexOf(BackpackItemInstance item)
+        {
+            IReadOnlyList<BackpackItemInstance> items = m_backpack.Model.Items;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (ReferenceEquals(items[i], item))
+                    return i;
+            }
+
+            return -1;
+        }
+
         private void showItem(BackpackItemInstance item)
         {
             while (m_itemViews.Count <= m_itemsShown)
@@ -1277,6 +1493,7 @@ namespace UI.Shop
             m_detailPriceDefaultColor = m_detailPriceText.color;
             // 高跟着预制体走，脚本只留一个数用来算落点，改小窗高度不用回来动这里
             m_detailBaseHeight = m_detailHeight = m_detailRect.sizeDelta.y;
+            m_detailDescBaseHeight = m_detailDescText.rectTransform.sizeDelta.y;
 
             // 价钱与布形预览只在商品那一份详情里露脸，绑完先各自收好
             m_detailPriceText.gameObject.SetActive(false);
@@ -1324,13 +1541,58 @@ namespace UI.Shop
         {
             m_detailClothShape.SetVisible(true);
             m_detailClothShape.Setup(shape, cellColor, m_cellSprite, orientationIndex);
-            m_detailHeight = m_detailBaseHeight + DETAIL_PREVIEW_EXTRA;
+            m_detailPreviewShown = true;
+            applyDetailHeight();
         }
 
         private void clearDetailClothPreview()
         {
             m_detailClothShape.SetVisible(false);
-            m_detailHeight = m_detailBaseHeight;
+            m_detailPreviewShown = false;
+            applyDetailHeight();
+        }
+
+        // 文案一次写两行：头一行能力线，负载兑现不了才补第二行灰字，行高跟着有无提示一起让
+        private void setDetailDesc(string buffLine, string note)
+        {
+            bool hasNote = !string.IsNullOrEmpty(note);
+
+            m_detailDescText.text = hasNote ? $"{buffLine}\n{note}" : buffLine;
+
+            Vector2 descSize = m_detailDescText.rectTransform.sizeDelta;
+            descSize.y = m_detailDescBaseHeight + (hasNote ? DETAIL_NOTE_EXTRA : 0f);
+            m_detailDescText.rectTransform.sizeDelta = descSize;
+
+            m_detailNoteShown = hasNote;
+            applyDetailHeight();
+        }
+
+        // 小窗总高照预览与灰字各让多少叠出来，两条互不知情也不会互相顶掉
+        private void applyDetailHeight()
+        {
+            float extra = (m_detailPreviewShown ? DETAIL_PREVIEW_EXTRA : 0f)
+                          + (m_detailNoteShown ? DETAIL_NOTE_EXTRA : 0f);
+            m_detailHeight = m_detailBaseHeight + extra;
+        }
+
+        // 负载是取整生效的线，买下去兑现不了几格必须在扣钱前讲明白，别让玩家花完钱才发现是笔废账
+        private string carryShortfallNote()
+        {
+            if (m_backpack == null)
+                return string.Empty;
+
+            for (int i = 0; i < m_detailBuffs.Count; i++)
+            {
+                BackpackBuff buff = m_detailBuffs[i];
+
+                if (buff.Mod != BackpackStatMod.MaxCarryCount)
+                    continue;
+
+                return UIShopBuffText.CarryShortfall(buff, m_backpack.CarryBonusHeadroom,
+                    m_backpack.IsClothBuffSpent(buff.CapOwner));
+            }
+
+            return string.Empty;
         }
 
         // 价钱压在名字行右上方，名字的可写宽度要扣掉它让出来的那段，两行才不叠字
@@ -1475,6 +1737,7 @@ namespace UI.Shop
             m_detailPriceText.gameObject.SetActive(false);
             setDetailNameReserve(0f);
             clearDetailClothPreview();
+            setDetailDesc(string.Empty, string.Empty);
             m_detailRect.gameObject.SetActive(false);
         }
 
@@ -1628,8 +1891,8 @@ namespace UI.Shop
             // 布拆下来叫拆下，装备摘下来叫取下，两件事本质一样：都进暂存架
             m_plateStashText.text = plateMode ? "拆下" : "取下";
 
-            // 回收价只有布料总表算得出来，装备在这条上一直显示不回收
-            int sellPrice = m_shop != null ? m_shop.SellPriceOf(target.Definition) : 0;
+            // 布料与装备都按上架基准价回落回收，装备那支要带档位才知道拿的是哪一档的价
+            int sellPrice = m_shop != null ? m_shop.SellPriceOf(target.Definition, target.Tier) : 0;
             m_plateSellText.text = sellPrice > 0 ? $"卖 {sellPrice}" : "不回收";
             m_plateSellButton.interactable = sellPrice > 0;
 
@@ -1689,7 +1952,7 @@ namespace UI.Shop
                 return false;
             }
 
-            int price = m_shop.SellPriceOf(item.Definition);
+            int price = m_shop.SellPriceOf(item.Definition, item.Tier);
             if (price <= 0)
                 return false;
 

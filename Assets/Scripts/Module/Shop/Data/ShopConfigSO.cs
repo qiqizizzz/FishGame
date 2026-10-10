@@ -9,10 +9,12 @@
 * 空白布单独一份权重，保证它不会被带加成的布挤出货架
 * 装备售价只认背包配置里的档位价，布料价由总表现算，这里只管浮动比例，避免两处定价打架
 * 卖布只按基准价乘回收比例，随机浮动不参与，免得玩家靠一次好运低买高卖
+* 合成规则表也挂在商店配置上，商店阶段是合成唯一的入口，别在场景里再散一份引用
 */
 
 using System.Collections.Generic;
 using Module.Backpack.Data;
+using Module.Craft.Data;
 using UnityEngine;
 using Utils.log;
 
@@ -61,6 +63,10 @@ namespace Module.Shop.Data
         [Tooltip("布料总表，板块类商品全部由它按稀有度随机刷出")]
         [SerializeField] private ClothCatalogSO ClothCatalog;
 
+        [Header("合成")]
+        [Tooltip("合成规则总表，商店阶段的合成按钮只认这一张表")]
+        [SerializeField] private CraftRuleSO CraftRuleList;
+
         // ==================== 属性 ====================
         public int GoodsCount => GoodsSlotCount;
         public float ItemWeight => ItemCategoryWeight;
@@ -73,6 +79,7 @@ namespace Module.Shop.Data
         public int RefreshCostCap => RefreshCostCeiling;
         public IReadOnlyList<BackpackItemSO> Items => ItemPool;
         public ClothCatalogSO Catalog => ClothCatalog;
+        public CraftRuleSO CraftRules => CraftRuleList;
 
         // ==================== Public Function ====================
         /// <summary>
@@ -102,6 +109,9 @@ namespace Module.Shop.Data
 
             if (Mathf.Abs(ItemCategoryWeight + ClothCategoryWeight + BlankClothCategoryWeight) < float.Epsilon)
                 QLog.Error($"[{nameof(ShopConfigSO)}] 三个类别权重全为 0，抽不出任何商品");
+
+            if (CraftRuleList == null)
+                QLog.Error($"[{nameof(ShopConfigSO)}] 没有挂合成规则表，商店阶段的合成按钮点不动");
         }
     }
 }
