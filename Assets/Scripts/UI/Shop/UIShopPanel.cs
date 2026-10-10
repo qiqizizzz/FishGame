@@ -938,7 +938,7 @@ namespace UI.Shop
 
             UIShopItemView view = m_itemViews[m_itemsShown];
             view.gameObject.SetActive(true);
-            view.Setup(item, m_cellSize, m_cellSpacing, this);
+            view.Setup(item, m_cellSize, m_cellSpacing, this, m_cellSprite);
             m_itemsShown++;
         }
 

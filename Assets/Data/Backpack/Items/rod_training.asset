@@ -17,7 +17,7 @@ MonoBehaviour:
   ItemIcon: {fileID: 21300000, guid: ee7f5cfcf86656c4582ddd20170236ff, type: 3}
   ModType: 2
   TierShapes:
-  - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
+  - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
   - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
   - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
   TierValues:

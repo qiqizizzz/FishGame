@@ -5,13 +5,14 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 方块四周留暗边、亮面内缩，相邻方块之间的凹槽由两侧暗边拼出来，形状轮廓一眼可辨
-* 拖动时视图只跟着手指走，落点合不合规矩一律问模型，摆不成靠宿主重铺把物品弹回原位
+* 指针还在网格内就整块吸附到格子上，落点合不合规矩一律问模型，摆不成靠宿主重铺把物品弹回原位
 * 单击只报「选中」，名字与加成由面板的详情区去报，格子上不再常驻文字
 * 旋转、取下、出售都归面板浮出来的操作条，本视图不直接改物品，误点一下也不至于把东西转了向
 * 松手落在暂存架那块面板上就是收进架子，落回网格就是挪位；本轮真的拖过就不再触发点击
 * 装备的图标一路亮着，底色块平时收着，只有拖起来才作为叠加层垫到图标底下数格子
 * 图标只认自己画出来的实心像素，透明处连底色块都不吃射线，指针一路让给底下的布，布上压着东西也能直接抽布
 * 拖起来的每一格都要问宿主放不放得下：盖得住的压成深色，缺格子的染成红，但图标任何时候都不缺席
+* 拖起来时整块吸附到网格，叠加格的底图与暂存架拖出的幽灵同用一张，两处看着就是同一套东西
 * 图标的朝向与缩放都交给 UIShopIconFit 量素材的实心像素来定，盒子竖着就立起来、横着就放倒
 * 转完再按旋转后的真实范围缩放对中，整幅画面落在包围盒里，既不裁掉一角也不拉变形
 */
@@ -92,6 +93,9 @@ namespace UI.Shop
         // 是否正被拖着，用来切换底色块的可见性与逐格染色
         private bool m_isDragging;
 
+        // 底层格子的底图，拖起来时的叠加格抄它，才和真格子与暂存架拖出的幽灵一个样
+        private Sprite m_cellSprite;
+
         // 图标此刻的自身尺寸与转角，宿主拿去做飞进暂存架的飞行物
         private Vector2 m_iconSize;
         private float m_iconAngle;
@@ -130,7 +134,9 @@ namespace UI.Shop
         /// <param name="cellSize">单格边长，取自背包网格</param>
         /// <param name="cellSpacing">单格间距，取自背包网格</param>
         /// <param name="host">手势落点的处理方，传 null 则这块物品不可交互</param>
-        public void Setup(BackpackItemInstance item, float cellSize, float cellSpacing, IShopBackpackHost host)
+        /// <param name="cellSprite">底层格子的底图，拖起来时叠加格用它才和真格子、和幽灵一个样</param>
+        public void Setup(BackpackItemInstance item, float cellSize, float cellSpacing, IShopBackpackHost host,
+            Sprite cellSprite)
         {
             ensureBound();
 
@@ -142,6 +148,7 @@ namespace UI.Shop
 
             m_item = item;
             m_host = host;
+            m_cellSprite = cellSprite;
             m_wasDragged = false;
 
             Color goodsColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
@@ -213,7 +220,22 @@ namespace UI.Shop
             if (m_host == null || m_item == null)
                 return;
 
-            m_rect.anchoredPosition = pointerInGrid(eventData) - m_grabOffset;
+            Vector2 free = pointerInGrid(eventData) - m_grabOffset;
+
+            // 指针还在网格内就把包围盒左上角吸附到整格，抓着手感那点偏移照算，手指底下那一格不会跳走
+            if (m_host.TryPointerCell(eventData.position, out _, out _))
+            {
+                m_rect.anchoredPosition = new Vector2(Mathf.RoundToInt(free.x / m_pitch) * m_pitch,
+                    Mathf.RoundToInt(free.y / m_pitch) * m_pitch);
+                setBlocksVisible(true);
+            }
+            else
+            {
+                // 拖到网格外就脱离格子跟着手走，有图标的把叠加格收掉只剩图标，和幽灵一个处理
+                m_rect.anchoredPosition = free;
+                setBlocksVisible(!m_hasIcon);
+            }
+
             // 每挪一格都要重新问一遍宿主，盖得住与缺格子的分界得跟着手指走
             refreshDragTint();
         }
@@ -274,7 +296,8 @@ namespace UI.Shop
             return local - new Vector2(m_parentRect.rect.xMin, m_parentRect.rect.yMax);
         }
 
-
+        // 一块形状格：暗边与亮面都贴底层格子的底图，逐格分开还带圆角
+        // 拖起来时垫在图标底下的就是这一张，跟真格子和暂存架拖出的幽灵看不出两样
         private void showBlock(int column, int row, float pitch, Color goodsColor)
         {
             RectTransform block = m_blockUsed < m_blocks.Count ? m_blocks[m_blockUsed] : createBlock();
@@ -285,8 +308,12 @@ namespace UI.Shop
             block.anchoredPosition = new Vector2(column * pitch, -row * pitch);
             block.sizeDelta = new Vector2(pitch, pitch);
 
+            Image rim = block.GetComponent<Image>();
+            rim.sprite = m_cellSprite;
+
             RectTransform face = (RectTransform)block.GetChild(0);
             face.sizeDelta = new Vector2(-RIM_THICKNESS * 2f, -RIM_THICKNESS * 2f);
+            face.GetComponent<Image>().sprite = m_cellSprite;
             paintBlock(m_blockUsed - 1, goodsColor);
         }
 
