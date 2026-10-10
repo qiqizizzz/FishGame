@@ -30,6 +30,7 @@ namespace Module.Fish.Service
             Register(new SchoolFishBehavior());
             Register(new DriftFishBehavior());
             Register(new GuardFishBehavior());
+            Register(new EvasiveFishBehavior());
         }
 
         /// <summary>
@@ -49,7 +50,9 @@ namespace Module.Fish.Service
         /// <summary>
         /// 推进全部在场鱼并写回变换，未注册的行为回落到巡游并报错一次
         /// </summary>
-        public void Advance(IReadOnlyList<FishInstance> fishes, float deltaTime, float swimHalfWidth)
+        /// <param name="hook">本帧钩子探针，原样转交给各行为实现</param>
+        public void Advance(IReadOnlyList<FishInstance> fishes, float deltaTime, float swimHalfWidth,
+            in HookProbe hook)
         {
             if (deltaTime <= 0f)
                 return;
@@ -71,11 +74,11 @@ namespace Module.Fish.Service
                     QLog.Error($"[{nameof(FishAiService)}] 未注册行为 {fish.Behavior}，鱼 {fish.Data.Id} 回退为巡游");
                     behavior = m_behaviors[FishBehaviorType.Cruise];
                     fish.Behavior = FishBehaviorType.Cruise;
-                    behavior.Advance(fish, deltaTime, swimHalfWidth);
+                    behavior.Advance(fish, deltaTime, swimHalfWidth, hook);
                 }
                 else
                 {
-                    behavior.Advance(fish, deltaTime, swimHalfWidth);
+                    behavior.Advance(fish, deltaTime, swimHalfWidth, hook);
                 }
 
                 Transform root = fish.Root;

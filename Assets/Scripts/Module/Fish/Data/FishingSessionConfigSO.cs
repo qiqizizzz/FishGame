@@ -7,6 +7,7 @@
  * 回合目标看累计渔获价值，不看条数，钩满一串杂鱼也顶不上几条高价值鱼
  * 井道总深度是世界几何边界，与 IFishingStats.LineLength 是两回事：
  * 钩子触底深度取二者较小值，线不够长而下方仍有鱼正是核心挫败感来源
+ * 密度曲线横轴按「当前可玩深度」归一而不是井道总深度：玩家够不到的深度不该占住曲线位置
  * 收益公式：单条收益 = 鱼种标价（FishDataSO）× DepthBonus × ComboMultiplier
  * 渔获价值一分为二：全额推进回合目标，按 CoinPayoutRatio 打折后才进金币银行，商店只花银行里的钱
  * 回合目标写成逐回合手填的表，不用等比公式：玩家产出靠买装备线性成长，公式涨得比玩家快就会撞死墙
@@ -70,14 +71,16 @@ namespace Module.Fish.Data
         public float CoinPayoutRatio => FishPayoutRatio;
 
         /// <summary>
-        /// 按深度采样密度倍率，深度按井道总深度归一化后取值
+        /// 按深度采样密度倍率，深度按传入的基准深度归一化后取值
         /// </summary>
-        public float SampleDensity(float depth)
+        /// <param name="depth">采样深度（米）</param>
+        /// <param name="depthBasisMeters">归一化基准深度（米），给可玩深度；给井道总深度会把曲线压成常数</param>
+        public float SampleDensity(float depth, float depthBasisMeters)
         {
-            if (DensityCurve == null || ShaftDepthMeters <= 0f)
+            if (DensityCurve == null || depthBasisMeters <= 0f)
                 return 0f;
 
-            return DensityCurve.Evaluate(Mathf.Clamp01(depth / ShaftDepthMeters));
+            return DensityCurve.Evaluate(Mathf.Clamp01(depth / depthBasisMeters));
         }
 
         private void OnValidate()

@@ -171,7 +171,16 @@ namespace Module.Fish
 
             m_carry.Follow(m_hook.Horizontal, m_hook.Depth);
             m_spawn.Stream(m_hook.Depth);
-            m_ai.Advance(m_spawn.Alive, deltaTime, m_spawn.SwimHalfWidth);
+
+            // 只有下潜段算威胁：回收段再躲就永远抓不到，玩法才是「逼它跳 → 读落点 → 收线去接」
+            HookProbe probe = new()
+            {
+                IsThreatening = m_machine.Phase == HookPhase.Descending,
+                X = m_hook.CaptureHorizontal,
+                Depth = m_hook.CaptureDepth
+            };
+
+            m_ai.Advance(m_spawn.Alive, deltaTime, m_spawn.SwimHalfWidth, probe);
         }
 
         // ==================== Public Function ====================

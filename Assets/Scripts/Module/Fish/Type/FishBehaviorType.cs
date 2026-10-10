@@ -24,6 +24,9 @@ namespace Module.Fish.Type
         Drift = 2,
 
         /// <summary>警戒漂行：障碍专用，几乎不位移，靠体积形成路线阻碍</summary>
-        Guard = 3
+        Guard = 3,
+
+        /// <summary>闪避：受威胁时朝背离钩子的方向随机短冲，冷却窗口内可靠预判捕获</summary>
+        Evasive = 4
     }
 }

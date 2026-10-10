@@ -20,21 +20,21 @@ MonoBehaviour:
   - TierId: uncommon
     TierLabel: "\u5C11\u89C1"
     DrawWeight: 26
-    PriceScale: 1.6
+    PriceScale: 1.9
   - TierId: rare
     TierLabel: "\u7A00\u6709"
     DrawWeight: 10
-    PriceScale: 2.4
+    PriceScale: 3
   - TierId: epic
     TierLabel: "\u73CD\u7F55"
     DrawWeight: 2
-    PriceScale: 4
+    PriceScale: 4.5
   ClothList:
   - ClothId: cloth_blank
     ClothLabel: "\u7A7A\u767D\u5E03"
     ClothColor: {r: 0.92941177, g: 0.8784314, b: 0.78431374, a: 1}
     RarityTierIndex: 0
-    CellBasePrice: 8
+    CellBasePrice: 12
     BuffList: []
     ShapeList:
     - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
@@ -46,7 +46,7 @@ MonoBehaviour:
     ClothLabel: "\u6DF1\u6F5C\u5E03"
     ClothColor: {r: 0.65882355, g: 0.7764706, b: 0.9098039, a: 1}
     RarityTierIndex: 0
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 0
       PerCell: 1.5
@@ -59,7 +59,7 @@ MonoBehaviour:
     ClothLabel: "\u5FEB\u6F5C\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 0
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 5
       PerCell: 0.15
@@ -72,7 +72,7 @@ MonoBehaviour:
     ClothLabel: "\u8FC5\u6377\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 0
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 6
       PerCell: 0.15
@@ -85,7 +85,7 @@ MonoBehaviour:
     ClothLabel: "\u8F7B\u6536\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 0
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 1
       PerCell: 0.12
@@ -99,7 +99,7 @@ MonoBehaviour:
     ClothLabel: "\u7A33\u624B\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 1
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 7
       PerCell: 0.4
@@ -112,7 +112,7 @@ MonoBehaviour:
     ClothLabel: "\u91CD\u8F7D\u5E03"
     ClothColor: {r: 0.9411765, g: 0.78431374, b: 0.6039216, a: 1}
     RarityTierIndex: 1
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 2
       PerCell: 0.25
@@ -125,7 +125,7 @@ MonoBehaviour:
     ClothLabel: "\u8BF1\u9C7C\u5E03"
     ClothColor: {r: 0.827451, g: 0.7372549, b: 0.9098039, a: 1}
     RarityTierIndex: 1
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 3
       PerCell: 0.025
@@ -138,7 +138,7 @@ MonoBehaviour:
     ClothLabel: "\u5E7F\u94A9\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 2
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 8
       PerCell: 0.005
@@ -150,7 +150,7 @@ MonoBehaviour:
     ClothLabel: "\u8D22\u8FD0\u5E03"
     ClothColor: {r: 0.9490196, g: 0.87058824, b: 0.61960787, a: 1}
     RarityTierIndex: 2
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 4
       PerCell: 0.01
@@ -164,7 +164,7 @@ MonoBehaviour:
     ClothLabel: "\u9632\u8131\u5E03"
     ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
     RarityTierIndex: 2
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 9
       PerCell: -0.01
@@ -177,7 +177,7 @@ MonoBehaviour:
     ClothLabel: "\u5FEB\u89E3\u5E03"
     ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
     RarityTierIndex: 2
-    CellBasePrice: 14
+    CellBasePrice: 18
     BuffList:
     - ModType: 10
       PerCell: -0.04
@@ -190,7 +190,7 @@ MonoBehaviour:
     ClothLabel: "\u987A\u6D41\u5E03"
     ClothColor: {r: 0.6627451, g: 0.84705883, b: 0.7529412, a: 1}
     RarityTierIndex: 3
-    CellBasePrice: 16
+    CellBasePrice: 20
     BuffList:
     - ModType: 5
       PerCell: 0.12
@@ -208,7 +208,7 @@ MonoBehaviour:
     ClothLabel: "\u6EE1\u7BD3\u5E03"
     ClothColor: {r: 0.9411765, g: 0.78431374, b: 0.6039216, a: 1}
     RarityTierIndex: 3
-    CellBasePrice: 16
+    CellBasePrice: 20
     BuffList:
     - ModType: 2
       PerCell: 0.2
@@ -226,7 +226,7 @@ MonoBehaviour:
     ClothLabel: "\u97E7\u7F51\u5E03"
     ClothColor: {r: 0.7490196, g: 0.79607844, b: 0.8392157, a: 1}
     RarityTierIndex: 3
-    CellBasePrice: 16
+    CellBasePrice: 20
     BuffList:
     - ModType: 9
       PerCell: -0.012

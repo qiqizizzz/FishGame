@@ -53,6 +53,12 @@ MonoBehaviour:
     m_SerializedLabels:
     - Rarity_Epic
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 69b984e4202c90c48b51003a36458446
+    m_Address: RainbowMinnowFish
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - Rarity_Rare
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 7cc04d1fa5c96684c9890728c5558a0a
     m_Address: Anglerfish
     m_ReadOnly: 0

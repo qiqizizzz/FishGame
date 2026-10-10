@@ -19,6 +19,7 @@ namespace Module.Fish.Service
         /// <summary>
         /// 推进一条鱼的位置，只改实例数据，写变换由 FishAiService 统一做
         /// </summary>
-        void Advance(FishInstance fish, float deltaTime, float swimHalfWidth);
+        /// <param name="hook">本帧钩子探针，不感知钩子的行为直接忽略</param>
+        void Advance(FishInstance fish, float deltaTime, float swimHalfWidth, in HookProbe hook);
     }
 }

@@ -28,6 +28,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: daff22e1dc1bff34f8e3b53eef3946e9, type: 2}
   - {fileID: 11400000, guid: 7d5b7a3b6b9f16746b058a4cfba0bed3, type: 2}
   - {fileID: 11400000, guid: 29db279c0657daa4fab7f2545d3b5a0e, type: 2}
+  - {fileID: 11400000, guid: 26c29c2f533f0994286def767f69da8a, type: 2}
   DensityCurve:
     serializedVersion: 2
     m_Curve:
@@ -52,7 +53,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  BaseFishCountPerSlice: 2
+  BaseFishCountPerSlice: 3
   HazardSpawnChance: 0.15
   BonusDepthReferenceMeters: 40
   DepthBonusFactor: 0.6

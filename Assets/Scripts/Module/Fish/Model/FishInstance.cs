@@ -60,6 +60,18 @@ namespace Module.Fish.Model
         /// <summary>惊散剩余秒数，大于 0 时高速逃离，结束后恢复原行为</summary>
         public float FleeTimer;
 
+        /// <summary>闪避短冲剩余秒数，大于 0 时按 DodgeVector 位移，优先于平时的折返</summary>
+        public float DodgeTimer;
+
+        /// <summary>闪避冷却剩余秒数，窗口内不再触发新的躲避，这段就是给玩家的预判时间</summary>
+        public float DodgeCooldown;
+
+        /// <summary>本次闪避的冲出速度向量（米/秒），x 横向、y 为深度增量且向下为正</summary>
+        public Vector2 DodgeVector;
+
+        /// <summary>生成时锁定的可活动深度带，闪避落点钳在这里，不让鱼被赶出本来的水层</summary>
+        public DepthBand RoamBand;
+
         public bool IsAlive => View != null;
     }
 }

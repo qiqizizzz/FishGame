@@ -9,6 +9,12 @@
 * 于是钓竿属性只影响“抽到高档鱼的概率”，不改动深度带本身
 * 落点要做避让：鱼是按体长/身高占屏的，位置撞在一起就变成一坨看不清的东西，
 * 所以群游偏移按鱼自身尺寸放大，生成前再在附近小范围试探几个空位
+* 可玩深度每帧跟着鱼线长度重算：买完鱼竿线变长，深层切片当场就能刷鱼，不用等下一局
+* 鱼线终点以下再留一段视深缓冲带：钩子沉到底时镜头底边还在往下 2.45 米，
+* 那截水要是没有鱼，玩家眼里就是半屏空水，所以缓冲带照旧铺鱼，只是数量另给一档
+* 密度曲线按可玩深度归一，拿井道总深度归一会在玩家够得到的区间里被压成一条平线
+* 补足从钩子所在切片向上下交替展开，数量触顶时先保住钩子附近有鱼，远处的少铺无所谓
+* 一批最多只补到缺口，缺 1 条不许倒一船，否则群游鱼会把切片撑成一坨而别处空着
 */
 
 using System.Collections.Generic;
@@ -32,10 +38,19 @@ namespace Module.Fish.Service
         private const float EDGE_ENTRY_INSET = 0.15f;
         private const float SWIM_WIDTH_PADDING = 0.3f;
         private const float MIN_FISH_DEPTH = 1.2f;
+        // 生成深度离视深上界留出的余量，要盖住飘动鱼上下摆动的最大幅度
+        private const float SPAWN_DEPTH_MARGIN = 3f;
+        // 视深缓冲带：鱼线够不到、但镜头看得见的那截深度，单位米
+        // 钩子沉到线长终点时镜头底边还要再往下 2.45（正交半高 4.5 减去前看留白 2.05），8 米够盖住还留了余量
+        private const float VIEW_BUFFER_BELOW = 8f;
+        // 缓冲带每片的固定条数：只求镜头里有活物，不参与收益，给满反而抢走可玩范围的实例名额
+        private const int BUFFER_FISH_PER_SLICE = 2;
         private const float SPEED_JITTER_MIN = 0.85f;
         private const float SPEED_JITTER_MAX = 1.15f;
-        private const int MAX_ALIVE = 18;
+        private const int MAX_ALIVE = 20;
         private const int MAX_BATCH_PER_SLICE = 4;
+        // 目标点被别的鱼占住时换一条鱼重试，避免整个切片白等一次
+        private const int PICK_RETRY = 3;
         private const int SCHOOL_MIN = 2;
         private const int SCHOOL_MAX = 4;
 
@@ -66,6 +81,7 @@ namespace Module.Fish.Service
         private int m_sliceCount;
         private int m_schoolSerial;
         private float m_reachableDepth;
+        private float m_viewCeiling;
 
         public IReadOnlyList<FishInstance> Alive => m_alive;
 
@@ -75,7 +91,7 @@ namespace Module.Fish.Service
         public bool IsActive => m_slices != null;
 
         /// <summary>
-        /// 开一局：建深度切片表并铺满鱼线可达范围内的初始鱼群
+        /// 开一局：建深度切片表并铺满视深缓冲带内的初始鱼群
         /// </summary>
         /// <param name="viewHalfWidth">相机可视横向半宽（米）</param>
         public void BeginSession(FishingSessionConfigSO session, RarityTableSO rarityTable, IFishingStats stats,
@@ -92,8 +108,8 @@ namespace Module.Fish.Service
             m_factory = factory;
             m_root = root;
 
-            m_reachableDepth = Mathf.Min(session.ShaftDepth, stats.LineLength);
             m_sliceCount = Mathf.Max(1, Mathf.CeilToInt(session.ShaftDepth / DEPTH_SLICE));
+            refreshReachableDepth();
             SwimHalfWidth = Mathf.Max(session.ShaftHalfWidth, viewHalfWidth) + SWIM_WIDTH_PADDING;
 
             collectHazards();
@@ -107,23 +123,56 @@ namespace Module.Fish.Service
         }
 
         /// <summary>
-        /// 每帧随钩子深度流式维护鱼群：先回收窗口外的，再补足窗口内各切片的缺口
+        /// 每帧随钩子深度流式维护鱼群：先重算可玩深度与视深上界，再回收窗口外的，最后从钩子往外补足
         /// </summary>
         public void Stream(float hookDepth)
         {
             if (m_slices == null)
                 return;
 
+            refreshReachableDepth();
+
             float minDepth = Mathf.Max(-SURFACE_TOLERANCE, hookDepth - STREAM_BEHIND);
-            float maxDepth = Mathf.Min(m_reachableDepth, hookDepth + STREAM_AHEAD);
+            // 回收上界要在生成上界之外再留一份摆动余量，否则贴着生成线出生的鱼一摆就越界被收，对象池白转
+            float maxDepth = Mathf.Min(m_viewCeiling, hookDepth + STREAM_AHEAD + SPAWN_DEPTH_MARGIN);
 
             recycleOutside(minDepth, maxDepth);
 
-            int firstSlice = sliceIndexOf(minDepth);
-            int lastSlice = sliceIndexOf(maxDepth);
+            fillAroundHook(sliceIndexOf(minDepth), sliceIndexOf(maxDepth), sliceIndexOf(hookDepth));
+        }
 
-            for (int slice = firstSlice; slice <= lastSlice && m_alive.Count < MAX_ALIVE; slice++)
-                fillSliceToTarget(slice, true);
+        // 可玩深度取井道深度与鱼线长度的较小值，线长随鱼竿升级实时变化，最低留一个切片
+        // 视深上界在可玩深度之外再加一段缓冲带，钩子到底时屏幕最下面那截水才不会空着
+        private void refreshReachableDepth()
+        {
+            m_reachableDepth = Mathf.Clamp(Mathf.Min(m_session.ShaftDepth, m_stats.LineLength),
+                DEPTH_SLICE, m_session.ShaftDepth);
+            m_viewCeiling = Mathf.Min(m_session.ShaftDepth, m_reachableDepth + VIEW_BUFFER_BELOW);
+        }
+
+        // 从钩子所在切片开始向下、向上交替补足，先保证钩子附近有鱼，触到在场上限就收手
+        private void fillAroundHook(int firstSlice, int lastSlice, int hookSlice)
+        {
+            for (int offset = 0; offset < m_sliceCount; offset++)
+            {
+                if (m_alive.Count >= MAX_ALIVE)
+                    return;
+
+                int above = hookSlice - offset;
+                int below = hookSlice + offset;
+
+                if (above < firstSlice && below > lastSlice)
+                    return;
+
+                if (offset > 0 && above >= firstSlice && above <= lastSlice)
+                    fillSliceToTarget(above, true);
+
+                if (m_alive.Count >= MAX_ALIVE)
+                    return;
+
+                if (below >= firstSlice && below <= lastSlice)
+                    fillSliceToTarget(below, true);
+            }
         }
 
         /// <summary>
@@ -208,17 +257,20 @@ namespace Module.Fish.Service
                 if (row == null)
                     continue;
 
-                float weight = row.SpawnWeight / Mathf.Max(1, m_rarityCount[data.Rarity]);
+                // 鱼种自己填了覆写权重就按条独立生效，否则同档位内均分档位基准权重
+                float weight = data.HasWeightOverride
+                    ? data.WeightOverrideValue
+                    : row.SpawnWeight / Mathf.Max(1, m_rarityCount[data.Rarity]);
                 table.Add(data, weight * Mathf.Pow(lurePull, (int) data.Rarity));
             }
 
             return table;
         }
 
-        // 开局铺满鱼线可达范围内的切片，初始鱼随机散布在可视宽度内
+        // 开局铺满视深缓冲带内的切片，初始鱼随机散布在可视宽度内
         private void populateInitial()
         {
-            int lastSlice = sliceIndexOf(m_reachableDepth);
+            int lastSlice = sliceIndexOf(m_viewCeiling);
 
             for (int slice = 0; slice <= lastSlice && m_alive.Count < MAX_ALIVE; slice++)
                 fillSliceToTarget(slice, false);
@@ -231,7 +283,7 @@ namespace Module.Fish.Service
 
             while (deficit > 0 && m_alive.Count < MAX_ALIVE && batchUsed < MAX_BATCH_PER_SLICE)
             {
-                int spawned = spawnBatch(slice, fromEdge);
+                int spawned = spawnBatch(slice, fromEdge, deficit);
 
                 if (spawned <= 0)
                     break;
@@ -241,18 +293,34 @@ namespace Module.Fish.Service
             }
         }
 
-        // 生成一批：群游鱼一次生成 3-6 条并共享方向、速度与基准深度
-        private int spawnBatch(int slice, bool fromEdge)
+        // 生成一批：抽中落点被占住就换一条重试，数量最多补到缺口，缺 1 条不许倒一船
+        private int spawnBatch(int slice, bool fromEdge, int deficit)
         {
-            if (!tryPickFish(slice, out FishDataSO data, out float depth))
-                return 0;
+            for (int pick = 0; pick < PICK_RETRY; pick++)
+            {
+                if (!tryPickFish(slice, out FishDataSO data, out float depth))
+                    return 0;
 
+                bool isSchool = data.Behavior == FishBehaviorType.School;
+                int count = isSchool ? Random.Range(SCHOOL_MIN, SCHOOL_MAX + 1) : 1;
+                count = Mathf.Min(count, MAX_ALIVE - m_alive.Count, Mathf.Max(1, deficit));
+
+                if (count <= 0)
+                    return 0;
+
+                int spawned = spawnGroup(data, depth, fromEdge, count);
+
+                if (spawned > 0)
+                    return spawned;
+            }
+
+            return 0;
+        }
+
+        // 同批鱼共享方向、速度与基准深度，群游鱼靠 Offset 散布，非群游鱼 count 恒为 1
+        private int spawnGroup(FishDataSO data, float depth, bool fromEdge, int count)
+        {
             bool isSchool = data.Behavior == FishBehaviorType.School;
-            int count = isSchool ? Random.Range(SCHOOL_MIN, SCHOOL_MAX + 1) : 1;
-            count = Mathf.Min(count, MAX_ALIVE - m_alive.Count);
-
-            if (count <= 0)
-                return 0;
 
             int direction;
             float centerX;
@@ -320,11 +388,22 @@ namespace Module.Fish.Service
                 Speed = speed,
                 Phase = Random.value * Mathf.PI * 2f,
                 SchoolId = schoolId,
-                Offset = offset
+                Offset = offset,
+                RoamBand = roamBandOf(data)
             };
 
             m_alive.Add(fish);
             return true;
+        }
+
+        // 闪避鱼的活动深度范围：按档位或覆写深度带再钳进本局实际可玩深度，越界会被流式窗口回收
+        private DepthBand roamBandOf(FishDataSO data)
+        {
+            DepthBand band = data.ResolveDepthBand(m_rarityTable);
+            float min = Mathf.Max(band.MinDepth, MIN_FISH_DEPTH);
+            float max = Mathf.Max(min, Mathf.Min(band.MaxDepth, spawnDepthCeiling));
+
+            return new DepthBand { MinDepth = min, MaxDepth = max };
         }
 
         // 行为每帧把 Offset.y 叠加到 BaseDepth 上，所以判空位要用「基准深度 + 群游纵深偏移」
@@ -336,7 +415,7 @@ namespace Module.Fish.Service
                 {
                     x = Mathf.Clamp(x + Random.Range(-SPOT_JITTER_X, SPOT_JITTER_X), -SwimHalfWidth, SwimHalfWidth);
                     depth = Mathf.Clamp(depth + Random.Range(-SPOT_JITTER_DEPTH, SPOT_JITTER_DEPTH),
-                        MIN_FISH_DEPTH, m_reachableDepth);
+                        MIN_FISH_DEPTH, spawnDepthCeiling);
                 }
 
                 if (isSpotFree(x, depth + offsetY, length, height))
@@ -397,9 +476,16 @@ namespace Module.Fish.Service
             }
 
             // 顶到水面的鱼会冒出冰面，最低生成深度给群游偏移与起伏留出余量
-            depth = Random.Range(Mathf.Max(band.MinDepth, MIN_FISH_DEPTH), band.MaxDepth);
+            float min = Mathf.Max(band.MinDepth, MIN_FISH_DEPTH);
+
+            // 上限先与下限取大：浅带鱼在可玩深度极小时会拿到反转区间，Random.Range 遇反转只会取 min
+            depth = Random.Range(min, Mathf.Max(min, Mathf.Min(band.MaxDepth, spawnDepthCeiling)));
             return true;
         }
+
+        // 生成深度上界：贴在视深上界的鱼摆动一下就碰到回收线，等于白占一个实例
+        private float spawnDepthCeiling =>
+            Mathf.Max(MIN_FISH_DEPTH, m_viewCeiling - SPAWN_DEPTH_MARGIN);
 
         private void recycleOutside(float minDepth, float maxDepth)
         {
@@ -441,11 +527,14 @@ namespace Module.Fish.Service
 
         private int targetForSlice(int slice)
         {
-            // 鱼线够不到的切片不铺鱼，省下来的是实打实的实例与绘制
-            if (slice * DEPTH_SLICE >= m_reachableDepth)
-                return 0;
+            float sliceTop = slice * DEPTH_SLICE;
 
-            return Mathf.RoundToInt(m_session.BaseFishPerSlice * m_session.SampleDensity((slice + 0.5f) * DEPTH_SLICE));
+            // 鱼线够不到的切片只当镜头背景，条数固定一档；越过缓冲带仍然不铺，省下实例与绘制
+            if (sliceTop >= m_reachableDepth)
+                return sliceTop < m_viewCeiling ? BUFFER_FISH_PER_SLICE : 0;
+
+            return Mathf.RoundToInt(m_session.BaseFishPerSlice *
+                m_session.SampleDensity((slice + 0.5f) * DEPTH_SLICE, m_reachableDepth));
         }
 
         private int sliceIndexOf(float depth)

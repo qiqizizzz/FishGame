@@ -20,7 +20,7 @@ namespace Module.Fish.Service
 
         public FishBehaviorType Behavior => FishBehaviorType.Cruise;
 
-        public void Advance(FishInstance fish, float deltaTime, float swimHalfWidth)
+        public void Advance(FishInstance fish, float deltaTime, float swimHalfWidth, in HookProbe hook)
         {
             fish.Phase += deltaTime;
             fish.X += fish.Direction * fish.Speed * deltaTime;

@@ -20,7 +20,7 @@ namespace Module.Fish.Service
 
         public FishBehaviorType Behavior => FishBehaviorType.Guard;
 
-        public void Advance(FishInstance fish, float deltaTime, float swimHalfWidth)
+        public void Advance(FishInstance fish, float deltaTime, float swimHalfWidth, in HookProbe hook)
         {
             fish.Phase += deltaTime;
             fish.Depth = fish.BaseDepth + Mathf.Sin(fish.Phase * HOVER_FREQUENCY) * HOVER_AMPLITUDE;

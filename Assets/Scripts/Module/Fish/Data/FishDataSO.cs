@@ -62,6 +62,9 @@ namespace Module.Fish.Data
 
         public bool HasWeightOverride => WeightOverride > 0f;
 
+        /// <summary>覆写权重的实际值，HasWeightOverride 为假时无意义</summary>
+        public float WeightOverrideValue => WeightOverride;
+
         /// <summary>
         /// 解析生效深度带，鱼种覆写优先于档位基准
         /// </summary>
