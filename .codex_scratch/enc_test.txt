@@ -1,0 +1,3 @@
+line A 网格与暂存架都满了
+line B BackpackFull = 3,|NEW|line A 改过了
+line C NoRoom = 3,

@@ -14,6 +14,8 @@
 * 背包与暂存架双向拖：拖到暂存架面板上就下架，从暂存格拖进网格就按幽灵吸附的落点上架
 * 格子上不再常驻名称，点中布或装备都在它旁边浮出详情小窗：第一行名字，第二行能力线
 * 详情小窗是独立预制体 UIShopDetailWindow，脚本只实例化一次并按选中物染色，版式全在预制体里改
+* 商品卡走同一套幽灵与同一扇小窗：点开只看详情，拖到网格的空位或拖进暂存架那一刻才扣钱
+* 商品的详情比已入手的多一个右上角价钱，是布还要在窗里画出它真实的异形，小窗跟着长高
 * 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
 * 布与装备一出网格就压在仓库与商店底下，拖起来期间要把整块背包面板提到最后，松手放回原位
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
@@ -72,6 +74,9 @@ namespace UI.Shop
         private const string DETAIL_NAME_TEXT_PATH = "Txt_DetailName";
         private const string DETAIL_DESC_TEXT_PATH = "Txt_DetailDesc";
         private const string DETAIL_ACCENT_PATH = "Img_Accent";
+        // 商品详情比已入手的多一个右上角价钱与一条布形预览，这两个节点只在小窗预制体里排
+        private const string DETAIL_PRICE_PATH = "Txt_DetailPrice";
+        private const string DETAIL_CLOTH_SHAPE_PATH = "Node_ClothShape";
         // 宽跟着两行文案走，两头各封一个界，省得长文案把小窗拉成一条横幅
         private const float DETAIL_MIN_WIDTH = 340f;
         private const float DETAIL_MAX_WIDTH = 520f;
@@ -82,6 +87,11 @@ namespace UI.Shop
         private const float DETAIL_TEXT_INSET_RIGHT = 16f;
         // 候选摆位一共有六个，试完都不合适才退回收夹
         private const int DETAIL_CANDIDATE_COUNT = 6;
+        // 价钱压在右上角，名字行要给它让出这几像素，两行才不叠字
+        private const float DETAIL_PRICE_INSET_RIGHT = 16f;
+        private const float DETAIL_PRICE_GAP = 12f;
+        // 窗里多一条布形预览就得多长出这么多，长出来的量跟着预览带的高走
+        private const float DETAIL_PREVIEW_EXTRA = 38f;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -220,6 +230,21 @@ namespace UI.Shop
         // 小窗的高读自预制体，算落点时用它，脚本里不再写死
         private float m_detailHeight;
 
+        // 商品的详情多一个右上角价钱与一条布形预览，窗子按有没有这两样来长
+        private TMP_Text m_detailPriceText;
+        private Color m_detailPriceDefaultColor;
+        private UIShopClothShape m_detailClothShape;
+        private ShopStockEntry m_detailGoods;
+        private RectTransform m_detailCardRect;
+        // 预制体不带预览带时的高，收起预览要还原到它
+        private float m_detailBaseHeight;
+
+        // 量商品卡四角用的数组，逐帧重摆也不反复分配
+        private readonly Vector3[] m_detailCorners = new Vector3[4];
+
+        // 正被抓在手上的那件商品，预览按「买不买得起它」整块染色，松手没落到位置就什么也不扣
+        private ShopStockEntry m_pendingPurchase;
+
         // ==================== 生命周期 ====================
         protected override void OnInit()
         {
@@ -304,6 +329,8 @@ namespace UI.Shop
             m_selectedPlate = null;
             m_selectedItem = null;
             m_plateInHand = null;
+            // 上一眼可能正拖着商品就关了面板，那笔没成交的买卖要跟着作废
+            m_pendingPurchase = null;
             // 上一眼可能正拖着东西就关了面板，提层状态在这里兜底清干净
             restoreBackpackPanel();
             refreshActionBar();
@@ -546,20 +573,31 @@ namespace UI.Shop
 
         // 拖拽预览逐格问这里：越界、脚下没布、布正被抓在手上、被别的装备压住，四种都算缺格
         // 手上这件自己占的那几格要豁免，否则原地挪一格的瞬间就会把自己染成一片红
+        // 布要铺的格恰恰是没布的格，所以布只看「这格有没有别的布压着」，装备在下头不算冲突
         public bool IsPreviewCellValid(BackpackItemInstance dragging, int column, int row)
         {
             BackpackModel model = m_backpack != null ? m_backpack.Model : null;
-            if (model == null)
+            if (model == null || dragging?.Definition == null)
                 return false;
 
             if (column < 0 || column >= model.Columns || row < 0 || row >= model.Rows)
                 return false;
 
+            // 正拖着商品又买不起：整块判红，反正松手也成交不了，别让红绿看着像白花钱
+            if (m_pendingPurchase != null && m_run != null && m_pendingPurchase.Price > m_run.Coins)
+                return false;
+
             BackpackItemInstance plate = model.FindPlateAt(column, row);
+
+            if (dragging.Definition.Kind == BackpackDefKind.Cloth)
+                return plate == null || plate == m_plateInHand;
+
             if (plate == null || plate == m_plateInHand)
                 return false;
 
-            return model.IsCellFree(column, row) || model.ItemCovers(dragging, column, row);
+            // 只有真在网格上的那件才谈得上「自己占的格」，还没落位的临时实例不能拿 ItemCovers 自我豁免
+            return model.IsCellFree(column, row)
+                   || (model.Items.Contains(dragging) && model.ItemCovers(dragging, column, row));
         }
 
         // 布到手上了只重染格子：整盘重铺会把正在拖的那块视图掀回原位，拖拽当场就废了
@@ -602,6 +640,12 @@ namespace UI.Shop
                 return;
             }
 
+            // 换成已入手的东西，商品那份价钱与预览一起收掉，两条链路各写各的
+            m_detailGoods = null;
+            m_detailCardRect = null;
+            m_detailPriceText.gameObject.SetActive(false);
+            setDetailNameReserve(0f);
+
             m_detailTarget = item;
             m_detailBuffs.Clear();
             item.Definition.FillBuffs(item.Tier, m_detailBuffs);
@@ -610,7 +654,102 @@ namespace UI.Shop
             m_detailNameText.text = UIShopGoodsName.Of(item.Definition, item.Tier);
             m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
             // 左侧色条染成这件东西的对应色，布吃布自己的底色，装备吃档位品质色
-            m_detailAccent.color = UIShopQuality.ColorFor(item.Definition, item.Tier);
+            Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
+            m_detailAccent.color = qualityColor;
+
+            // 布在背包里可能已经被转过向，预览要照它此刻的朝向画，不能永远画基准那一面
+            if (item.Definition.Kind == BackpackDefKind.Cloth)
+                setDetailClothPreview(item.ShapeDef, qualityColor, item.OrientationIndex);
+            else
+                clearDetailClothPreview();
+        }
+
+        // 点开商品卡看的是「还没到手的这一件」，与已入手的物件共用同一扇小窗，只是多一个价钱
+        public void ShowGoodsDetail(ShopStockEntry entry, RectTransform cardRect)
+        {
+            if (entry == null)
+            {
+                clearDetail();
+                return;
+            }
+
+            // 看商品的时候不占用选中态：东西还躺在货架上，网格里的选中物不该被它顶掉
+            m_selectedPlate = null;
+            m_selectedItem = null;
+            m_detailTarget = null;
+            m_detailGoods = entry;
+            m_detailCardRect = cardRect;
+
+            Color goodsColor = UIShopQuality.ColorFor(entry.Definition, entry.Tier);
+            bool showPrice = !entry.IsSold;
+
+            m_detailNameText.text = UIShopGoodsName.Of(entry.Definition, entry.Tier);
+            m_detailBuffs.Clear();
+            entry.Definition.FillBuffs(entry.Tier, m_detailBuffs);
+            m_detailDescText.text = UIShopBuffText.OfMany(m_detailBuffs);
+            m_detailAccent.color = goodsColor;
+
+            m_detailPriceText.gameObject.SetActive(showPrice);
+            if (showPrice)
+            {
+                m_detailPriceText.text = $"{entry.Price} 金币";
+                m_detailPriceText.color = m_run != null && entry.Price > m_run.Coins
+                    ? UIShopQuality.PriceUnaffordable
+                    : m_detailPriceDefaultColor;
+            }
+
+            // 名字行要给右上角的价钱让位，让出的宽度按价钱自己量出来
+            setDetailNameReserve(showPrice
+                ? m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
+                  + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
+                : 0f);
+
+            if (entry.Definition.Kind == BackpackDefKind.Cloth)
+                setDetailClothPreview(entry.Definition.ShapeAt(entry.Tier),
+                    entry.IsSold ? UIShopQuality.SoldTint : goodsColor, 0);
+            else
+                clearDetailClothPreview();
+
+            refreshActionBar();
+        }
+
+        // 商品抓到手上：钱还没扣、东西也还不在网格上，只把背包面板提起来，收起操作条与小窗，留幽灵跟着手
+        public void BeginGoodsDrag(ShopStockEntry entry)
+        {
+            m_pendingPurchase = entry;
+            raiseBackpackPanel();
+            m_plateBar.gameObject.SetActive(false);
+            m_detailRect.gameObject.SetActive(false);
+        }
+
+        // 松手先还层再谈成交，成没成都要把提上去的面板放回原位
+        public void EndGoodsDrag(ShopStockEntry entry)
+        {
+            m_pendingPurchase = null;
+            restoreBackpackPanel();
+            refreshActionBar();
+        }
+
+        // 按玩家拖出来的落点买成这一件，铺不开就整笔作废，面板不替它另找位置
+        public bool TryBuyGoodsAt(ShopStockEntry entry, int anchorColumn, int anchorRow)
+        {
+            if (m_shop == null)
+                return false;
+
+            ShopBuyResult result = m_shop.TryBuyAt(entry, m_run, m_backpack, anchorColumn, anchorRow);
+            handleBuyResult(entry, result, false);
+            return result == ShopBuyResult.Success;
+        }
+
+        // 直接把这一件买进暂存架，架子没空位同样整笔作废
+        public bool TryBuyGoodsToStash(ShopStockEntry entry)
+        {
+            if (m_shop == null)
+                return false;
+
+            ShopBuyResult result = m_shop.TryBuyToStash(entry, m_run, m_backpack);
+            handleBuyResult(entry, result, true);
+            return result == ShopBuyResult.Success;
         }
 
         // ==================== Private Function ====================
@@ -1109,35 +1248,31 @@ namespace UI.Shop
             windowObject.name = DETAIL_WINDOW_NAME;
             m_detailRect = windowObject.GetComponent<RectTransform>();
 
-            m_detailNameText = findDetailChildText(windowObject.transform, DETAIL_NAME_TEXT_PATH);
-            m_detailDescText = findDetailChildText(windowObject.transform, DETAIL_DESC_TEXT_PATH);
-            m_detailAccent = findDetailChildImage(windowObject.transform, DETAIL_ACCENT_PATH);
+            m_detailNameText = findDetailChild<TMP_Text>(windowObject.transform, DETAIL_NAME_TEXT_PATH);
+            m_detailDescText = findDetailChild<TMP_Text>(windowObject.transform, DETAIL_DESC_TEXT_PATH);
+            m_detailAccent = findDetailChild<Image>(windowObject.transform, DETAIL_ACCENT_PATH);
+            m_detailPriceText = findDetailChild<TMP_Text>(windowObject.transform, DETAIL_PRICE_PATH);
+            m_detailClothShape = findDetailChild<UIShopClothShape>(windowObject.transform, DETAIL_CLOTH_SHAPE_PATH);
+            // 价钱本来的颜色读自预制体，买得起就染回它，调色板改了不用回来动代码
+            m_detailPriceDefaultColor = m_detailPriceText.color;
             // 高跟着预制体走，脚本只留一个数用来算落点，改小窗高度不用回来动这里
-            m_detailHeight = m_detailRect.sizeDelta.y;
+            m_detailBaseHeight = m_detailHeight = m_detailRect.sizeDelta.y;
 
+            // 价钱与布形预览只在商品那一份详情里露脸，绑完先各自收好
+            m_detailPriceText.gameObject.SetActive(false);
+            m_detailClothShape.SetVisible(false);
             m_detailRect.gameObject.SetActive(false);
         }
 
         // 预制体里的子节点少了就是版式被人动过，编辑器下先报明是哪个节点，再让它抛出去
-        private TMP_Text findDetailChildText(Transform windowRoot, string path)
+        private T findDetailChild<T>(Transform windowRoot, string path) where T : Component
         {
             Transform child = windowRoot.Find(path);
 #if UNITY_EDITOR
             if (child == null)
                 QLog.Error($"详情小窗预制体缺少节点 {path}，请检查 {DetailWindowPrefab.name}");
 #endif
-            return child.GetComponent<TMP_Text>();
-        }
-
-        // 色条只是块底色矩形，节点缺失同样先报明再抛，免得运行时对着空引用猜
-        private Image findDetailChildImage(Transform windowRoot, string path)
-        {
-            Transform child = windowRoot.Find(path);
-#if UNITY_EDITOR
-            if (child == null)
-                QLog.Error($"详情小窗预制体缺少节点 {path}，请检查 {DetailWindowPrefab.name}");
-#endif
-            return child.GetComponent<Image>();
+            return child.GetComponent<T>();
         }
 
         // 详情小窗跟着选中物浮出来，摆哪一侧从六个候选里挑：右侧贴顶、右侧贴底、左侧贴顶、左侧贴底、正上、正下
@@ -1164,13 +1299,82 @@ namespace UI.Shop
             m_detailRect.SetAsLastSibling();
         }
 
-        // 名字与文案谁更长就照谁定宽，超出上下限的部分交给省略号
+        // 窗里长出一条布形预览，小窗跟着加高，颜色与朝向都由调用方按货架上的或手里的这块布给定
+        private void setDetailClothPreview(GridShapeSO shape, Color cellColor, int orientationIndex)
+        {
+            m_detailClothShape.SetVisible(true);
+            m_detailClothShape.Setup(shape, cellColor, m_cellSprite, orientationIndex);
+            m_detailHeight = m_detailBaseHeight + DETAIL_PREVIEW_EXTRA;
+        }
+
+        private void clearDetailClothPreview()
+        {
+            m_detailClothShape.SetVisible(false);
+            m_detailHeight = m_detailBaseHeight;
+        }
+
+        // 价钱压在名字行右上方，名字的可写宽度要扣掉它让出来的那段，两行才不叠字
+        private void setDetailNameReserve(float reserveWidth)
+        {
+            Vector2 size = m_detailNameText.rectTransform.sizeDelta;
+            size.x = -(DETAIL_TEXT_INSET_LEFT + DETAIL_TEXT_INSET_RIGHT + reserveWidth);
+            m_detailNameText.rectTransform.sizeDelta = size;
+        }
+
+        // 名字与文案谁更长就照谁定宽，价钱占掉的那一角也要算进宽里，超出上下限的部分交给省略号
         private float detailWidth()
         {
             float nameWidth = m_detailNameText.GetPreferredValues(m_detailNameText.text).x;
             float descWidth = m_detailDescText.GetPreferredValues(m_detailDescText.text).x;
-            float widest = Mathf.Max(nameWidth, descWidth) + DETAIL_TEXT_INSET_LEFT + DETAIL_TEXT_INSET_RIGHT;
+            float priceReserve = m_detailPriceText.gameObject.activeSelf
+                ? m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
+                  + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
+                : 0f;
+            float widest = Mathf.Max(nameWidth, descWidth) + DETAIL_TEXT_INSET_LEFT
+                           + DETAIL_TEXT_INSET_RIGHT + priceReserve;
             return Mathf.Clamp(widest, DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH);
+        }
+
+        // 商品卡在自己的父级里，量它的角只要绕一圈世界坐标搬到背景层
+        private Vector2 cornerToBackground(Vector3 worldPoint)
+        {
+            Vector3 local = m_backgroundRect.InverseTransformPoint(worldPoint);
+            return new Vector2(local.x, local.y);
+        }
+
+        // 商品的详情浮在被点那张卡的上方：卡下面贴着面板底缘与按钮条，那点位置塞不进一扇窗
+        private void showGoodsDetailWindow()
+        {
+            if (m_detailRect == null || m_detailCardRect == null)
+                return;
+
+            m_detailRect.gameObject.SetActive(true);
+
+            float width = detailWidth();
+            m_detailRect.sizeDelta = new Vector2(width, m_detailHeight);
+
+            m_detailCardRect.GetWorldCorners(m_detailCorners);
+            Vector2 topLeft = cornerToBackground(m_detailCorners[1]);
+            Vector2 bottomRight = cornerToBackground(m_detailCorners[3]);
+
+            Rect safe = m_backgroundRect.rect;
+            float halfWidth = width * 0.5f;
+            float halfHeight = m_detailHeight * 0.5f;
+            float leftLimit = safe.xMin + DETAIL_SAFE_MARGIN + halfWidth;
+            float rightLimit = safe.xMax - DETAIL_SAFE_MARGIN - halfWidth;
+            float bottomLimit = safe.yMin + DETAIL_SAFE_MARGIN + halfHeight;
+            float topLimit = safe.yMax - DETAIL_SAFE_MARGIN - halfHeight;
+
+            float centerX = Mathf.Clamp((topLeft.x + bottomRight.x) * 0.5f, leftLimit, rightLimit);
+            float centerY = topLeft.y + DETAIL_GAP + halfHeight;
+
+            // 顶上顶不下了就翻到卡下方，总之先保证整扇窗还在背景里
+            if (centerY > topLimit)
+                centerY = bottomRight.y - DETAIL_GAP - halfHeight;
+
+            m_detailRect.anchoredPosition = new Vector2(centerX, Mathf.Clamp(centerY, bottomLimit, topLimit));
+            // 小窗要压过货架与暂存架才看得清，它本身不吃点击，压着也不挡住拖拽
+            m_detailRect.SetAsLastSibling();
         }
 
         // 物品层里的一个点搬到背景坐标系：两层没有旋转也没有缩放，绕世界坐标走一遍就够
@@ -1241,15 +1445,30 @@ namespace UI.Shop
             }
         }
 
+        // 收起小窗：价钱与布形预览都是商品那一份的东西，一并还原成预制体那个样子
+        // 手上正拖着的商品不在这里管，那是 EndGoodsDrag 收的尾
         private void clearDetail()
         {
             m_detailTarget = null;
+            m_detailGoods = null;
+            m_detailCardRect = null;
+            m_detailPriceText.gameObject.SetActive(false);
+            setDetailNameReserve(0f);
+            clearDetailClothPreview();
             m_detailRect.gameObject.SetActive(false);
         }
 
         // 卖掉、拆走、被挤进暂存架之后，详情里那件东西已经不在网格上了，不能留一张空壳文案
         private void validateDetail()
         {
+            // 商品那一份只认货架：买走了或这面货架重抽了，小窗就不该再挂着它
+            if (m_detailGoods != null)
+            {
+                if (m_detailGoods.IsSold || m_shop == null || !m_shop.Stock.Contains(m_detailGoods))
+                    clearDetail();
+                return;
+            }
+
             if (m_detailTarget == null || m_backpack == null)
                 return;
 
@@ -1309,7 +1528,11 @@ namespace UI.Shop
                 m_selectedPlate = null;
                 m_selectedItem = null;
                 m_plateBar.gameObject.SetActive(false);
-                clearDetail();
+                // 商品那一份详情不靠选中态活着，条子收起时它要跟着重摆，不能一并清掉
+                if (m_detailGoods != null)
+                    showGoodsDetailWindow();
+                else
+                    clearDetail();
                 refreshSelectionFrames();
                 return;
             }
@@ -1362,8 +1585,11 @@ namespace UI.Shop
             // 重铺会新插物品视图，条子每次都要重新压到最上面才不会被盖住
             m_plateBar.SetAsLastSibling();
 
-            // 小窗排在条子之后，它要拿条子已经落好的位置做避让
-            refreshDetailWindow(minColumn, maxColumn, minRow, maxRow);
+            // 小窗排在条子之后，它要拿条子已经落好的位置做避让；商品那份跟着卡走，不跟着网格走
+            if (m_detailGoods != null)
+                showGoodsDetailWindow();
+            else
+                refreshDetailWindow(minColumn, maxColumn, minRow, maxRow);
 
             refreshSelectionFrames();
         }
@@ -1450,34 +1676,29 @@ namespace UI.Shop
 
             UIShopGoodsItem goods = m_goodsItems[m_goodsShown];
             goods.gameObject.SetActive(true);
-            goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier), affordable, handleBuyClicked,
-                m_cellSprite);
+            goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier), affordable, this, m_cellSprite);
             m_goodsShown++;
         }
 
         // 买成与否则全由服务决定，面板只管结果对应的界面反应
-        private void handleBuyClicked(ShopStockEntry entry)
+        // toStash 只影响文案：买进架子的那件既不铺格也不给 BUFF，得让玩家看见
+        private void handleBuyResult(ShopStockEntry entry, ShopBuyResult result, bool toStash)
         {
-            if (m_shop == null)
-                return;
-
-            int stashBefore = m_backpack != null ? m_backpack.Stash.Count : 0;
-            ShopBuyResult result = m_shop.TryBuy(entry, m_run, m_backpack);
+            string label = UIShopGoodsName.Of(entry.Definition, entry.Tier);
 
             switch (result)
             {
                 case ShopBuyResult.Success:
-                    // 网格放不下时东西会落进暂存架，而暂存中的板块不产生 BUFF，得让玩家看见
-                    if (m_backpack.Stash.Count > stashBefore)
-                        QLog.Info($"{UIShopGoodsName.Of(entry.Definition, entry.Tier)} 网格放不下，已进暂存架，暂存中的板块不生效");
+                    QLog.Info(toStash ? $"{label} 已放进暂存架，暂存中的板块不生效" : $"{label} 已购入");
+                    clearDetail();
                     refreshAll();
                     break;
                 case ShopBuyResult.NotEnoughCoins:
                     QLog.Warning($"金币不够，还差 {entry.Price - m_run.Coins}");
                     break;
-                // 装不下时钱已原额退回，金币得跟着刷回去
-                case ShopBuyResult.BackpackFull:
-                    QLog.Info("网格与暂存架都满了，买不进");
+                // 落点铺不开与架子满都是整笔作废，钱已原额退回，金币得跟着刷回去
+                case ShopBuyResult.NoRoom:
+                    QLog.Info(toStash ? "暂存架没有空位，钱已退回" : "这个位置铺不开，钱已退回");
                     refreshCounters();
                     break;
                 default:

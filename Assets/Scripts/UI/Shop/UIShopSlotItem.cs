@@ -9,10 +9,12 @@
 * 仓库格自己就是物品，有图标就贴图、没图标才整格染品质色并标出名称，点一下自动取回，也可以直接拖着摆上网格
 * 拖出架子时摆一套幽灵跟着手指：有图标就一路亮着图标，格子垫在底下逐格染色，盖得住的压深、缺格子的染红
 * 指针还没进网格就只留图标跟着手，落点摆不成原样留在架上
+* 架子上的布照它真实的异形逐格画出来，架上看几格回家就铺几格，整格染色会把二格和六格读成一样大
 * 只有装了东西的仓库格才吃射线，空格与锁格把射线让出去，免得挡住网格上的拖拽
 */
 
 using Framework.QTower.View;
+using Module.Backpack.Data;
 using Module.Backpack.Model;
 using TMPro;
 using UnityEngine;
@@ -28,6 +30,7 @@ namespace UI.Shop
         // 仓库格用来标注物品名称与图标，背包格天生没有这两个子节点
         private const string LABEL_PATH = "Txt_Label";
         private const string ICON_PATH = "Img_Icon";
+        private const string CLOTH_SHAPE_PATH = "Node_ClothShape";
 
         // ==================== 字段[外部设置] ====================
         [Tooltip("空格子的底图，锁定格与仓库格是纯色块，不用它")]
@@ -47,6 +50,7 @@ namespace UI.Shop
         private Image m_bgImage;
         private Image m_iconImage;
         private TMP_Text m_labelText;
+        private UIShopClothShape m_clothShape;
 
         // 装了东西才有的取回入口，空格与锁格清空它，点击就不会误触
         private IShopBackpackHost m_host;
@@ -69,6 +73,7 @@ namespace UI.Shop
         {
             UIShopShapeGhost.Recycle(m_ghost);
             m_ghost = null;
+            m_wasDragged = false;
         }
 
         // ==================== Public Function ====================
@@ -86,6 +91,7 @@ namespace UI.Shop
             clearRecall();
             hideLabel();
             hideIcon();
+            hideClothShape();
         }
 
         /// <summary>
@@ -102,6 +108,7 @@ namespace UI.Shop
             clearRecall();
             hideLabel();
             hideIcon();
+            hideClothShape();
         }
 
         /// <summary>
@@ -117,10 +124,11 @@ namespace UI.Shop
             clearRecall();
             hideLabel();
             hideIcon();
+            hideClothShape();
         }
 
         /// <summary>
-        /// 仓库格放入一件物品，整格染成品质色，并接上点一下取回与拖上网格两个入口
+        /// 仓库格放入一件物品，装备整格染成品质色，布照它此刻的朝向逐格画出异形，并接上点一下取回与拖上网格两个入口
         /// </summary>
         /// <param name="item">架上的这件物品</param>
         /// <param name="stashIndex">在暂存架里的下标</param>
@@ -130,10 +138,20 @@ namespace UI.Shop
             ensureBound();
 
             Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
+            bool isCloth = item.Definition.Kind == BackpackDefKind.Cloth;
 
-            m_bgImage.sprite = null;
-            m_bgImage.color = qualityColor;
+            // 布染满整格只剩一块方块，占几格什么形全读不出来，改画异形，底格退回空格那点淡底
+            m_bgImage.sprite = isCloth ? CellSprite : null;
+            m_bgImage.color = isCloth ? EmptyColor : qualityColor;
             m_bgImage.raycastTarget = true;
+
+            if (m_clothShape != null)
+            {
+                m_clothShape.SetVisible(isCloth);
+                if (isCloth)
+                    m_clothShape.Setup(item.ShapeDef, qualityColor, CellSprite, item.OrientationIndex);
+            }
+
             m_host = host;
             m_stashIndex = stashIndex;
             m_item = item;
@@ -178,6 +196,7 @@ namespace UI.Shop
         }
 
         // 松手按幽灵吸附的那格摆放，指到网格外就什么都不做，东西留在架上
+        // 落在网格外时收得到 endDrag 却收不到 click，拖过的标记只能在这里清，否则下一次真点击会被吞掉
         public void OnEndDrag(PointerEventData eventData)
         {
             if (m_host == null || m_item == null)
@@ -186,6 +205,7 @@ namespace UI.Shop
             Vector2 screenPoint = eventData.position;
             UIShopShapeGhost.Recycle(m_ghost);
             m_ghost = null;
+            m_wasDragged = false;
 
             if (!m_host.TryPointerCell(screenPoint, out int anchorColumn, out int anchorRow))
                 return;
@@ -219,6 +239,10 @@ namespace UI.Shop
 
             Transform label = FindNode(LABEL_PATH);
             m_labelText = label != null ? label.GetComponent<TMP_Text>() : null;
+
+            // 异形预览排在仓库格的名字上方，背包格铺的本来就是布，两个可选节点缺了都不算配置错误
+            Transform clothShape = FindNode(CLOTH_SHAPE_PATH);
+            m_clothShape = clothShape != null ? clothShape.GetComponent<UIShopClothShape>() : null;
 
             // 图标节点只有仓库格有，缺了就只走染色与名称，不算配置错误
             Transform icon = FindNode(ICON_PATH);
@@ -272,6 +296,12 @@ namespace UI.Shop
         {
             if (m_labelText != null)
                 m_labelText.gameObject.SetActive(false);
+        }
+
+        private void hideClothShape()
+        {
+            if (m_clothShape != null)
+                m_clothShape.SetVisible(false);
         }
 
         private void hideIcon()

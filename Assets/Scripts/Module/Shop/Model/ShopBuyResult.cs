@@ -19,8 +19,8 @@ namespace Module.Shop.Model
         /// <summary>金币不够，货架与价钱都不变</summary>
         NotEnoughCoins = 2,
 
-        /// <summary>网格与暂存架都满了，钱已原额退回</summary>
-        BackpackFull = 3,
+        /// <summary>拖出来的落点铺不开，或暂存架没有空位，钱已原额退回</summary>
+        NoRoom = 3,
 
         /// <summary>条目本身不可用，属于调用方传错</summary>
         NotFound = 4

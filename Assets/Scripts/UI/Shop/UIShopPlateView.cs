@@ -184,6 +184,7 @@ namespace UI.Shop
         }
 
         // 松手即落点，四舍五入到最近的格，行主序与铺块时的算法完全一致
+        // 松手在网格外时收得到 endDrag 却收不到 click，拖过的标记只能在这里清，否则下一次真点击会被吞掉
         public void OnEndDrag(PointerEventData eventData)
         {
             if (m_host == null || m_plate == null)
@@ -245,6 +246,7 @@ namespace UI.Shop
                 return;
 
             m_isDragging = false;
+            m_wasDragged = false;
             applyClothCellsVisible();
 
             if (m_parentRect != null)

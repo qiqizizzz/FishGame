@@ -11,9 +11,12 @@
 * 布与装备共用同一条操作条，两者也共用暂存架：拖进 Panel_Storage 那块区域就下架，从暂存格拖回网格按落点摆
 * 拖拽途中每一格放不放得下由本接口逐格回答，视图只管按答案把格子染成深色或红，不自己猜落点
 * 格子上不再常驻名称，点中什么由宿主把两行说明报到选中物旁边的详情小窗
+* 商品卡走同一套宿主入口：点开看详情，拖进网格或暂存架才算买成，点击本身不扣钱
+* 买入的落点由玩家拖出来定，铺不开就整笔作废，宿主不给它另找位置
 */
 
 using Module.Backpack.Model;
+using Module.Shop.Model;
 using UnityEngine;
 
 namespace UI.Shop
@@ -158,5 +161,38 @@ namespace UI.Shop
         /// </summary>
         /// <param name="item">被点中的存放物</param>
         void ShowDetail(BackpackItemInstance item);
+
+        /// <summary>
+        /// 点开一张商品卡看详情，比已入手的物件多右上角一个价钱，版式全在小窗预制体里
+        /// </summary>
+        /// <param name="entry">货架条目，名字、加成与价钱都从它取</param>
+        /// <param name="cardRect">被点的那张卡，小窗要浮在它上方</param>
+        void ShowGoodsDetail(ShopStockEntry entry, RectTransform cardRect);
+
+        /// <summary>
+        /// 一张商品卡被抓到手上，提层收起操作条与详情，成交与否要到松手才定
+        /// </summary>
+        /// <param name="entry">被拖起的商品条目</param>
+        void BeginGoodsDrag(ShopStockEntry entry);
+
+        /// <summary>
+        /// 手上的商品落下或作废，提层与操作条按松手之后的状态复原
+        /// </summary>
+        /// <param name="entry">被放下的商品条目</param>
+        void EndGoodsDrag(ShopStockEntry entry);
+
+        /// <summary>
+        /// 把一件商品按玩家拖出来的落点买进网格，铺不开就整笔作废，钱原额退回
+        /// </summary>
+        /// <param name="entry">要买的商品条目</param>
+        /// <param name="anchorColumn">落点包围盒左上角列</param>
+        /// <param name="anchorRow">落点包围盒左上角行</param>
+        bool TryBuyGoodsAt(ShopStockEntry entry, int anchorColumn, int anchorRow);
+
+        /// <summary>
+        /// 把一件商品直接买进暂存架，架子没空位就整笔作废，钱原额退回
+        /// </summary>
+        /// <param name="entry">要买的商品条目</param>
+        bool TryBuyGoodsToStash(ShopStockEntry entry);
     }
 }

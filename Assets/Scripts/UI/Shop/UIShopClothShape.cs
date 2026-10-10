@@ -58,6 +58,18 @@ namespace UI.Shop
         /// <param name="cellSprite">格子底图，传 null 就沿用模板自带的那张</param>
         public void Setup(GridShapeSO template, Color cellColor, Sprite cellSprite)
         {
+            Setup(template, cellColor, cellSprite, 0);
+        }
+
+        /// <summary>
+        /// 按形状模板的指定朝向画出这块布占的格子，暂存架里的布要照它此刻的朝向画
+        /// </summary>
+        /// <param name="template">形状模板，异形与朝向都在里面</param>
+        /// <param name="cellColor">每一格的底色，布自己的颜色，已售出时是压暗色</param>
+        /// <param name="cellSprite">格子底图，传 null 就沿用模板自带的那张</param>
+        /// <param name="orientationIndex">朝向下标，越界由形状资产自己夹住</param>
+        public void Setup(GridShapeSO template, Color cellColor, Sprite cellSprite, int orientationIndex)
+        {
             ensureBound();
 
             if (template == null)
@@ -67,7 +79,7 @@ namespace UI.Shop
                 return;
             }
 
-            drawShape(template.OrientationAt(0), cellColor, cellSprite);
+            drawShape(template.OrientationAt(orientationIndex), cellColor, cellSprite);
         }
 
         /// <summary>

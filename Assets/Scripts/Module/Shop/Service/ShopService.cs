@@ -9,6 +9,7 @@
 * 稀有度同时驱动两件事：越稀有的布抽中权重越低、价钱越高，两个数都写在总表的同一行里
 * 回收价与上架价同一条公式，只差最后一次浮动与回收比例，两处不会算出两个数
 * 扣钱与入手是分开的两步，入手失败原额退回，不会出现钱花了东西没影
+* 买入落点由玩家在界面上拖出来定，铺不开与架子满都算没成交，钱原额退回
 * 刷新价钱只在服务内部按次数累进，重开一局换新实例即回到起始价
 */
 
@@ -113,33 +114,30 @@ namespace Module.Shop.Service
         }
 
         /// <summary>
-        /// 买走货架上的一件，扣钱、入手、标记售出，任何一步失败都原额退回
+        /// 按玩家拖出来的落点买走货架上的一件，铺不开就整笔作废原额退回
         /// </summary>
         /// <param name="entry">要买的商品条目</param>
         /// <param name="run">本局运行态，扣钱走它</param>
         /// <param name="backpack">本局背包，入手走它</param>
-        public ShopBuyResult TryBuy(ShopStockEntry entry, RunState run, RunBackpack backpack)
+        /// <param name="anchorColumn">落点包围盒左上角列</param>
+        /// <param name="anchorRow">落点包围盒左上角行</param>
+        public ShopBuyResult TryBuyAt(ShopStockEntry entry, RunState run, RunBackpack backpack, int anchorColumn,
+            int anchorRow)
         {
-            if (entry == null || entry.Definition == null)
-                return ShopBuyResult.NotFound;
+            return tryComplete(entry, run, backpack,
+                () => backpack.TryAddItemAt(entry.Definition, entry.Tier, anchorColumn, anchorRow));
+        }
 
-            if (entry.IsSold)
-                return ShopBuyResult.Sold;
-
-            if (run == null || backpack == null)
-                return ShopBuyResult.NotFound;
-
-            if (!run.TrySpend(entry.Price))
-                return ShopBuyResult.NotEnoughCoins;
-
-            if (!backpack.TryAddItem(entry.Definition, entry.Tier))
-            {
-                run.AddCoins(entry.Price);
-                return ShopBuyResult.BackpackFull;
-            }
-
-            entry.MarkSold();
-            return ShopBuyResult.Success;
+        /// <summary>
+        /// 把货架上的一件直接买进暂存架，架子没空位就整笔作废原额退回
+        /// </summary>
+        /// <param name="entry">要买的商品条目</param>
+        /// <param name="run">本局运行态，扣钱走它</param>
+        /// <param name="backpack">本局背包，入手走它</param>
+        public ShopBuyResult TryBuyToStash(ShopStockEntry entry, RunState run, RunBackpack backpack)
+        {
+            return tryComplete(entry, run, backpack,
+                () => backpack.TryAddItemToStash(entry.Definition, entry.Tier));
         }
 
         /// <summary>
@@ -162,6 +160,30 @@ namespace Module.Shop.Service
         }
 
         // ==================== Private Function ====================
+        // 扣钱、入手、标记售出三步走，place 只负责「按玩家给的落点入不入库」，落点之外的账都记在这里
+        private ShopBuyResult tryComplete(ShopStockEntry entry, RunState run, RunBackpack backpack, Func<bool> place)
+        {
+            if (entry == null || entry.Definition == null)
+                return ShopBuyResult.NotFound;
+
+            if (entry.IsSold)
+                return ShopBuyResult.Sold;
+
+            if (run == null || backpack == null)
+                return ShopBuyResult.NotFound;
+
+            if (!run.TrySpend(entry.Price))
+                return ShopBuyResult.NotEnoughCoins;
+
+            if (!place())
+            {
+                run.AddCoins(entry.Price);
+                return ShopBuyResult.NoRoom;
+            }
+
+            entry.MarkSold();
+            return ShopBuyResult.Success;
+        }
         // 奖池只在开店时摊平成权重表，之后每次抽取都只查表，总表改动要重开一局才生效
         private void buildTables()
         {

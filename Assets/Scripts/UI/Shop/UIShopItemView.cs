@@ -123,6 +123,7 @@ namespace UI.Shop
                 return;
 
             m_isDragging = false;
+            m_wasDragged = false;
             applyDragVisual();
         }
 
@@ -266,7 +267,9 @@ namespace UI.Shop
             m_host.EndItemDrag(m_item);
 
             // 中途宿主可能已经重铺过本视图，落点定死之后再把手上的格子块收回图标态
+            // 松手在网格外时收得到 endDrag 却收不到 click，拖过的标记只能在这里清，否则下一次真点击会被吞掉
             m_isDragging = false;
+            m_wasDragged = false;
             applyDragVisual();
         }
 

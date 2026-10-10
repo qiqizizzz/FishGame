@@ -11,6 +11,7 @@
 * 挪布转布可能让装备失去底子，模型只挑出悬空件，接不住谁由这里决定
 * 容量不够时模型整次不动，所以暂存架满等于这次挪不动，玩家看到的状态不会出现半成品
 * 自动落位按行主序扫锚点，同一锚点先试初始朝向，能少转一次就少转一次
+* 商店买入按玩家拖出来的落点入手，铺不开就整笔作废，不替玩家另找位置也不自动进架
 */
 
 using System.Collections.Generic;
@@ -155,6 +156,56 @@ namespace Module.Backpack.Model
             }
 
             return pushToStash(instance);
+        }
+
+        /// <summary>
+        /// 按玩家拖出来的落点入手一件存放物，铺不开就整笔作废，既不另找位置也不退进暂存架
+        /// </summary>
+        /// <param name="definition">存放物定义</param>
+        /// <param name="tier">档位，从 1 开始</param>
+        /// <param name="anchorColumn">落点包围盒左上角列</param>
+        /// <param name="anchorRow">落点包围盒左上角行</param>
+        public bool TryAddItemAt(IBackpackDef definition, int tier, int anchorColumn, int anchorRow)
+        {
+            if (definition == null || definition.MaxTier == 0)
+            {
+                QLog.Error("存放物定义没有可用档位，无法入手");
+                return false;
+            }
+
+            BackpackItemInstance instance = new()
+            {
+                Definition = definition,
+                Tier = Mathf.Clamp(tier, FIRST_TIER, definition.MaxTier),
+                AnchorColumn = anchorColumn,
+                AnchorRow = anchorRow
+            };
+
+            return definition.Kind == BackpackDefKind.Cloth
+                ? m_model.TryPlacePlate(instance)
+                : m_model.TryPlace(instance);
+        }
+
+        /// <summary>
+        /// 把一件存放物直接买进暂存架，架子满了安静返回 false，不替玩家挑别的落点
+        /// </summary>
+        /// <param name="definition">存放物定义</param>
+        /// <param name="tier">档位，从 1 开始</param>
+        public bool TryAddItemToStash(IBackpackDef definition, int tier)
+        {
+            if (definition == null || definition.MaxTier == 0)
+            {
+                QLog.Error("存放物定义没有可用档位，无法入手");
+                return false;
+            }
+
+            BackpackItemInstance instance = new()
+            {
+                Definition = definition,
+                Tier = Mathf.Clamp(tier, FIRST_TIER, definition.MaxTier)
+            };
+
+            return tryPushToStash(instance);
         }
 
         /// <summary>
@@ -332,14 +383,23 @@ namespace Module.Backpack.Model
             m_orphans.Clear();
         }
 
-        // 网格实在塞不下就退到暂存架，架上也没位置才算这次真的拿不下
+        // 开局与自动落位那条链路兜不住位置，架子真满了要报出来
         private bool pushToStash(BackpackItemInstance instance)
         {
-            if (m_stash.Count >= m_config.StashCapacity)
+            if (!tryPushToStash(instance))
             {
                 QLog.Error($"网格与暂存架都已满，装不下：{instance.Definition.Label}");
                 return false;
             }
+
+            return true;
+        }
+
+        // 商店那条链路由调用方自己报「架子没空位」，这里只回成不成，不替它喊
+        private bool tryPushToStash(BackpackItemInstance instance)
+        {
+            if (m_stash.Count >= m_config.StashCapacity)
+                return false;
 
             m_stash.Add(instance);
             return true;
