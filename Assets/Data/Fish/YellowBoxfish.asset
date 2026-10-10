@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: YellowBoxfish
   m_EditorClassIdentifier: 
   Identifier: yellowboxfish
-  Title: "\u9EC4\u7BB1\u9C80"
+  Title: "\u9EC4\u7BB1\u8C5A"
   ResourceKey: YellowBoxfish
   ValueRarity: 2
   MovementBehavior: 0

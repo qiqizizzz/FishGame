@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Anglerfish
   m_EditorClassIdentifier: 
   Identifier: anglerfish
-  Title: "\u9B9F\u9C47\u9C7C"
+  Title: "\u5B89\u5EB7\u9C7C"
   ResourceKey: Anglerfish
   ValueRarity: 3
   MovementBehavior: 0
