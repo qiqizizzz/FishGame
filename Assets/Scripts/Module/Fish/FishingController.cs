@@ -299,12 +299,13 @@ namespace Module.Fish
             return new ShopService(m_scene.ShopConfig, m_scene.BackpackConfig, Environment.TickCount);
         }
 
-        // 每回合下潜次数与回合目标曲线都取自会话配置，重开也走这里
+        // 每回合下潜次数、逐回合目标表、开局金币与渔获折算比例都取自会话配置，重开也走这里
         private RunState newRun()
         {
             FishingSessionConfigSO config = m_scene.SessionConfig;
 
-            return new RunState(config.DivesPerRound, config.BaseRoundTarget, config.RoundTargetGrowth);
+            return new RunState(config.DivesPerRound, config.RoundTargets, config.StartingCoins,
+                config.CoinPayoutRatio);
         }
 
         // HUD 与鱼 prefab 同时发起，两条都完成才向遮罩放行，避免遮罩收了 HUD 才蹦出来
@@ -349,7 +350,7 @@ namespace Module.Fish
             m_roundHud.StartRound(m_run.Round, GamePhase.Shop);
 
             QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合商店阶段，" +
-                      $"银行 {m_run.Coins} 金币，目标 {m_run.RoundTarget} 金币，" +
+                      $"银行 {m_run.Coins} 金币，渔获目标 {m_run.RoundTarget}，" +
                       $"可潜 {m_run.DivesPerRound} 次，背包内 {m_backpack.Model.ItemCount} 件装备");
         }
 
@@ -365,7 +366,7 @@ namespace Module.Fish
             m_roundHud.PlayPhaseBanner(GamePhase.Fishing);
 
             QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合开始钓鱼，" +
-                      $"剩余下潜 {m_run.DivesRemaining} 次，本回合目标 {m_run.RoundTarget} 金币");
+                      $"剩余下潜 {m_run.DivesRemaining} 次，本回合渔获目标 {m_run.RoundTarget}");
         }
 
         // 商店面板只管喊「我要离开商店」，去哪一层由控制器决定
@@ -483,7 +484,8 @@ namespace Module.Fish
         private void scoreLandedFish(DiveResult dive)
         {
             FishingSessionConfigSO session = m_scene.SessionConfig;
-            float depthNorm = session.ShaftDepth > 0f ? 1f / session.ShaftDepth : 0f;
+            // 归一化的分母是配置里的参考深度，不是井道总深度：井道 100 米而线只有 25 米时按井道算，加成永远吃不满
+            float depthNorm = session.BonusDepthReference > 0f ? 1f / session.BonusDepthReference : 0f;
 
             for (int i = m_buffer.Count - 1; i >= 0; i--)
             {

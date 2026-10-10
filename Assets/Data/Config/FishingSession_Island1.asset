@@ -15,8 +15,8 @@ MonoBehaviour:
   ShaftDepthMeters: 100
   ShaftHalfWidthMeters: 2.5
   RoundDivesCount: 3
-  BaseRoundTargetValue: 250
-  TargetGrowthFactor: 1.8
+  RoundTargetValues: 5a0000007d000000aa000000e6000000310100009001000008020000a8020000
+  InitialCoins: 100
   FishPool:
   - {fileID: 11400000, guid: 77f718af62836ed4f9848b1ac377c89f, type: 2}
   - {fileID: 11400000, guid: a3a28879fc62e8f4091704ce316f58aa, type: 2}
@@ -54,5 +54,7 @@ MonoBehaviour:
     m_RotationOrder: 4
   BaseFishCountPerSlice: 2
   HazardSpawnChance: 0.15
+  BonusDepthReferenceMeters: 40
   DepthBonusFactor: 1
   ComboStepPerCatch: 0.15
+  FishPayoutRatio: 0.5

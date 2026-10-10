@@ -6,6 +6,8 @@
 * └──────────────────────────────────┘
 * 回合以固定下潜次数推进，次数用尽才裁决达标与否，中途达标不提前收尾
 * 金币跨回合保留，回合目标每回合重算：超额渔获只进银行，不垫高下一回合目标
+* 渔获价值与金币是两套数：全额计入回合目标推进，只有打折后的那一份进金币银行，商店花的是银行里的钱
+* 回合目标按配置给的表逐回合直取，越界取最后一档，不再用等倍率公式，避免需求涨得比玩家成长快
 */
 
 using System.Collections.Generic;
@@ -16,6 +18,7 @@ namespace Module.Fish.Model
     public sealed class RunState
     {
         private const int FIRST_ROUND = 1;
+        private const int DEFAULT_ROUND_TARGET = 120;
 
         // ==================== 属性 ====================
         /// <summary>当前回合数，从 1 开始</summary>
@@ -39,6 +42,9 @@ namespace Module.Fish.Model
         /// <summary>本回合累计渔获价值（金币），进下一回合时清零</summary>
         public int RoundValue { get; private set; }
 
+        /// <summary>本回合渔获折算后实际入账的金币，明细面板用它解释为什么入账少于渔获价值</summary>
+        public int RoundCoins { get; private set; }
+
         /// <summary>本回合渔获是否达标，达标才准进下一回合</summary>
         public bool IsTargetReached => RoundValue >= RoundTarget;
 
@@ -59,28 +65,30 @@ namespace Module.Fish.Model
 
         // ==================== 字段[私有] ====================
         private readonly List<FishScoreItem> m_roundItems = new();
-        private readonly int m_baseRoundTarget;
-        private readonly float m_roundTargetGrowth;
+        private readonly IReadOnlyList<int> m_roundTargets;
+        private readonly float m_coinPayoutRatio;
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 开一局：定下每回合下潜次数与回合目标的增长曲线
+        /// 开一局：定下每回合下潜次数、逐回合的渔获价值目标表与金币折算比例
         /// </summary>
         /// <param name="divesPerRound">每回合固定下潜次数</param>
-        /// <param name="baseRoundTarget">第一回合的目标渔获价值（金币）</param>
-        /// <param name="roundTargetGrowth">目标价值逐回合增长倍率，1.8 即每回合是上回合的 1.8 倍</param>
-        public RunState(int divesPerRound, int baseRoundTarget, float roundTargetGrowth)
+        /// <param name="roundTargets">逐回合目标渔获价值，越界取最后一档，空表退回兜底值</param>
+        /// <param name="startingCoins">开局白送的金币，让第一回合的商店买得起东西</param>
+        /// <param name="coinPayoutRatio">渔获价值折进金币银行的比例，1 即渔获全额变现</param>
+        public RunState(int divesPerRound, IReadOnlyList<int> roundTargets, int startingCoins, float coinPayoutRatio)
         {
             DivesPerRound = Mathf.Max(1, divesPerRound);
-            m_baseRoundTarget = baseRoundTarget;
-            m_roundTargetGrowth = roundTargetGrowth;
+            m_roundTargets = roundTargets;
+            m_coinPayoutRatio = Mathf.Clamp01(coinPayoutRatio);
 
+            Coins = Mathf.Max(0, startingCoins);
             Round = FIRST_ROUND;
             RoundTarget = resolveRoundTarget(FIRST_ROUND);
         }
 
         /// <summary>
-        /// 提交一次出水的渔获，价值同时计入本回合目标进度与金币银行
+        /// 提交一次出水的渔获：全额推进本回合目标，只有折算后的那一份进金币银行
         /// </summary>
         /// <param name="dive">本次出水结果，空手而出传零收益结果</param>
         /// <param name="hookMaxDepth">本次出水中钩子到达过的最大深度（米）</param>
@@ -89,9 +97,12 @@ namespace Module.Fish.Model
             if (dive == null)
                 return;
 
+            int paidCoins = Mathf.RoundToInt(dive.Coins * m_coinPayoutRatio);
+
             m_roundItems.AddRange(dive.Items);
             RoundValue += dive.Coins;
-            Coins += dive.Coins;
+            RoundCoins += paidCoins;
+            Coins += paidCoins;
             TotalCatch += dive.FishCount;
             MaxDepth = Mathf.Max(MaxDepth, hookMaxDepth);
             DivesUsed++;
@@ -132,6 +143,7 @@ namespace Module.Fish.Model
             Round++;
             DivesUsed = 0;
             RoundValue = 0;
+            RoundCoins = 0;
             RoundTarget = resolveRoundTarget(Round);
             m_roundItems.Clear();
         }
@@ -143,10 +155,13 @@ namespace Module.Fish.Model
         }
 
         // ==================== Private Function ====================
-        // 第一回合取基准值，之后按倍率等比增长
+        // 目标按回合序号直取配置表，越界取最后一档；表是空的就退回兜底值，不至于把 0 当目标白送玩家过
         private int resolveRoundTarget(int round)
         {
-            return Mathf.RoundToInt(m_baseRoundTarget * Mathf.Pow(m_roundTargetGrowth, round - FIRST_ROUND));
+            if (m_roundTargets == null || m_roundTargets.Count == 0)
+                return DEFAULT_ROUND_TARGET;
+
+            return m_roundTargets[Mathf.Clamp(round - FIRST_ROUND, 0, m_roundTargets.Count - 1)];
         }
     }
 }

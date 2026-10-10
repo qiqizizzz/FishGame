@@ -797,7 +797,7 @@ namespace UI.Shop
         private void refreshCounters()
         {
             m_coinsText.text = $"金币 {m_run.Coins}";
-            m_targetText.text = $"目标 {m_run.RoundValue} / {m_run.RoundTarget}";
+            m_targetText.text = $"渔获目标 {m_run.RoundValue} / {m_run.RoundTarget}";
             m_divesText.text = $"下潜 {m_run.DivesRemaining} 次";
         }
 

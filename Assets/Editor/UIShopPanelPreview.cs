@@ -91,7 +91,8 @@ public static class UIShopPanelPreview
             return null;
         }
 
-        return new RunState(session.DivesPerRound, session.BaseRoundTarget, session.RoundTargetGrowth);
+        return new RunState(session.DivesPerRound, session.RoundTargets, session.StartingCoins,
+            session.CoinPayoutRatio);
     }
 
     private static RunBackpack createBackpack()

@@ -72,7 +72,7 @@ namespace UI.Summary
 
             m_titleText.text = $"第 {run.Round} 回合收竿";
             m_summaryText.text = $"累计捕获 {run.TotalCatch} 条　·　最深 {run.MaxDepth:0} 米"
-                + $"　·　本回合 {run.RoundValue} / {run.RoundTarget}";
+                + $"　·　渔获 {run.RoundValue} / {run.RoundTarget}　·　折算入账 +{run.RoundCoins} 金币";
             m_coinsText.text = $"金币 {run.Coins}";
 
             rebuildRows(run);
