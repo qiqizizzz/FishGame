@@ -9,7 +9,9 @@
 * 单击只报「选中」，名字与加成由面板的详情区去报，格子上不再常驻文字
 * 旋转、取下、出售都归面板浮出来的操作条，本视图不直接改物品，误点一下也不至于把东西转了向
 * 松手落在暂存架那块面板上就是收进架子，落回网格就是挪位；本轮真的拖过就不再触发点击
-* 装备有图标就在形状之上再盖一层图标，图标不吃射线，点选与拖拽仍然归形状亮面
+* 装备有图标就让图标铺满整块形状的包围盒，底色块平时收着，拖起来才亮出来数格子
+* 图标只认自己画出来的实心像素，透明处把指针让给底下的布，布上压着东西也能直接抽布
+* 图标朝向由包围盒长轴与素材长轴比出来，拧着就转 90 度，物品旋转时长短边互换、角度自然加减 90
 */
 
 using System.Collections.Generic;
@@ -28,8 +30,14 @@ namespace UI.Shop
         private const string FACE_NAME = "Img_Face";
         private const string ICON_NAME = "Img_Icon";
 
-        // 图标相对整块形状内缩的比例，免得盖住方块之间的暗边凹槽
-        private const float ICON_INSET_RATIO = 0.12f;
+        // 图标按像素透明度决定吃不吃点击的门槛，比这个透明度还淡就当没画东西，指针让给底下的布
+        private const float ICON_ALPHA_HIT_THRESHOLD = 0.1f;
+
+        // 包围盒与素材长轴拧着来时的转角，只有正负 90 这一档
+        private const float ICON_ROTATE_ANGLE = 90f;
+
+        // 素材长宽比不到这个倍数就当它是方的，方的没有朝向，转了只会把画好的东西摆倒
+        private const float SPRITE_AXIS_RATIO = 1.2f;
 
         // 方块四周留出的暗边厚度，相邻方块之间的凹槽是它的两倍宽
         private const float RIM_THICKNESS = 4f;
@@ -39,6 +47,17 @@ namespace UI.Shop
 
         // 落点换算用的最小平方距离，位移短到基本没挪就当成没动过
         private const float SNAP_EPSILON = 0.001f;
+
+        // ==================== 属性 ====================
+        /// <summary>
+        /// 图标此刻在自身平面里的矩形尺寸，转了 90 度时给的是转之前那一份
+        /// </summary>
+        public Vector2 IconSize => m_iconSize;
+
+        /// <summary>
+        /// 图标此刻的转角，被挤下架的那件靠这两样把飞行物摆成同一姿态
+        /// </summary>
+        public float IconAngle => m_iconAngle;
 
         // ==================== 字段[私有] ====================
         private RectTransform m_rect;
@@ -51,6 +70,16 @@ namespace UI.Shop
 
         // 图标只创建一次，换物品时改贴图，没图标的存放物把它整块关掉
         private Image m_iconImage;
+
+        // 本件到底有没有图标：有就平时只露图标，底色块留到拖起来才亮
+        private bool m_hasIcon;
+
+        // 是否正被拖着，只用来切换图标与底色块的可见性
+        private bool m_isDragging;
+
+        // 图标此刻的自身尺寸与转角，宿主拿去做飞进暂存架的飞行物
+        private Vector2 m_iconSize;
+        private float m_iconAngle;
 
         // 拖拽三件套：落差、锚点差、本轮是否拖过
         private BackpackItemInstance m_item;
@@ -66,6 +95,16 @@ namespace UI.Shop
         private void Awake()
         {
             bindNodes();
+        }
+
+        // 面板中途关掉走不到 OnEndDrag，这里补一次，免得底色块和图标停在拖拽态
+        private void OnDisable()
+        {
+            if (!m_isDragging)
+                return;
+
+            m_isDragging = false;
+            applyDragVisual();
         }
 
         // ==================== Public Function ====================
@@ -137,6 +176,9 @@ namespace UI.Shop
                 return;
 
             m_wasDragged = true;
+            // 离手就换成格子块，玩家手里数得清这件占几格
+            m_isDragging = true;
+            applyDragVisual();
             m_startPosition = m_rect.anchoredPosition;
             m_grabOffset = pointerInGrid(eventData) - m_startPosition;
             m_rect.SetAsLastSibling();
@@ -176,6 +218,10 @@ namespace UI.Shop
 
             // 落点定完了才补回操作条，它按新位置浮出来才对得上手上的东西
             m_host.EndItemDrag(m_item);
+
+            // 中途宿主可能已经重铺过本视图，落点定死之后再把手上的格子块收回图标态
+            m_isDragging = false;
+            applyDragVisual();
         }
 
         public void OnPointerClick(PointerEventData eventData)
@@ -245,35 +291,81 @@ namespace UI.Shop
             return block;
         }
 
-        // 有图标就盖在形状之上；方形图落在 1x3 这类长条形状里会被等比缩成居中一块，不拉伸也不越界
+        // 有图标就把图标铺满整块形状的包围盒，一格不留白，物品本身也放大到形状允许的最大
+        // 朝向按长轴算：包围盒横过来而素材竖着画就把图标转 90 度躺平，物品旋转时长短边互换，角度自然加减 90
+        // 盒子与素材都得先有长短轴可言，接近正方形的素材不猜朝向，只按包围盒拉伸铺满
         private void showIcon(int columns, int rows, float pitch)
         {
             Sprite icon = m_item.Definition.Icon;
-            if (icon == null)
+            m_hasIcon = icon != null;
+
+            // 没图标的存放物就按包围盒本身去飞，转角归零
+            m_iconSize = new Vector2(columns * pitch, rows * pitch);
+            m_iconAngle = 0f;
+
+            if (m_hasIcon)
             {
-                if (m_iconImage != null)
-                    m_iconImage.gameObject.SetActive(false);
-                return;
+                if (m_iconImage == null)
+                    m_iconImage = createIcon();
+
+                bool rotate = shouldRotateIcon(icon, columns, rows);
+                RectTransform rect = (RectTransform)m_iconImage.transform;
+
+                m_iconAngle = rotate ? ICON_ROTATE_ANGLE : 0f;
+                m_iconSize = rotate ? new Vector2(rows * pitch, columns * pitch) : new Vector2(columns * pitch, rows * pitch);
+
+                // 矩形先摆成躺着的自身尺寸，再靠转角把它立回包围盒里，中心对齐包围盒中心
+                rect.sizeDelta = m_iconSize;
+                rect.anchoredPosition = new Vector2(columns * pitch * 0.5f, -rows * pitch * 0.5f);
+                rect.localEulerAngles = new Vector3(0f, 0f, m_iconAngle);
+                m_iconImage.sprite = icon;
+                m_iconImage.color = Color.white;
+
+                // 形状块是后建出来排在后面的，每次刷新都要把图标压回最上层
+                rect.SetAsLastSibling();
             }
 
-            if (m_iconImage == null)
-                m_iconImage = createIcon();
-
-            float inset = pitch * ICON_INSET_RATIO;
-            RectTransform rect = (RectTransform)m_iconImage.transform;
-
-            rect.gameObject.SetActive(true);
-            rect.anchoredPosition = new Vector2(inset, -inset);
-            rect.sizeDelta = new Vector2(columns * pitch - inset * 2f, rows * pitch - inset * 2f);
-            m_iconImage.sprite = icon;
-            m_iconImage.color = Color.white;
-
-            // 形状块是后建出来排在后面的，每次刷新都要把图标压回最上层
-            rect.SetAsLastSibling();
+            applyDragVisual();
         }
 
-        // 图标沿用形状块那套左上角锚点，整块覆盖住所有方块的包围盒
-        // 图标不吃射线，指针全部让给下面的亮面，点选与拖拽的手感不变
+        // 盒子与素材都各有长短轴、而且拧着来才转：横盒子配竖图、竖盒子配横图，其余一律原样铺满
+        private static bool shouldRotateIcon(Sprite icon, int columns, int rows)
+        {
+            // 方盒子没有长轴可对齐，横竖素材都直接铺满
+            if (columns == rows)
+                return false;
+
+            float width = icon.rect.width;
+            float height = icon.rect.height;
+
+            // 接近正方形的素材读不出朝向，硬转 90 度会把立着的鱼竿放倒，宁可不转
+            if (Mathf.Max(width, height) < Mathf.Min(width, height) * SPRITE_AXIS_RATIO)
+                return false;
+
+            bool boxLandscape = columns > rows;
+            bool spriteLandscape = width > height;
+            return boxLandscape != spriteLandscape;
+        }
+
+        // 平时只露图标、底色块收着，拖起来才反过来；没图标的存放物底色块就是它本身，任何时候都得亮着
+        // 不然整件东西既看不见也没处点，旋转与拖拽都无从下手
+        private void applyDragVisual()
+        {
+            setBlocksVisible(!m_hasIcon || m_isDragging);
+
+            if (m_iconImage != null)
+                m_iconImage.gameObject.SetActive(m_hasIcon && !m_isDragging);
+        }
+
+        // 只切这一件真正用上的方块，池子里多出来的那些由 Setup 负责收干净
+        private void setBlocksVisible(bool visible)
+        {
+            for (int i = 0; i < m_blockUsed; i++)
+                m_blocks[i].gameObject.SetActive(visible);
+        }
+
+        // 图标挂在物品根节点的正中，绕自己的中心转，整块覆盖住所有方块的包围盒
+        // 图标要吃射线，但只认自己画出来的实心像素，透明处把指针让给底下的布
         private Image createIcon()
         {
             GameObject iconObject = new GameObject(ICON_NAME, typeof(RectTransform), typeof(Image));
@@ -281,11 +373,12 @@ namespace UI.Shop
             icon.SetParent(transform, false);
             icon.anchorMin = new Vector2(0f, 1f);
             icon.anchorMax = new Vector2(0f, 1f);
-            icon.pivot = new Vector2(0f, 1f);
+            icon.pivot = new Vector2(0.5f, 0.5f);
 
             Image image = iconObject.GetComponent<Image>();
-            image.preserveAspect = true;
-            image.raycastTarget = false;
+            image.preserveAspect = false;
+            image.raycastTarget = true;
+            image.alphaHitTestMinimumThreshold = ICON_ALPHA_HIT_THRESHOLD;
             return image;
         }
 

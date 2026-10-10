@@ -18,9 +18,11 @@
 * 布与装备一出网格就压在仓库与商店底下，拖起来期间要把整块背包面板提到最后，松手放回原位
 * 单格边长与间距从网格组件读，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
+* 装备被布挤下网格就自己飞进暂存架那一格，飞完格子才显形，玩家看得见它去了哪
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
 
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Framework.QTower.Common.Defines;
@@ -89,6 +91,12 @@ namespace UI.Shop
         private const float BAR_PADDING = 10f;
         private const float BAR_GAP = 10f;
         private const float BAR_FONT_SIZE = 24f;
+
+        // 装备飞进暂存架的行程时长，纯表现，落点判定早在模型里定死了，这里只补一段看得见的过程
+        private const float FLY_DURATION = 0.28f;
+
+        // 飞行物借用的临时层，面板里没有这个节点
+        private const string FLY_LAYER_NAME = "Layer_FlyStash";
 
         // ==================== 字段[外部设置] ====================
         [Tooltip("选中一块布时套在每一格上的外框图，取 Button_select_brown 这种四角标，中心要留空")]
@@ -170,6 +178,24 @@ namespace UI.Shop
 
         // 暂存架那块面板是拖拽下架的落点，只判指针在不在它的矩形里
         private RectTransform m_storagePanelRect;
+
+        // 装备被挤下网格要飞进架子，起飞那一刻的中心、尺寸与转角得在模型动手之前抄下来，事后视图就被重铺了
+        private readonly Dictionary<BackpackItemInstance, Vector3> m_flyCenters = new();
+        private readonly Dictionary<BackpackItemInstance, Vector2> m_flySizes = new();
+        private readonly Dictionary<BackpackItemInstance, float> m_flyAngles = new();
+
+        // 还在飞的这几件，架子上的那一格先留空，落地才显形，免得东西没到架子就先亮
+        private readonly HashSet<BackpackItemInstance> m_flyingIn = new();
+        private int m_flyingCount;
+
+        // 飞行物挂在这一层里，它盖在背包与仓库之上才看得见在飞
+        private RectTransform m_flyRect;
+
+        // 模型动手之前架子上的件数，动手之后多出来的这几件就是刚落架的
+        private int m_stashCountBefore;
+
+        // 量矩形中心用的四个角，全程复用同一个数组，免得每件都分配一次
+        private readonly Vector3[] m_flyCorners = new Vector3[4];
 
         // 被抓到手上的那块布，它铺过的格子在这期间显示成锁格，因为底板确实跟着手指走了
         private BackpackItemInstance m_plateInHand;
@@ -289,6 +315,7 @@ namespace UI.Shop
         private void OnDisable()
         {
             restoreBackpackPanel();
+            stopFlights();
         }
 
         // ==================== Public Function ====================
@@ -330,7 +357,11 @@ namespace UI.Shop
             if (m_backpack == null || plate == null)
                 return false;
 
+            captureStashLanding();
             bool moved = m_backpack.TryMovePlate(plate, anchorColumn, anchorRow);
+            if (moved)
+                flyNewStashEntries();
+
             refreshBackpack();
             return moved;
         }
@@ -340,7 +371,11 @@ namespace UI.Shop
             if (m_backpack == null || plate == null)
                 return false;
 
+            captureStashLanding();
             bool rotated = m_backpack.TryRotatePlate(plate);
+            if (rotated)
+                flyNewStashEntries();
+
             refreshBackpack();
             return rotated;
         }
@@ -351,9 +386,14 @@ namespace UI.Shop
             if (m_backpack == null || plate == null)
                 return false;
 
+            captureStashLanding();
             bool stashed = m_backpack.TryRemovePlateToStash(plate);
             if (stashed)
+            {
                 m_selectedPlate = null;
+                // 布自己也要进架，可它原先不在装备之列，没有出发点，飞的只有被它挤下来的那几件
+                flyNewStashEntries();
+            }
 
             refreshBackpack();
             return stashed;
@@ -372,11 +412,15 @@ namespace UI.Shop
             }
 
             int price = m_shop.SellPriceOf(plate.Definition);
+            captureStashLanding();
+
             if (!m_backpack.TryRemovePlate(plate))
             {
                 QLog.Info("这块布上压着装备，暂存架又接不住，先把装备挪开再卖");
                 return false;
             }
+
+            flyNewStashEntries();
 
             m_run.AddCoins(price);
             m_selectedPlate = null;
@@ -437,9 +481,14 @@ namespace UI.Shop
             if (m_backpack == null || item == null)
                 return false;
 
+            captureStashLanding();
             bool stashed = m_backpack.TryRemoveItemToStash(item);
             if (stashed)
+            {
                 m_selectedItem = null;
+                // 从手上摘进架子也补一段飞行，出发点就按松手时它停着的地方算
+                flyNewStashEntries();
+            }
 
             refreshBackpack();
             return stashed;
@@ -674,10 +723,191 @@ namespace UI.Shop
 
             for (int i = 0; i < m_storageSlots.Length; i++)
             {
-                if (i < stash.Count)
+                // 还在飞的这几件先让格子空着，落地才显形
+                if (i < stash.Count && !m_flyingIn.Contains(stash[i]))
                     m_storageSlots[i].SetStored(stash[i], i, this);
                 else
                     m_storageSlots[i].SetEmpty();
+            }
+        }
+
+        // ==================== 飞进暂存架 ====================
+        // 模型动手之前把每件装备此刻的中心与尺寸抄下来，事后视图会被重铺，那时候再问就晚了
+        private void captureStashLanding()
+        {
+            m_flyCenters.Clear();
+            m_flySizes.Clear();
+            m_flyAngles.Clear();
+            m_stashCountBefore = m_backpack.Stash.Count;
+
+            IReadOnlyList<BackpackItemInstance> items = m_backpack.Model.Items;
+
+            for (int i = 0; i < items.Count && i < m_itemsShown; i++)
+            {
+                RectTransform rect = (RectTransform)m_itemViews[i].transform;
+                m_flyCenters[items[i]] = rectCenter(rect);
+                // 起飞姿态照抄图标自己那一份，转了 90 度的那件飞起来也躺着，不会看着换了个东西
+                m_flySizes[items[i]] = m_itemViews[i].IconSize;
+                m_flyAngles[items[i]] = m_itemViews[i].IconAngle;
+            }
+        }
+
+        // 多进架的这几件各起一段飞行，先登记后重铺，架子那一格就靠这份登记决定显不显形
+        private void flyNewStashEntries()
+        {
+            IReadOnlyList<BackpackItemInstance> stash = m_backpack.Stash;
+
+            for (int i = m_stashCountBefore; i < stash.Count; i++)
+            {
+                BackpackItemInstance item = stash[i];
+
+                // 本来就不在网格上的东西没有出发点，例如拆下来直接进架的那块布
+                if (!m_flyCenters.TryGetValue(item, out Vector3 center))
+                    continue;
+
+                if (!m_flyingIn.Add(item))
+                    continue;
+
+                m_flyAngles.TryGetValue(item, out float angle);
+                m_flyingCount++;
+                StartCoroutine(flyToStashCoroutine(item, center, m_flySizes[item], angle));
+            }
+
+            m_flyCenters.Clear();
+            m_flySizes.Clear();
+            m_flyAngles.Clear();
+        }
+
+        // 架子那份只读列表没有 IndexOf，一共就五件，线性找一遍就够
+        private int stashIndexOf(BackpackItemInstance item)
+        {
+            IReadOnlyList<BackpackItemInstance> stash = m_backpack.Stash;
+
+            for (int i = 0; i < stash.Count; i++)
+            {
+                if (ReferenceEquals(stash[i], item))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        // 从原来那格飞到架子那一格，尺寸一路缩到格子大小，看着就是被收进了架子
+        private IEnumerator flyToStashCoroutine(BackpackItemInstance item, Vector3 startCenter, Vector2 startSize, float startAngle)
+        {
+            GameObject flyer = createFlyer(item, startCenter, startSize, startAngle);
+            RectTransform flyRect = (RectTransform)flyer.transform;
+            Vector2 start = toFlyLocal(startCenter);
+            float flown = 0f;
+
+            while (flown < FLY_DURATION)
+            {
+                int stashIndex = stashIndexOf(item);
+
+                // 中途这件被取回、架子重排、或者面板关掉把图收掉了，这段飞行就没必要再演下去
+                if (flyer == null || stashIndex < 0 || stashIndex >= m_storageSlots.Length)
+                    break;
+
+                RectTransform slot = (RectTransform)m_storageSlots[stashIndex].transform;
+                float t = Mathf.SmoothStep(0f, 1f, flown / FLY_DURATION);
+
+                flyRect.anchoredPosition = Vector2.Lerp(start, toFlyLocal(rectCenter(slot)), t);
+                flyRect.sizeDelta = Vector2.Lerp(startSize, slot.rect.size, t);
+
+                flown += Time.deltaTime;
+                yield return null;
+            }
+
+            if (flyer != null)
+                Destroy(flyer);
+
+            finishFlight(item);
+        }
+
+        // 借一张图当飞行物：有图标就贴图，没图标染品质色，尺寸先按它原来占的那块包围盒
+        private GameObject createFlyer(BackpackItemInstance item, Vector3 startCenter, Vector2 startSize, float startAngle)
+        {
+            ensureFlyLayer();
+
+            GameObject flyObject = new GameObject(FLY_LAYER_NAME + "_Item", typeof(RectTransform), typeof(Image));
+            RectTransform rect = (RectTransform)flyObject.transform;
+            rect.SetParent(m_flyRect, false);
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = startSize;
+            rect.anchoredPosition = toFlyLocal(startCenter);
+            // 架子那一格是方的，转角一路归零，落进去正好和暂存格的摆法对上
+            rect.localEulerAngles = new Vector3(0f, 0f, startAngle);
+
+            Sprite icon = item.Definition.Icon;
+            Image image = flyObject.GetComponent<Image>();
+            image.sprite = icon;
+            image.raycastTarget = false;
+            image.color = icon != null ? Color.white : UIShopQuality.ColorFor(item.Definition, item.Tier);
+            return flyObject;
+        }
+
+        // 飞行层是运行时建的一层，挂在面板最上面才压得过背包与仓库，用完留着下次再飞
+        private void ensureFlyLayer()
+        {
+            if (m_flyRect != null)
+            {
+                m_flyRect.SetAsLastSibling();
+                return;
+            }
+
+            GameObject layerObject = new GameObject(FLY_LAYER_NAME, typeof(RectTransform));
+            m_flyRect = (RectTransform)layerObject.transform;
+            m_flyRect.SetParent(transform, false);
+            m_flyRect.anchorMin = Vector2.zero;
+            m_flyRect.anchorMax = Vector2.one;
+            m_flyRect.offsetMin = Vector2.zero;
+            m_flyRect.offsetMax = Vector2.zero;
+        }
+
+        // 屏幕上的一个点换算到飞行层的局部坐标，与这个文件其余的换算一样按覆盖式画布算
+        private Vector2 toFlyLocal(Vector3 worldPoint)
+        {
+            Vector2 screen = RectTransformUtility.WorldToScreenPoint(null, worldPoint);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_flyRect, screen, null, out Vector2 local);
+            return local;
+        }
+
+        // 取一个矩形在屏幕上的中心，起点与落点都按中心算，不受各层枢轴摆法的影响
+        private Vector3 rectCenter(RectTransform rect)
+        {
+            rect.GetWorldCorners(m_flyCorners);
+            return (m_flyCorners[0] + m_flyCorners[2]) * 0.5f;
+        }
+
+        // 一件落地，架子那一格这才显形
+        private void finishFlight(BackpackItemInstance item)
+        {
+            if (!m_flyingIn.Remove(item))
+                return;
+
+            m_flyingCount--;
+            fillStorage();
+        }
+
+        // 面板中途关掉，飞着的东西一律作废，重开时直接按模型的最新状态铺
+        private void stopFlights()
+        {
+            m_flyCenters.Clear();
+            m_flySizes.Clear();
+            m_flyAngles.Clear();
+
+            if (m_flyingCount < 1)
+                return;
+
+            m_flyingIn.Clear();
+            m_flyingCount = 0;
+
+            if (m_flyRect != null)
+            {
+                Destroy(m_flyRect.gameObject);
+                m_flyRect = null;
             }
         }
 
