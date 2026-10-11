@@ -12,13 +12,13 @@
 * 布的样子就是底层格子染上布的底色，最上面再叠一层选中框，一格一圈角标，框不吃射线
 * 选中一块布或一件装备才浮出操作条，旋转、拆下架、卖成金币都在条上按，单击不直接改东西
 * 背包与暂存架双向拖：拖到暂存架面板上就下架，从暂存格拖进网格就按幽灵吸附的落点上架
-* 格子上不再常驻名称，点中布或装备都在它旁边浮出详情小窗：第一行名字，第二行能力线
+* 格子上不再常驻名称，点中布或装备都在它旁边浮出详情小窗：第一行名字，能力线一条一行
 * 详情小窗是独立预制体 UIShopDetailWindow，脚本只实例化一次并按选中物染色，版式全在预制体里改
 * 商品卡走同一套幽灵与同一扇小窗：点开只看详情，拖到网格的空位或拖进暂存架那一刻才扣钱
-* 商品的详情比已入手的多一个右上角价钱，是布还要在窗里画出它真实的异形，小窗跟着长高
+* 商品的详情比已入手的多一个右上角价钱，异形布的形状由货架那张商品卡自己画，小窗里不再重复一遍
 * 拖一块布起来时它铺过的格子先空成锁格，手里那块布由视图的幽灵格跟着手指画
 * 布与装备一出网格就压在仓库与商店底下，拖起来期间要把整块背包面板提到最后，松手放回原位
-* 单格边长与间距从网格组件读，改版式只动预制体不动脚本
+* 单格边长与间距从网格组件读，物品层、布层与选中框层的 rect 也整份抄网格，改版式只动预制体不动脚本
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 装备被布挤下网格就自己飞进暂存架那一格，飞完格子才显形，玩家看得见它去了哪
 * 详情小窗点它以外的空白处就收起，按钮、商品卡、物品与已上架的格子这些自己会响应点击的控件不算空白
@@ -75,20 +75,19 @@ namespace UI.Shop
         private const string PLATE_SELL_NAME = "Btn_Sell";
         private const string SELECT_FRAME_NAME = "Img_SelectFrame";
 
-        // 详情小窗是独立预制体，运行时只实例化一次，这里只认它内部的三个子节点
+        // 详情小窗是独立预制体，运行时只实例化一次，这里只认它内部要改写的四个节点
         private const string DETAIL_WINDOW_NAME = "Panel_Detail";
         private const string DETAIL_NAME_TEXT_PATH = "Txt_DetailName";
         private const string DETAIL_DESC_TEXT_PATH = "Txt_DetailDesc";
         private const string DETAIL_ACCENT_PATH = "Img_Accent";
-        // 商品详情比已入手的多一个右上角价钱与一条布形预览，这两个节点只在小窗预制体里排
+        // 商品详情比已入手的多一个右上角价钱，这个节点只在小窗预制体里排
         private const string DETAIL_PRICE_PATH = "Txt_DetailPrice";
-        private const string DETAIL_CLOTH_SHAPE_PATH = "Node_ClothShape";
-        // 宽跟着两行文案走，两头各封一个界，省得长文案把小窗拉成一条横幅
+        // 宽跟着最宽那行文案走，下限保住版式，上限只当兜底：一条能力线一行，正常撑不到那么宽
         private const float DETAIL_MIN_WIDTH = 340f;
-        private const float DETAIL_MAX_WIDTH = 520f;
+        private const float DETAIL_MAX_WIDTH = 720f;
         private const float DETAIL_GAP = 14f;
         private const float DETAIL_SAFE_MARGIN = 20f;
-        // 两行文本离左右缘的留白，抄自预制体里的文本边距，改版式要两边一起动
+        // 名字与文案离左右缘的留白，抄自预制体里的文本边距，改版式要两边一起动
         private const float DETAIL_TEXT_INSET_LEFT = 38f;
         private const float DETAIL_TEXT_INSET_RIGHT = 16f;
         // 候选摆位一共有六个，试完都不合适才退回收夹
@@ -96,10 +95,6 @@ namespace UI.Shop
         // 价钱压在右上角，名字行要给它让出这几像素，两行才不叠字
         private const float DETAIL_PRICE_INSET_RIGHT = 16f;
         private const float DETAIL_PRICE_GAP = 12f;
-        // 窗里多一条布形预览就得多长出这么多，长出来的量跟着预览带的高走
-        private const float DETAIL_PREVIEW_EXTRA = 38f;
-        // 详情文案多出一条灰字提示就要多让出一行，30 号字带行距实量 34
-        private const float DETAIL_NOTE_EXTRA = 34f;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -247,19 +242,18 @@ namespace UI.Shop
         // 小窗的高读自预制体，算落点时用它，脚本里不再写死
         private float m_detailHeight;
 
-        // 商品的详情多一个右上角价钱与一条布形预览，窗子按有没有这两样来长
+        // 商品的详情多一个右上角价钱，窗子按有没有它来长
         private TMP_Text m_detailPriceText;
         private Color m_detailPriceDefaultColor;
-        private UIShopClothShape m_detailClothShape;
         private ShopStockEntry m_detailGoods;
         private RectTransform m_detailCardRect;
-        // 预制体不带预览带时的高，收起预览要还原到它
+        // 预制体那一版按一行文案算出来的小窗高，多出来的行往上加
         private float m_detailBaseHeight;
-        // 预览与灰字各占一段加高，两条同时成立时小窗要加两倍
-        private bool m_detailPreviewShown;
-        private bool m_detailNoteShown;
-        // 文案那格的高读自预制体，收起灰字要还原到它
+        // 文案那格的高读自预制体，只有一行时还原到它
         private float m_detailDescBaseHeight;
+        // 文案实量出来的宽与高：宽定小窗的宽，高定小窗比基数多长多少
+        private float m_detailDescWidth;
+        private float m_detailDescHeight;
 
         // 量商品卡四角用的数组，逐帧重摆也不反复分配
         private readonly Vector3[] m_detailCorners = new Vector3[4];
@@ -326,6 +320,9 @@ namespace UI.Shop
 
             m_cellSize = m_grid.cellSize.x;
             m_cellSpacing = m_grid.spacing.x;
+
+            // 物品层只是给视图当坐标系，几何一律抄网格，挪过 Grid_Slots 也不会让覆盖块与格子错位
+            alignItemLayerToGrid();
 
             m_cellSprite = m_slots.Length > 0 ? m_slots[0].EmptyCellSprite : null;
 
@@ -695,7 +692,7 @@ namespace UI.Shop
             fillSlotColors();
         }
 
-        // 点中的是哪件东西，两行写在详情小窗：第一行名字，第二行它身上的能力线
+        // 点中的是哪件东西，详情小窗第一行写名字，下面的能力线一条一行
         public void ShowDetail(BackpackItemInstance item)
         {
             if (item?.Definition == null)
@@ -704,7 +701,7 @@ namespace UI.Shop
                 return;
             }
 
-            // 换成已入手的东西，商品那份价钱与预览一起收掉，两条链路各写各的
+            // 换成已入手的东西，商品那份的价钱先收掉，两条链路各写各的
             m_detailGoods = null;
             m_detailCardRect = null;
             m_detailPriceText.gameObject.SetActive(false);
@@ -720,12 +717,6 @@ namespace UI.Shop
             // 左侧色条染成这件东西的对应色，布吃布自己的底色，装备吃档位品质色
             Color qualityColor = UIShopQuality.ColorFor(item.Definition, item.Tier);
             m_detailAccent.color = qualityColor;
-
-            // 布在背包里可能已经被转过向，预览要照它此刻的朝向画，不能永远画基准那一面
-            if (item.Definition.Kind == BackpackDefKind.Cloth)
-                setDetailClothPreview(item.ShapeDef, qualityColor, item.OrientationIndex);
-            else
-                clearDetailClothPreview();
         }
 
         // 点开商品卡看的是「还没到手的这一件」，与已入手的物件共用同一扇小窗，只是多一个价钱
@@ -762,11 +753,6 @@ namespace UI.Shop
             // 名字行要给右上角的价钱让位，让出的宽度按价钱自己量出来
             setDetailNameReserve(m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
                 + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP);
-
-            if (entry.Definition.Kind == BackpackDefKind.Cloth)
-                setDetailClothPreview(entry.Definition.ShapeAt(entry.Tier), goodsColor, 0);
-            else
-                clearDetailClothPreview();
 
             refreshActionBar();
         }
@@ -1143,7 +1129,7 @@ namespace UI.Shop
 
             int groups = countCraftMerges();
 
-            m_craftText.text = groups > 0 ? $"可合成 {groups} 组" : "无可合成";
+            m_craftText.text = groups > 0 ? $"可合成 {groups} 组" : "无合成";
             m_craftButton.interactable = groups > 0;
         }
 
@@ -1330,6 +1316,26 @@ namespace UI.Shop
             m_itemsShown++;
         }
 
+        // 物品层只是格子的另一张皮：rect 整份抄网格，用户在预制体里挪 Grid_Slots，覆盖块与布才不会和格子错位
+        private void alignItemLayerToGrid()
+        {
+            RectTransform gridRect = m_grid.transform as RectTransform;
+
+            m_itemsRect.anchorMin = gridRect.anchorMin;
+            m_itemsRect.anchorMax = gridRect.anchorMax;
+            m_itemsRect.pivot = gridRect.pivot;
+            m_itemsRect.sizeDelta = gridRect.sizeDelta;
+            m_itemsRect.anchoredPosition = gridRect.anchoredPosition
+                + new Vector2(m_grid.padding.left, -m_grid.padding.top);
+
+#if UNITY_EDITOR
+            if (m_itemsRect.parent != m_grid.transform.parent)
+                QLog.Error("物品层与网格不在同一个父节点下，rect 抄不过去，覆盖块会与格子错位");
+            if (m_grid.childAlignment != TextAnchor.UpperLeft)
+                QLog.Warning($"网格排列不是左上角（{m_grid.childAlignment}），物品层按左上角起算，覆盖块会与格子错位");
+#endif
+        }
+
         // 布层是运行时建的一层底板，位置尺寸抄自 Layer_Items，两层共用同一套格子坐标
         private void createClothLayer()
         {
@@ -1340,9 +1346,9 @@ namespace UI.Shop
 
             RectTransform layer = new GameObject(CLOTH_LAYER_NAME, typeof(RectTransform)).GetComponent<RectTransform>();
             layer.SetParent(m_itemsRect.parent, false);
-            layer.anchorMin = new Vector2(0.5f, 1f);
-            layer.anchorMax = new Vector2(0.5f, 1f);
-            layer.pivot = new Vector2(0.5f, 1f);
+            layer.anchorMin = m_itemsRect.anchorMin;
+            layer.anchorMax = m_itemsRect.anchorMax;
+            layer.pivot = m_itemsRect.pivot;
             layer.sizeDelta = m_itemsRect.sizeDelta;
             layer.anchoredPosition = m_itemsRect.anchoredPosition;
 
@@ -1356,9 +1362,9 @@ namespace UI.Shop
         {
             RectTransform layer = new GameObject(SELECT_LAYER_NAME, typeof(RectTransform)).GetComponent<RectTransform>();
             layer.SetParent(m_itemsRect.parent, false);
-            layer.anchorMin = new Vector2(0.5f, 1f);
-            layer.anchorMax = new Vector2(0.5f, 1f);
-            layer.pivot = new Vector2(0.5f, 1f);
+            layer.anchorMin = m_itemsRect.anchorMin;
+            layer.anchorMax = m_itemsRect.anchorMax;
+            layer.pivot = m_itemsRect.pivot;
             layer.sizeDelta = m_itemsRect.sizeDelta;
             layer.anchoredPosition = m_itemsRect.anchoredPosition;
 
@@ -1485,7 +1491,7 @@ namespace UI.Shop
             return button;
         }
 
-        // 详情小窗是独立预制体，这里只实例化一次并认好两行文本与色条，版式与配色全在预制体里改
+        // 详情小窗是独立预制体，这里只实例化一次并认好名字、文案、色条与价钱，版式与配色全在预制体里改
         // 它挂在整块背景上而不是物品层，摆到选中物左右时才不会被 800 宽的网格卡住
         private void bindDetailWindow()
         {
@@ -1501,16 +1507,14 @@ namespace UI.Shop
             m_detailDescText = findDetailChild<TMP_Text>(windowObject.transform, DETAIL_DESC_TEXT_PATH);
             m_detailAccent = findDetailChild<Image>(windowObject.transform, DETAIL_ACCENT_PATH);
             m_detailPriceText = findDetailChild<TMP_Text>(windowObject.transform, DETAIL_PRICE_PATH);
-            m_detailClothShape = findDetailChild<UIShopClothShape>(windowObject.transform, DETAIL_CLOTH_SHAPE_PATH);
             // 价钱本来的颜色读自预制体，买得起就染回它，调色板改了不用回来动代码
             m_detailPriceDefaultColor = m_detailPriceText.color;
-            // 高跟着预制体走，脚本只留一个数用来算落点，改小窗高度不用回来动这里
+            // 只读回预制体那一版的高当基数，文案多出来的行由 setDetailDesc 自己量着加
             m_detailBaseHeight = m_detailHeight = m_detailRect.sizeDelta.y;
             m_detailDescBaseHeight = m_detailDescText.rectTransform.sizeDelta.y;
 
-            // 价钱与布形预览只在商品那一份详情里露脸，绑完先各自收好
+            // 价钱只在商品那一份详情里露脸，绑完先收好
             m_detailPriceText.gameObject.SetActive(false);
-            m_detailClothShape.SetVisible(false);
             m_detailRect.gameObject.SetActive(false);
         }
 
@@ -1549,42 +1553,30 @@ namespace UI.Shop
             m_detailRect.SetAsLastSibling();
         }
 
-        // 窗里长出一条布形预览，小窗跟着加高，颜色与朝向都由调用方按货架上的或手里的这块布给定
-        private void setDetailClothPreview(GridShapeSO shape, Color cellColor, int orientationIndex)
+        // 文案一次写好几行：能力线一条一行，负载兑现不了的灰字再补一行，宽高都由 TMP 自己量
+        private void setDetailDesc(string buffLines, string note)
         {
-            m_detailClothShape.SetVisible(true);
-            m_detailClothShape.Setup(shape, cellColor, m_cellSprite, orientationIndex);
-            m_detailPreviewShown = true;
-            applyDetailHeight();
-        }
+            string text = string.IsNullOrEmpty(note) ? buffLines : $"{buffLines}\n{note}";
 
-        private void clearDetailClothPreview()
-        {
-            m_detailClothShape.SetVisible(false);
-            m_detailPreviewShown = false;
-            applyDetailHeight();
-        }
+            m_detailDescText.text = text;
 
-        // 文案一次写两行：头一行能力线，负载兑现不了才补第二行灰字，行高跟着有无提示一起让
-        private void setDetailDesc(string buffLine, string note)
-        {
-            bool hasNote = !string.IsNullOrEmpty(note);
+            // 不折行之后量出来的就是最宽那行的宽与整段的总高，小窗照它长，字不会被截
+            Vector2 preferred = m_detailDescText.GetPreferredValues(text);
 
-            m_detailDescText.text = hasNote ? $"{buffLine}\n{note}" : buffLine;
+            m_detailDescWidth = Mathf.CeilToInt(preferred.x);
+            m_detailDescHeight = Mathf.Max(m_detailDescBaseHeight, Mathf.CeilToInt(preferred.y));
 
             Vector2 descSize = m_detailDescText.rectTransform.sizeDelta;
-            descSize.y = m_detailDescBaseHeight + (hasNote ? DETAIL_NOTE_EXTRA : 0f);
+            descSize.y = m_detailDescHeight;
             m_detailDescText.rectTransform.sizeDelta = descSize;
 
-            m_detailNoteShown = hasNote;
             applyDetailHeight();
         }
 
-        // 小窗总高照预览与灰字各让多少叠出来，两条互不知情也不会互相顶掉
+        // 小窗总高 = 预制体那一版的高 + 文案比一行多出来的那段
         private void applyDetailHeight()
         {
-            float extra = (m_detailPreviewShown ? DETAIL_PREVIEW_EXTRA : 0f)
-                          + (m_detailNoteShown ? DETAIL_NOTE_EXTRA : 0f);
+            float extra = Mathf.Max(0f, m_detailDescHeight - m_detailDescBaseHeight);
             m_detailHeight = m_detailBaseHeight + extra;
         }
 
@@ -1616,16 +1608,15 @@ namespace UI.Shop
             m_detailNameText.rectTransform.sizeDelta = size;
         }
 
-        // 名字与文案谁更长就照谁定宽，价钱占掉的那一角也要算进宽里，超出上下限的部分交给省略号
+        // 名字与文案谁更长就照谁定宽，价钱占掉的那一角也要算进宽里，上下限只当兜底
         private float detailWidth()
         {
             float nameWidth = m_detailNameText.GetPreferredValues(m_detailNameText.text).x;
-            float descWidth = m_detailDescText.GetPreferredValues(m_detailDescText.text).x;
             float priceReserve = m_detailPriceText.gameObject.activeSelf
                 ? m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
                   + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
                 : 0f;
-            float widest = Mathf.Max(nameWidth, descWidth) + DETAIL_TEXT_INSET_LEFT
+            float widest = Mathf.Max(nameWidth, m_detailDescWidth) + DETAIL_TEXT_INSET_LEFT
                            + DETAIL_TEXT_INSET_RIGHT + priceReserve;
             return Mathf.Clamp(widest, DETAIL_MIN_WIDTH, DETAIL_MAX_WIDTH);
         }
@@ -1740,7 +1731,7 @@ namespace UI.Shop
             }
         }
 
-        // 收起小窗：价钱与布形预览都是商品那一份的东西，一并还原成预制体那个样子
+        // 收起小窗：价钱是商品那一份独有的，一并还原成预制体那个样子
         // 手上正拖着的商品不在这里管，那是 EndGoodsDrag 收的尾
         private void clearDetail()
         {
@@ -1749,7 +1740,6 @@ namespace UI.Shop
             m_detailCardRect = null;
             m_detailPriceText.gameObject.SetActive(false);
             setDetailNameReserve(0f);
-            clearDetailClothPreview();
             setDetailDesc(string.Empty, string.Empty);
             m_detailRect.gameObject.SetActive(false);
         }

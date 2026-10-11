@@ -5,7 +5,7 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 卡面只照条目本来的样子画，扣钱与入手全部交给宿主面板，卡片自己不改任何状态
-* 卡上不留详细信息行，预览加价钱就够，名字与加成那点字都要到点开详情才写得下
+* 卡上不留详细信息行，预览加一枚金币图标带个数字就够，名字与加成那点字都要到点开详情才写得下
 * 买不起只把价钱染红，卡片照样能点能拖，拖起来整块染红、松手也成交不了
 * 卡面上半格两类商品各画各的：装备贴图标，布照真实异形逐格画出占几格、什么颜色
 * 布不吃图标那条链路，它的形状与颜色本来就是它的「图标」，画成方块等于没画
@@ -30,13 +30,16 @@ namespace UI.Shop
     public sealed class UIShopGoodsItem : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         private const string ICON_PATH = "Img_Icon";
-        private const string PRICE_PATH = "Txt_Price";
+        private const string PRICE_PATH = "Node_Price/Txt_Price";
 
         // 布形预览带，与 Img_Icon 占同一块地方，两类商品在这块地方互斥
         private const string CLOTH_SHAPE_PATH = "Node_ClothShape";
 
         // 已售出占位图，同样占在预览区那块地方，与上面两类互斥
         private const string SOLD_OUT_PATH = "Img_SoldOut";
+
+        // 价钱前那枚金币图，和数字并排摆在 Node_Price 里，已售出时只留字不留图
+        private const string COIN_PATH = "Node_Price/Img_CoinIcon";
 
         // ==================== 字段[私有] ====================
         private Image m_iconImage;
@@ -50,6 +53,8 @@ namespace UI.Shop
         private bool m_iconDefaultCached;
 
         private TMP_Text m_priceText;
+        // 金币图标只在在卖时露出来，已售出那张卡不该还数着钱
+        private Image m_coinImage;
         private Button m_button;
 
         // 价钱原本的颜色从预制体上读一次，染回时不写死，调色板改了不用改代码
@@ -111,7 +116,8 @@ namespace UI.Shop
             m_wasDragged = false;
 
             applyVisual(entry, goodsColor, cellSprite);
-            m_priceText.text = entry.IsSold ? "已售出" : $"{entry.Price} 金币";
+            m_priceText.text = entry.IsSold ? "已售出" : entry.Price.ToString();
+            m_coinImage.gameObject.SetActive(!entry.IsSold);
             m_priceText.color = entry.IsSold || !affordable
                 ? UIShopQuality.PriceUnaffordable
                 : m_priceDefaultColor;
@@ -256,6 +262,7 @@ namespace UI.Shop
             m_clothShape = FindComponent<UIShopClothShape>(CLOTH_SHAPE_PATH);
             m_soldOutImage = FindComponent<Image>(SOLD_OUT_PATH);
             m_priceText = FindComponent<TMP_Text>(PRICE_PATH);
+            m_coinImage = FindComponent<Image>(COIN_PATH);
             m_button = GetComponent<Button>();
 
             m_priceDefaultColor = m_priceText != null ? m_priceText.color : Color.white;
@@ -271,7 +278,7 @@ namespace UI.Shop
         private void ensureBound()
         {
             if (m_iconImage == null || m_clothShape == null || m_soldOutImage == null
-                || m_priceText == null)
+                || m_priceText == null || m_coinImage == null)
                 bindNodes();
         }
     }
