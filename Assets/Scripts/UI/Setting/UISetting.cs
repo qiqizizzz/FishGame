@@ -5,6 +5,7 @@
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
  * 所有数值读写都走 GameSettings，这里只负责把控件状态与设置值互相同步
+ * 面板高度由 VerticalLayoutGroup + ContentSizeFitter 随可见行数自动伸缩，PC 少一行震动开关时面板随之收矮
  * 震动行在不支持震动的平台（PC）上整行隐藏，避免留下点了没反应的开关
  */
 
@@ -19,15 +20,15 @@ namespace UI.Setting
 {
     public sealed class UISetting : UIBase
     {
-        private const string MAIN_VOLUME_SLIDER_PATH = "Bg_Rows/Row_MainVolume/Sld_MainVolume";
-        private const string BGM_VOLUME_SLIDER_PATH = "Bg_Rows/Row_BgmVolume/Sld_BgmVolume";
-        private const string EFFECT_VOLUME_SLIDER_PATH = "Bg_Rows/Row_EffectVolume/Sld_EffectVolume";
-        private const string MUTE_BUTTON_PATH = "Bg_Rows/Row_Mute/Btn_Mute";
-        private const string VIBRATE_BUTTON_PATH = "Bg_Rows/Row_Vibrate/Btn_Vibrate";
-        private const string VIBRATE_ROW_PATH = "Bg_Rows/Row_Vibrate";
-        private const string CROSS_BUTTON_PATH = "Btn_Cross";
-        private const string MAIN_MENU_BUTTON_PATH = "Btns/Btn_MainMenu";
-        private const string CLOSE_BUTTON_PATH = "Btns/Btn_Close";
+        private const string MAIN_VOLUME_SLIDER_PATH = "Img_Panel/Bg_Rows/Row_MainVolume/Sld_MainVolume";
+        private const string BGM_VOLUME_SLIDER_PATH = "Img_Panel/Bg_Rows/Row_BgmVolume/Sld_BgmVolume";
+        private const string EFFECT_VOLUME_SLIDER_PATH = "Img_Panel/Bg_Rows/Row_EffectVolume/Sld_EffectVolume";
+        private const string MUTE_BUTTON_PATH = "Img_Panel/Bg_Rows/Row_Mute/Btn_Mute";
+        private const string VIBRATE_BUTTON_PATH = "Img_Panel/Bg_Rows/Row_Vibrate/Btn_Vibrate";
+        private const string VIBRATE_ROW_PATH = "Img_Panel/Bg_Rows/Row_Vibrate";
+        private const string CROSS_BUTTON_PATH = "Img_Panel/Btn_Cross";
+        private const string MAIN_MENU_BUTTON_PATH = "Img_Panel/Btns/Btn_MainMenu";
+        private const string CLOSE_BUTTON_PATH = "Img_Panel/Btns/Btn_Close";
 
         [Header("开关按钮精灵")]
         [Tooltip("开关关闭时显示的开关精灵，静音与震动共用")]
