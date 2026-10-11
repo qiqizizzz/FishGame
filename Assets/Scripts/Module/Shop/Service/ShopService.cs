@@ -5,6 +5,7 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 抽商品分三步：先抽类别，是装备再抽档位并从装备池抽款式，是布料则先按稀有度权重抽一块布再等概率剪一个异形
+* 档位与稀有度各按回合开闸：常开格第 N 回合最高只出 N 档装备与第 N 档稀有度的布，付费格提前一回合，最高档两路同回合
 * 售价基准只有一个来源，装备优先取自己身上配的档位价、没配才回落背包配置的档位价，布料按「单格基准价 × 占格数 × 稀有度系数」现算
 * 装备自带价是为了让「占 2 格」和「占 6 格」不再同价：格子是本玩法的核心资源，它不进价格就逼不出取舍
 * 两边都只再乘一次浮动，回收价走同一条基准公式，只差一次回收比例，两处不会算出两个数
@@ -33,8 +34,10 @@ namespace Module.Shop.Service
     {
         // ==================== 常量 ====================
         private const int FIRST_TIER = 1;
+        private const int FIRST_ROUND = 1;
         private const int MIN_PRICE = 1;
         private const int DEDUPE_MAX_ATTEMPTS = 8;
+        private const int FIRST_RARITY = 0;
 
         // 付费格的保底线：装备从这一档起、布料从这一档稀有度起才算得上高级货
         private const int GUARANTEE_MIN_TIER = 2;
@@ -99,6 +102,7 @@ namespace Module.Shop.Service
         private readonly HashSet<string> m_takenKeys = new();
         private int m_refreshCount;
         private int m_unlockedPaidCount;
+        private int m_round = FIRST_ROUND;
 
         // ==================== Constructor ====================
         /// <summary>
@@ -121,7 +125,7 @@ namespace Module.Shop.Service
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 重抽一整面货架，只换货不动刷新次数与价钱，复位那两样归 ResetForNewRound
+        /// 重抽一整面货架，只换货不动刷新次数、价钱与回合闸门，复位那几样归 ResetForNewRound
         /// 常开格与已解锁的付费格一起重抽，各走各的权重，已花的解锁钱不退
         /// </summary>
         public void RollStock()
@@ -138,13 +142,16 @@ namespace Module.Shop.Service
         }
 
         /// <summary>
-        /// 开一个新回合：刷新次数打回零、价钱回到起始档、整面货架重抽一遍
+        /// 开一个新回合：记下回合号重算抽取闸门，刷新次数打回零、价钱回到起始档、权重表重建、整面货架重抽一遍
         /// 上一轮卖空的格子不该跟着进这一轮，所以已售条目随库存一起重建
         /// </summary>
-        public void ResetForNewRound()
+        /// <param name="round">新回合的回合号，从 1 开始</param>
+        public void ResetForNewRound(int round)
         {
+            m_round = Mathf.Max(FIRST_ROUND, round);
             m_refreshCount = 0;
             RefreshCost = m_shopConfig.RefreshBaseCostValue;
+            buildTables();
             RollStock();
         }
 
@@ -265,10 +272,12 @@ namespace Module.Shop.Service
             entry.MarkSold();
             return ShopBuyResult.Success;
         }
-        // 奖池只在开店时摊平成权重表，之后每次抽取都只查表，总表改动要重开一局才生效
+        // 奖池在开店与新回合各摊平一次：回合闸门变了，档位与稀有度那几张表就得整个重建
         // 装备池常开格与付费格共用，真正分开的是档位、稀有度与类别这三套权重
         private void buildTables()
         {
+            m_itemTable.Clear();
+
             IReadOnlyList<BackpackItemSO> items = m_shopConfig.Items;
 
             for (int i = 0; i < items.Count; i++)
@@ -283,10 +292,16 @@ namespace Module.Shop.Service
 
             buildClothTables();
 
+            int freeMaxTier = freeTierCap();
+            int paidMaxTier = paidTierCap();
+
             for (int tier = FIRST_TIER; tier <= ShopConfigSO.TIER_COUNT; tier++)
             {
-                m_tierTable.Add(tier, m_shopConfig.TierWeightAt(tier));
-                m_premiumTierTable.Add(tier, m_shopConfig.PaidTierWeightAt(tier));
+                if (tier <= freeMaxTier)
+                    m_tierTable.Add(tier, m_shopConfig.TierWeightAt(tier));
+
+                if (tier <= paidMaxTier)
+                    m_premiumTierTable.Add(tier, m_shopConfig.PaidTierWeightAt(tier));
             }
 
             // 两套类别表各删各的空池，常开格抽不出布不该连累付费格
@@ -305,13 +320,20 @@ namespace Module.Shop.Service
         }
 
         // 一块布进哪个池只看它挂没挂 BUFF，权重取它那一档稀有度的抽中权重
-        // 同一块布在常开格与付费格两个池里存的是同一个下标，只是两边取的权重不一样
+        // 同一块布在常开格与付费格两个池里存的是同一个下标，只是两边的权重与回合闸门各算各的
         private void buildClothTables()
         {
+            m_buffClothTable.Clear();
+            m_blankClothTable.Clear();
+            m_premiumBuffClothTable.Clear();
+            m_premiumBlankClothTable.Clear();
+
             if (m_catalog == null)
                 return;
 
             int clothCount = m_catalog.ClothCount;
+            int freeMaxRarity = freeRarityCap();
+            int paidMaxRarity = paidRarityCap();
 
             for (int i = 0; i < clothCount; i++)
             {
@@ -320,18 +342,21 @@ namespace Module.Shop.Service
                 if (cloth == null || cloth.ShapeCount == 0)
                     continue;
 
-                float weight = m_catalog.DrawWeightOf(cloth.RarityIndex);
-                float premiumWeight = m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex);
-
                 if (cloth.IsBlank)
                 {
-                    m_blankClothTable.Add(i, weight);
-                    m_premiumBlankClothTable.Add(i, premiumWeight);
+                    if (cloth.RarityIndex <= freeMaxRarity)
+                        m_blankClothTable.Add(i, m_catalog.DrawWeightOf(cloth.RarityIndex));
+
+                    if (cloth.RarityIndex <= paidMaxRarity)
+                        m_premiumBlankClothTable.Add(i, m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex));
                 }
                 else
                 {
-                    m_buffClothTable.Add(i, weight);
-                    m_premiumBuffClothTable.Add(i, premiumWeight);
+                    if (cloth.RarityIndex <= freeRarityCap())
+                        m_buffClothTable.Add(i, m_catalog.DrawWeightOf(cloth.RarityIndex));
+
+                    if (cloth.RarityIndex <= paidMaxRarity)
+                        m_premiumBuffClothTable.Add(i, m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex));
                 }
             }
         }
@@ -357,7 +382,12 @@ namespace Module.Shop.Service
         // 权重沿用付费格那一套，保底抽出来的东西和正常抽出来的手感不该是两个价
         private void buildGuaranteeTables()
         {
-            for (int tier = GUARANTEE_MIN_TIER; tier <= ShopConfigSO.TIER_COUNT; tier++)
+            m_guaranteeTierTable.Clear();
+            m_guaranteeClothTable.Clear();
+
+            int paidMaxTier = paidTierCap();
+
+            for (int tier = GUARANTEE_MIN_TIER; tier <= paidMaxTier; tier++)
                 m_guaranteeTierTable.Add(tier, m_shopConfig.PaidTierWeightAt(tier));
 
             if (m_catalog == null)
@@ -372,7 +402,7 @@ namespace Module.Shop.Service
                 if (cloth == null || cloth.ShapeCount == 0 || cloth.IsBlank)
                     continue;
 
-                if (cloth.RarityIndex < GUARANTEE_MIN_RARITY)
+                if (cloth.RarityIndex < GUARANTEE_MIN_RARITY || cloth.RarityIndex > paidRarityCap())
                     continue;
 
                 m_guaranteeClothTable.Add(i, m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex));
@@ -459,6 +489,54 @@ namespace Module.Shop.Service
 
             ShopStockEntry cloth = rollCloth(m_guaranteeClothTable, true);
             return cloth != null ? cloth : rollItemFrom(m_guaranteeTierTable, true);
+        }
+
+        // 回合闸门：常开格第 N 回合最高只出 N 档装备与第 N 档稀有度的布，付费格提前一回合，最高档两路同回合
+        // 最高档是唯一不吃提前的：III 级装备与珍罕布两路都要等够回合数，花钱也买不到提前进场
+        // 提前那一回合还得留下够得上保底线的那一档，否则闸门会把花钱开的格子闸成空的
+        // 权重表里越闸的档位与稀有度干脆不进池，比抽完再弃掷省得整面货架白重抽
+        private int freeTierCap()
+        {
+            return tierCap(0);
+        }
+
+        private int paidTierCap()
+        {
+            return tierCap(1);
+        }
+
+        private int freeRarityCap()
+        {
+            return rarityCap(0);
+        }
+
+        private int paidRarityCap()
+        {
+            return rarityCap(1);
+        }
+
+        // 装备档位闸门，advance 是这条线比回合数提前几档：常开格 0、付费格 1
+        private int tierCap(int advance)
+        {
+            int top = ShopConfigSO.TIER_COUNT;
+            int cap = Mathf.Clamp(m_round + advance, FIRST_TIER, top);
+
+            if (cap >= top && m_round < top && top - 1 >= GUARANTEE_MIN_TIER)
+                cap = top - 1;
+
+            return Mathf.Max(cap, FIRST_TIER);
+        }
+
+        // 布料稀有度闸门，下标从 0 起算：第 N 回合开到下标 N 那一档，最高档同样不给提前
+        private int rarityCap(int advance)
+        {
+            int top = m_catalog != null ? m_catalog.RarityTierCount - 1 : 0;
+            int cap = Mathf.Clamp(m_round + advance, FIRST_RARITY, top);
+
+            if (cap >= top && m_round < top && top - 1 >= GUARANTEE_MIN_RARITY)
+                cap = top - 1;
+
+            return Mathf.Max(cap, FIRST_RARITY);
         }
 
         private ShopStockEntry rollItem(bool premium)

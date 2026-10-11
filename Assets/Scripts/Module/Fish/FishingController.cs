@@ -557,7 +557,7 @@ namespace Module.Fish
                 m_run.AdvanceRound();
 
                 // 先重抽货架再开商店面板，enterShopPhase 不开新局也会走到，抽货架只能放在这条「进下一回合」的路上
-                m_shop.ResetForNewRound();
+                m_shop.ResetForNewRound(m_run.Round);
 
                 enterShopPhase();
                 return;

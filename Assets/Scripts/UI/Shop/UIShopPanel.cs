@@ -82,6 +82,7 @@ namespace UI.Shop
         private const string DETAIL_DESC_TEXT_PATH = "Txt_DetailDesc";
         private const string DETAIL_ACCENT_PATH = "Img_Accent";
         // 商品详情比已入手的多一个右上角价钱，这个节点只在小窗预制体里排
+        // 价钱前那枚金币图是它的子节点，跟着价钱一起显隐，代码这边只负责把 rect 收到数字那么宽
         private const string DETAIL_PRICE_PATH = "Txt_DetailPrice";
         // 宽跟着最宽那行文案走，下限保住版式，上限只当兜底：一条能力线一行，正常撑不到那么宽
         private const float DETAIL_MIN_WIDTH = 340f;
@@ -96,6 +97,11 @@ namespace UI.Shop
         // 价钱压在右上角，名字行要给它让出这几像素，两行才不叠字
         private const float DETAIL_PRICE_INSET_RIGHT = 16f;
         private const float DETAIL_PRICE_GAP = 12f;
+        // 价钱前那枚金币图的宽与它同数字的间隙，抄自预制体里的 Img_DetailCoin，改了版式两边要一起动
+        private const float DETAIL_PRICE_COIN_WIDTH = 21f;
+        private const float DETAIL_PRICE_COIN_GAP = 8f;
+        // rect 收宽时留的一点余量，字宽少算一两个像素也不至于把数字裁掉
+        private const float DETAIL_PRICE_TEXT_SLACK = 2f;
 
         // 操作条的高取单格的不到一半，宽由三个按钮加内边距凑出来，横排自己排
         private const float BAR_HEIGHT_RATIO = 0.48f;
@@ -743,16 +749,17 @@ namespace UI.Shop
             setDetailDesc(UIShopBuffText.OfMany(m_detailBuffs), carryShortfallNote());
             m_detailAccent.color = goodsColor;
 
-            // 能点开的一定还在卖，价钱照直写，买不起才染红
-            m_detailPriceText.text = $"{entry.Price} 金币";
+            // 能点开的一定还在卖，价钱只写数字，金币图由预制体那颗补在左边，买不起才染红
+            m_detailPriceText.text = entry.Price.ToString();
             m_detailPriceText.color = m_run != null && entry.Price > m_run.Coins
                 ? UIShopQuality.PriceUnaffordable
                 : m_detailPriceDefaultColor;
+            // rect 收到数字本身那么宽，钉在左缘的金币图才不会离字老远
+            fitDetailPriceWidth();
             m_detailPriceText.gameObject.SetActive(true);
 
-            // 名字行要给右上角的价钱让位，让出的宽度按价钱自己量出来
-            setDetailNameReserve(m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
-                + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP);
+            // 名字行要给右上角的价钱让位，让出的宽度连着金币图一起量
+            setDetailNameReserve(detailPriceBlockWidth() + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP);
 
             refreshActionBar();
         }
@@ -1639,13 +1646,27 @@ namespace UI.Shop
             m_detailNameText.rectTransform.sizeDelta = size;
         }
 
+        // 价钱那一块的实际宽：金币图 + 图与数字的间隙 + 数字本身，小窗定宽与名字让位都用它
+        private float detailPriceBlockWidth()
+        {
+            return DETAIL_PRICE_COIN_WIDTH + DETAIL_PRICE_COIN_GAP
+                   + m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x;
+        }
+
+        // 价钱 rect 收到数字那么宽：金币图挂在 rect 左缘，rect 留着默认宽的话金币会被推得很远
+        private void fitDetailPriceWidth()
+        {
+            Vector2 size = m_detailPriceText.rectTransform.sizeDelta;
+            size.x = m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x + DETAIL_PRICE_TEXT_SLACK;
+            m_detailPriceText.rectTransform.sizeDelta = size;
+        }
+
         // 名字与文案谁更长就照谁定宽，价钱占掉的那一角也要算进宽里，上下限只当兜底
         private float detailWidth()
         {
             float nameWidth = m_detailNameText.GetPreferredValues(m_detailNameText.text).x;
             float priceReserve = m_detailPriceText.gameObject.activeSelf
-                ? m_detailPriceText.GetPreferredValues(m_detailPriceText.text).x
-                  + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
+                ? detailPriceBlockWidth() + DETAIL_PRICE_INSET_RIGHT + DETAIL_PRICE_GAP
                 : 0f;
             float widest = Mathf.Max(nameWidth, m_detailDescWidth) + DETAIL_TEXT_INSET_LEFT
                            + DETAIL_TEXT_INSET_RIGHT + priceReserve;

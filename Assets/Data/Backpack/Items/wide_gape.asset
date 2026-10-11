@@ -17,15 +17,12 @@ MonoBehaviour:
   ItemIcon: {fileID: -799466035, guid: ea60f01420e7cc64f8bfd642fea7abc5, type: 3}
   ModType: 8
   TierShapes:
-  - {fileID: 11400000, guid: 6d14341487d1b294980d710d7e17fe05, type: 2}
+  - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
   - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
   - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
   TierValues:
   - 0.03
   - 0.07
   - 0.12
-  TierPrices:
-  - 95
-  - 220
-  - 500
+  TierPrices: 5f000000dc000000f4010000
   Description: "\u94A9\u95E8\u66F4\u5BBD\uFF0C\u6302\u4F4F\u7684\u9C7C\u5C31\u4E0D\u5BB9\u6613\u8131\u94A9\u8DD1\u6389\uFF0C\u6302\u5F97\u4F4F\u5C31\u662F\u94B1"
