@@ -252,6 +252,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7330062406899872351}
   - component: {fileID: 3290858285128303377}
+  - component: {fileID: 6004457918212734788}
   m_Layer: 0
   m_Name: UIRoundHUD
   m_TagString: Untagged
@@ -297,6 +298,23 @@ MonoBehaviour:
   SlideOutSeconds: 0.4
   RevealSeconds: 0.6
   BannerCenterY: 0
+--- !u!114 &6004457918212734788
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4266553314693210152}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9645b5d8fbc524488c7b9f75f7086a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  AdaptTop: 1
+  AdaptBottom: 1
+  AdaptLeft: 1
+  AdaptRight: 1
+  ExtraPadding: 0
 --- !u!1 &5195217236700729246
 GameObject:
   m_ObjectHideFlags: 0

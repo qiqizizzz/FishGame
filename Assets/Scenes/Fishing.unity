@@ -471,6 +471,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Target: {fileID: 330585545}
   FollowTarget: {fileID: 330791296}
+  DesignResolution: {x: 1080, y: 1920}
   LookAheadMeters: 2.05
   SurfaceY: 0
   FollowDamping: 5
