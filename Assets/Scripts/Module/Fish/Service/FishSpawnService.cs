@@ -379,6 +379,7 @@ namespace Module.Fish.Service
                 Root = view.transform,
                 Behavior = data.Behavior,
                 BaseDepth = depth,
+                BaseX = x,
                 DisplayHeight = height,
                 BodyHalf = new Vector2(bodyBox.x, bodyBox.y),
                 BodyOffset = new Vector2(bodyBox.z, bodyBox.w),
