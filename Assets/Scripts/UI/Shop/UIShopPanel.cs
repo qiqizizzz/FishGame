@@ -25,6 +25,7 @@
 * 右上角两块木牌只画图标与数字，刷新要多少钱直接写在按钮上，买不起才把字染红，下潜次数不归这张面板
 * 合成按钮只报「现在能合几组」，配对、落位与回滚全在模型与服务里，面板不自己算品质链
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
+* 货架尾部是锁着的付费格：只画下一把锁的价钱，点开由服务扣钱开格并当场抽一件高级货上架
 */
 
 using System.Collections;
@@ -167,7 +168,6 @@ namespace UI.Shop
         private readonly List<UIShopItemView> m_itemViews = new();
         private readonly List<UIShopGoodsItem> m_goodsItems = new();
         private int m_itemsShown;
-        private int m_goodsShown;
 
         // 布层的视图与计数，和装备层一样只开关不销毁
         private RectTransform m_clothsRect;
@@ -794,6 +794,37 @@ namespace UI.Shop
             ShopBuyResult result = m_shop.TryBuyToStash(entry, m_run, m_backpack);
             handleBuyResult(entry, result, true);
             return result == ShopBuyResult.Success;
+        }
+
+        /// <summary>
+        /// 点下一把锁：钱够就扣钱开这一格，服务当场替这一格抽一件高级货上架，界面跟着重铺
+        /// </summary>
+        /// <returns>真开了格子返回 true，钱不够或已经全开完返回 false</returns>
+        public bool TryUnlockSlot()
+        {
+            if (m_shop == null)
+                return false;
+
+            int price = m_shop.NextUnlockPrice;
+
+            if (price <= 0)
+            {
+                QLog.Info("付费货架已经全部开完了");
+                return false;
+            }
+
+            if (!m_shop.TryUnlockSlot(m_run))
+            {
+                QLog.Info($"解锁这一格货架要 {price} 金币，钱不够");
+                return false;
+            }
+
+            // 新上架的那件不属于任何旧卡片，重铺整面货架才画得出来
+            clearDetail();
+            refreshCounters();
+            rebuildGoods();
+            QLog.Info($"已解锁第 {m_shop.FreeSlotCount + m_shop.UnlockedPaidCount} 格货架，花了 {price} 金币");
+            return true;
         }
 
         // ==================== Private Function ====================
@@ -1970,32 +2001,52 @@ namespace UI.Shop
             return true;
         }
 
-        // 货架来自服务的库存，卡片顺序与库存顺序一致
+        // 逐格决定画什么：先是常开格与已解锁付费格上的货，紧接着一格标价钱的下一次锁，再往后是不响应的锁
+        // 不能只按库存计数铺，否则表达不出「第六格是锁、后面几格也是锁」这种顺序关系
         private void rebuildGoods()
         {
-            m_goodsShown = 0;
-
-            if (m_shop != null)
+            if (m_shop == null)
             {
-                IReadOnlyList<ShopStockEntry> stock = m_shop.Stock;
-
-                for (int i = 0; i < stock.Count; i++)
-                    showGoods(stock[i], m_run.Coins >= stock[i].Price);
+                for (int i = 0; i < m_goodsItems.Count; i++)
+                    m_goodsItems[i].gameObject.SetActive(false);
+                return;
             }
 
-            for (int i = m_goodsShown; i < m_goodsItems.Count; i++)
+            IReadOnlyList<ShopStockEntry> stock = m_shop.Stock;
+            int totalSlots = m_shop.FreeSlotCount + m_shop.PaidSlotTotal;
+            int coins = m_run != null ? m_run.Coins : 0;
+
+            for (int slot = 0; slot < totalSlots; slot++)
+            {
+                UIShopGoodsItem goods = goodsCardAt(slot);
+                goods.gameObject.SetActive(true);
+
+                if (slot < stock.Count)
+                {
+                    ShopStockEntry entry = stock[slot];
+                    goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier),
+                        entry.Price <= coins, this, m_cellSprite);
+                    continue;
+                }
+
+                // 货比格子少只可能是池子被抽干了，那一格仍算没开，锁跟着往后挪
+                if (slot == stock.Count)
+                    goods.SetupLock(m_shop.NextUnlockPrice, m_shop.NextUnlockPrice <= coins, this);
+                else
+                    goods.SetupLocked(this);
+            }
+
+            for (int i = totalSlots; i < m_goodsItems.Count; i++)
                 m_goodsItems[i].gameObject.SetActive(false);
         }
 
-        private void showGoods(ShopStockEntry entry, bool affordable)
+        // 卡片只开关不销毁：销毁会延到帧尾被布局算进内容高度
+        private UIShopGoodsItem goodsCardAt(int index)
         {
-            while (m_goodsItems.Count <= m_goodsShown)
+            while (m_goodsItems.Count <= index)
                 m_goodsItems.Add(Instantiate(m_goodsTemplate, m_goodsRect));
 
-            UIShopGoodsItem goods = m_goodsItems[m_goodsShown];
-            goods.gameObject.SetActive(true);
-            goods.Setup(entry, UIShopQuality.ColorFor(entry.Definition, entry.Tier), affordable, this, m_cellSprite);
-            m_goodsShown++;
+            return m_goodsItems[index];
         }
 
         // 买成与否则全由服务决定，面板只管结果对应的界面反应

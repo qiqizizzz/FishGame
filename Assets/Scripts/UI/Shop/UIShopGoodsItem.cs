@@ -13,6 +13,8 @@
 * 松手压在网格上就按那一格入手，落在暂存架面板上就直接进架，两处都没挨上等于没买，钱一分不动
 * 点一下只报详情不扣钱，真拖过之后紧跟的那次点击按拖过标记挡掉，免得拖完又弹出小窗
 * 已售出的卡不再露出商品本来的样子，预览区整块换成一枚禁止图标，卖完的东西没必要再端详
+* 没开的格子也复用这张卡：下一把锁画锁加解锁价、点一下就交给宿主扣钱开格，更后面的锁只画一把锁不响应
+* 锁态没有条目可拖，预览区与价钱整行全收掉，拖拽那三条链路因为条目为空自然走不进去
 */
 
 using Framework.QTower.View;
@@ -41,6 +43,25 @@ namespace UI.Shop
         // 价钱前那枚金币图，和数字并排摆在 Node_Price 里，已售出时只留字不留图
         private const string COIN_PATH = "Node_Price/Img_CoinIcon";
 
+        // 价钱那一整行，连金币图带数字，锁卡要把这一整行一起收掉
+        private const string PRICE_NODE_PATH = "Node_Price";
+
+        // 锁卡那一大块节点，铺满卡面盖住预览区
+        private const string LOCK_PATH = "Node_Lock";
+
+        // 锁底下的解锁价，只有「下一把锁」标价钱，更后面的锁不标，免得玩家提前数着钱规划
+        private const string LOCK_PRICE_NODE_PATH = "Node_Lock/Node_UnlockPrice";
+        private const string LOCK_PRICE_TEXT_PATH = "Node_Lock/Node_UnlockPrice/Txt_UnlockPrice";
+
+        // ==================== 类型 ====================
+        // 卡片只有三种样子：在卖的商品、下一把锁、还没轮到的锁
+        private enum CardMode
+        {
+            Goods,
+            LockNext,
+            LockSealed
+        }
+
         // ==================== 字段[私有] ====================
         private Image m_iconImage;
         private UIShopClothShape m_clothShape;
@@ -55,6 +76,16 @@ namespace UI.Shop
         private TMP_Text m_priceText;
         // 金币图标只在在卖时露出来，已售出那张卡不该还数着钱
         private Image m_coinImage;
+
+        // 价钱整行与卡底，锁态收整行、染卡底都靠这两个
+        private GameObject m_priceNode;
+        private Image m_rootImage;
+
+        // 锁态的两块：一把锁本身，和它下面那行解锁价
+        private GameObject m_lockNode;
+        private GameObject m_lockPriceNode;
+        private TMP_Text m_lockPriceText;
+
         private Button m_button;
 
         // 价钱原本的颜色从预制体上读一次，染回时不写死，调色板改了不用改代码
@@ -63,6 +94,9 @@ namespace UI.Shop
         // 面板是宿主：详情、提层与成交都由它做，卡片只把手势翻译过去，自己不动任何状态
         private IShopBackpackHost m_host;
         private ShopStockEntry m_entry;
+
+        // 这张卡现在是商品还是锁，点击与拖拽都按它分流
+        private CardMode m_mode;
 
         // 幽灵底色抄卡面主色，布走布色装备走品质色，拖起来还认得出是同一件
         private Color m_ghostColor;
@@ -115,7 +149,9 @@ namespace UI.Shop
             m_ghostColor = goodsColor;
             m_wasDragged = false;
 
+            enterGoodsMode();
             applyVisual(entry, goodsColor, cellSprite);
+            m_priceNode.gameObject.SetActive(true);
             m_priceText.text = entry.IsSold ? "已售出" : entry.Price.ToString();
             m_coinImage.gameObject.SetActive(!entry.IsSold);
             m_priceText.color = entry.IsSold || !affordable
@@ -123,6 +159,50 @@ namespace UI.Shop
                 : m_priceDefaultColor;
 
             m_button.interactable = !entry.IsSold;
+        }
+
+        /// <summary>
+        /// 把这张卡换成「下一把锁」：灰褐卡底上一把锁，底下标着解锁这一格要多少金币，点一下就交给宿主扣钱
+        /// </summary>
+        /// <param name="price">解锁这一格要花的金币</param>
+        /// <param name="affordable">当前金币够不够开，只影响价钱颜色</param>
+        /// <param name="host">扣钱开格由宿主面板去做，卡片自己不动库存也不动金币</param>
+        public void SetupLock(int price, bool affordable, IShopBackpackHost host)
+        {
+            ensureBound();
+
+            m_mode = CardMode.LockNext;
+            m_entry = null;
+            m_host = host;
+            m_wasDragged = false;
+
+            hideGoodsNodes();
+            m_lockNode.SetActive(true);
+            m_rootImage.color = UIShopQuality.LockedTint;
+            m_lockPriceNode.SetActive(true);
+            m_lockPriceText.text = price.ToString();
+            m_lockPriceText.color = affordable ? m_priceDefaultColor : UIShopQuality.PriceUnaffordable;
+            m_button.interactable = true;
+        }
+
+        /// <summary>
+        /// 还没轮到的锁：只画一把锁，不标价钱也不响应点击，前一格没开就轮不到这一格
+        /// </summary>
+        /// <param name="host">同一套宿主引用，卡片状态保持一致</param>
+        public void SetupLocked(IShopBackpackHost host)
+        {
+            ensureBound();
+
+            m_mode = CardMode.LockSealed;
+            m_entry = null;
+            m_host = host;
+            m_wasDragged = false;
+
+            hideGoodsNodes();
+            m_lockNode.SetActive(true);
+            m_rootImage.color = UIShopQuality.LockedTint;
+            m_lockPriceNode.SetActive(false);
+            m_button.interactable = false;
         }
 
         // ==================== 拖拽与点击 ====================
@@ -179,6 +259,25 @@ namespace UI.Shop
         }
 
         // ==================== Private Function ====================
+        // 商品态：锁收起来，卡底按这件出自哪种格子染色，花钱开出来的偏淡紫，一眼分得出不是白送那一排
+        private void enterGoodsMode()
+        {
+            m_mode = CardMode.Goods;
+            m_lockNode.SetActive(false);
+            m_rootImage.color = m_entry != null && m_entry.IsPremium
+                ? UIShopQuality.PremiumTint
+                : Color.white;
+        }
+
+        // 锁卡要收掉的是商品那几样：预览区的图标与布形、已售出的禁止图、还有价钱那一整行
+        private void hideGoodsNodes()
+        {
+            m_iconImage.gameObject.SetActive(false);
+            m_clothShape.SetVisible(false);
+            m_soldOutImage.gameObject.SetActive(false);
+            m_priceNode.gameObject.SetActive(false);
+        }
+
         // 已售出只留一枚禁止图标，图标与异形布都收掉；在卖的才照布与装备两类各画各的
         private void applyVisual(ShopStockEntry entry, Color goodsColor, Sprite cellSprite)
         {
@@ -236,8 +335,19 @@ namespace UI.Shop
         }
 
         // 点击一律只看详情，扣钱那条路交给拖拽，按钮本身不管买不买得起
+        // 锁卡没有条目可看详情，点下去只剩一个意思：开这一格
         private void handleClicked()
         {
+            if (m_mode != CardMode.Goods)
+            {
+                m_wasDragged = false;
+
+                if (m_mode == CardMode.LockNext && m_host != null)
+                    m_host.TryUnlockSlot();
+
+                return;
+            }
+
             if (m_wasDragged)
             {
                 m_wasDragged = false;
@@ -263,9 +373,22 @@ namespace UI.Shop
             m_soldOutImage = FindComponent<Image>(SOLD_OUT_PATH);
             m_priceText = FindComponent<TMP_Text>(PRICE_PATH);
             m_coinImage = FindComponent<Image>(COIN_PATH);
+            m_priceNode = FindNode(PRICE_NODE_PATH) != null ? FindNode(PRICE_NODE_PATH).gameObject : null;
+            m_rootImage = GetComponent<Image>();
+            m_lockNode = FindNode(LOCK_PATH) != null ? FindNode(LOCK_PATH).gameObject : null;
+            m_lockPriceNode =
+                FindNode(LOCK_PRICE_NODE_PATH) != null ? FindNode(LOCK_PRICE_NODE_PATH).gameObject : null;
+            m_lockPriceText = FindComponent<TMP_Text>(LOCK_PRICE_TEXT_PATH);
             m_button = GetComponent<Button>();
 
             m_priceDefaultColor = m_priceText != null ? m_priceText.color : Color.white;
+
+            // 预制体上缺了锁节点，货架上就会出现一排既没货也没锁的空格，这问题得当场报出来
+            if (m_lockNode == null)
+                QLog.Error($"[{nameof(UIShopGoodsItem)}] 未找到 {LOCK_PATH}，商品卡摆不出锁态");
+
+            if (m_lockPriceNode == null)
+                QLog.Error($"[{nameof(UIShopGoodsItem)}] 未找到 {LOCK_PRICE_NODE_PATH}，解锁价钱无处可写");
 
             if (m_button != null && !m_listenerBound)
             {
@@ -278,7 +401,8 @@ namespace UI.Shop
         private void ensureBound()
         {
             if (m_iconImage == null || m_clothShape == null || m_soldOutImage == null
-                || m_priceText == null || m_coinImage == null)
+                || m_priceText == null || m_coinImage == null || m_priceNode == null
+                || m_rootImage == null || m_lockNode == null || m_lockPriceNode == null)
                 bindNodes();
         }
     }

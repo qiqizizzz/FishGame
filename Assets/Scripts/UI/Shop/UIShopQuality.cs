@@ -7,6 +7,7 @@
 * 板块一律用这块布自己的颜色，饱和度天生比装备低，一眼就能分出常驻的小额与大头的那件
 * 颜色不再绕阵营与纸页两层去取，布上写什么色就染什么色
 * 装备不靠自身染色，底色只在白蓝紫金四档之间取值
+* 付费货架另有两色：开出来的货卡底偏淡紫，没开的格子卡底灰褐，跟商店的米黄底一眼分得开
 */
 
 using Module.Backpack.Data;
@@ -30,6 +31,12 @@ namespace UI.Shop
 
         // 买不起时的价钱色，压在木色底上够扎眼又不刺眼，商品卡与详情小窗共用这一个
         public static Color PriceUnaffordable { get; } = new Color32(0xB0, 0x3A, 0x2E, 0xFF);
+
+        // 花钱开的格子上那张卡的卡底，紫白各半压得住图标又不刺眼，一眼看出这件不是白送格子里出的
+        public static Color PremiumTint { get; } = Color.Lerp(Purple, Color.white, 0.5f);
+
+        // 还锁着的格子，卡底比商店米黄暗一档，只表示「这一格还没轮到」，不带任何价格暗示
+        public static Color LockedTint { get; } = new Color32(0xB8, 0xAA, 0x94, 0xFF);
 
         // ==================== Public Function ====================
         /// <summary>

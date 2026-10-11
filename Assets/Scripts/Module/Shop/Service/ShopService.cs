@@ -9,7 +9,8 @@
 * 装备自带价是为了让「占 2 格」和「占 6 格」不再同价：格子是本玩法的核心资源，它不进价格就逼不出取舍
 * 两边都只再乘一次浮动，回收价走同一条基准公式，只差一次回收比例，两处不会算出两个数
 * 稀有度同时驱动两件事：越稀有的布抽中权重越低、价钱越高，两个数都写在总表的同一行里
-* 回收价与上架价同一条公式，只差最后一次浮动与回收比例，两处不会算出两个数
+* 付费格不是货架多摆一格，是换一套权重再抽一遍：常开格与付费格各建一套类别、档位、稀有度表，池子空了各删各的
+* 解锁的格子当场就抽，抽够次数还够不上保底就硬塞一件；解锁数只在重开一局时清零，跨回合重抽不会把开过的格子关回去
 * 扣钱与入手是分开的两步，入手失败原额退回，不会出现钱花了东西没影
 * 买入落点由玩家在界面上拖出来定，铺不开与架子满都算没成交，钱原额退回
 * 刷新价钱只在服务内部按次数累进，重开一局换新实例与新开一回合都把次数与价钱打回起始价
@@ -35,6 +36,10 @@ namespace Module.Shop.Service
         private const int MIN_PRICE = 1;
         private const int DEDUPE_MAX_ATTEMPTS = 8;
 
+        // 付费格的保底线：装备从这一档起、布料从这一档稀有度起才算得上高级货
+        private const int GUARANTEE_MIN_TIER = 2;
+        private const int GUARANTEE_MIN_RARITY = 2;
+
         // ==================== 类型 ====================
         private enum GoodsCategory
         {
@@ -44,8 +49,29 @@ namespace Module.Shop.Service
         }
 
         // ==================== 属性 ====================
-        /// <summary>当前货架上的商品，长度等于配置的货架容量</summary>
+        /// <summary>当前货架上的商品：前面是常开格，后面跟着已解锁的付费格，长度随解锁数往上涨</summary>
         public IReadOnlyList<ShopStockEntry> Stock => m_stock;
+
+        /// <summary>开局白送的格子数</summary>
+        public int FreeSlotCount => m_shopConfig.FreeSlots;
+
+        /// <summary>花钱才能开的格子总数</summary>
+        public int PaidSlotTotal => m_shopConfig.PaidSlots;
+
+        /// <summary>已经解锁了几格付费货架</summary>
+        public int UnlockedPaidCount => m_unlockedPaidCount;
+
+        /// <summary>解锁下一格要花的金币，付费格全开完了返回 0</summary>
+        public int NextUnlockPrice
+        {
+            get
+            {
+                if (m_unlockedPaidCount >= m_shopConfig.PaidSlots)
+                    return 0;
+
+                return m_shopConfig.PaidUnlockPriceAt(m_unlockedPaidCount);
+            }
+        }
 
         /// <summary>下一次刷新货架要花的金币</summary>
         public int RefreshCost { get; private set; }
@@ -61,8 +87,18 @@ namespace Module.Shop.Service
         private readonly WeightedTable<int> m_buffClothTable = new();
         private readonly WeightedTable<int> m_blankClothTable = new();
         private readonly WeightedTable<int> m_tierTable = new();
+
+        // 付费格自己一套表，与常开格同构；保底那两张只装够得上高级的东西
+        private readonly WeightedTable<GoodsCategory> m_premiumCategoryTable = new();
+        private readonly WeightedTable<int> m_premiumTierTable = new();
+        private readonly WeightedTable<int> m_premiumBuffClothTable = new();
+        private readonly WeightedTable<int> m_premiumBlankClothTable = new();
+        private readonly WeightedTable<int> m_guaranteeTierTable = new();
+        private readonly WeightedTable<int> m_guaranteeClothTable = new();
+
         private readonly HashSet<string> m_takenKeys = new();
         private int m_refreshCount;
+        private int m_unlockedPaidCount;
 
         // ==================== Constructor ====================
         /// <summary>
@@ -86,14 +122,19 @@ namespace Module.Shop.Service
         // ==================== Public Function ====================
         /// <summary>
         /// 重抽一整面货架，只换货不动刷新次数与价钱，复位那两样归 ResetForNewRound
+        /// 常开格与已解锁的付费格一起重抽，各走各的权重，已花的解锁钱不退
         /// </summary>
         public void RollStock()
         {
             m_stock.Clear();
             m_takenKeys.Clear();
 
-            for (int i = 0; i < m_shopConfig.GoodsCount; i++)
-                tryAppendEntry();
+            for (int i = 0; i < m_shopConfig.FreeSlots; i++)
+                tryAppendEntry(false);
+
+            // 已经花过钱开的格子跟着一起重抽，上一轮开过的那几格不会在新回合被关掉
+            for (int i = 0; i < m_unlockedPaidCount; i++)
+                tryAppendEntry(true);
         }
 
         /// <summary>
@@ -122,6 +163,30 @@ namespace Module.Shop.Service
             m_refreshCount++;
             RefreshCost = resolveRefreshCost();
             RollStock();
+
+            return true;
+        }
+
+        /// <summary>
+        /// 花金币解锁下一格付费货架，钱不够就一格也不开，开成的那一格当场抽一件高级货上架
+        /// 格子按从左到右的顺序开，前一格没开就轮不到后面的格子
+        /// </summary>
+        /// <param name="run">本局运行态，扣钱走它</param>
+        public bool TryUnlockSlot(RunState run)
+        {
+            if (run == null)
+                return false;
+
+            int price = NextUnlockPrice;
+
+            if (price <= 0)
+                return false;
+
+            if (!run.TrySpend(price))
+                return false;
+
+            m_unlockedPaidCount++;
+            tryAppendEntry(true);
 
             return true;
         }
@@ -201,6 +266,7 @@ namespace Module.Shop.Service
             return ShopBuyResult.Success;
         }
         // 奖池只在开店时摊平成权重表，之后每次抽取都只查表，总表改动要重开一局才生效
+        // 装备池常开格与付费格共用，真正分开的是档位、稀有度与类别这三套权重
         private void buildTables()
         {
             IReadOnlyList<BackpackItemSO> items = m_shopConfig.Items;
@@ -218,26 +284,28 @@ namespace Module.Shop.Service
             buildClothTables();
 
             for (int tier = FIRST_TIER; tier <= ShopConfigSO.TIER_COUNT; tier++)
+            {
                 m_tierTable.Add(tier, m_shopConfig.TierWeightAt(tier));
+                m_premiumTierTable.Add(tier, m_shopConfig.PaidTierWeightAt(tier));
+            }
 
-            m_categoryTable.Add(GoodsCategory.Item, m_shopConfig.ItemWeight);
-            m_categoryTable.Add(GoodsCategory.Cloth, m_shopConfig.ClothWeight);
-            m_categoryTable.Add(GoodsCategory.BlankCloth, m_shopConfig.BlankClothWeight);
-
-            if (m_itemTable.Count == 0)
-                dropCategory(GoodsCategory.Item);
-
-            if (m_buffClothTable.Count == 0)
-                dropCategory(GoodsCategory.Cloth);
-
-            if (m_blankClothTable.Count == 0)
-                dropCategory(GoodsCategory.BlankCloth);
+            // 两套类别表各删各的空池，常开格抽不出布不该连累付费格
+            pruneEmptyCategories(m_categoryTable, m_buffClothTable, m_blankClothTable,
+                m_shopConfig.ItemWeight, m_shopConfig.ClothWeight, m_shopConfig.BlankClothWeight);
+            pruneEmptyCategories(m_premiumCategoryTable, m_premiumBuffClothTable, m_premiumBlankClothTable,
+                m_shopConfig.PaidItemWeight, m_shopConfig.PaidClothWeight, m_shopConfig.PaidBlankClothWeight);
 
             if (m_categoryTable.Count == 0)
                 QLog.Error($"[{nameof(ShopService)}] 装备池与布料总表都抽不出东西，货架会全程空着");
+
+            if (m_shopConfig.PaidSlots > 0 && m_premiumCategoryTable.Count == 0)
+                QLog.Error($"[{nameof(ShopService)}] 付费格的三个类别权重或奖池是空的，解锁出来的格子只能空着");
+
+            buildGuaranteeTables();
         }
 
         // 一块布进哪个池只看它挂没挂 BUFF，权重取它那一档稀有度的抽中权重
+        // 同一块布在常开格与付费格两个池里存的是同一个下标，只是两边取的权重不一样
         private void buildClothTables()
         {
             if (m_catalog == null)
@@ -253,60 +321,86 @@ namespace Module.Shop.Service
                     continue;
 
                 float weight = m_catalog.DrawWeightOf(cloth.RarityIndex);
+                float premiumWeight = m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex);
 
                 if (cloth.IsBlank)
+                {
                     m_blankClothTable.Add(i, weight);
+                    m_premiumBlankClothTable.Add(i, premiumWeight);
+                }
                 else
+                {
                     m_buffClothTable.Add(i, weight);
+                    m_premiumBuffClothTable.Add(i, premiumWeight);
+                }
             }
         }
 
-        // 池子空了的类别不该继续占权重，否则每次抽到它都只能白跑一趟
-        private void dropCategory(GoodsCategory category)
+        // 池子空了的类别不该继续占权重，每次抽到它都只能白跑一趟；装备池是两套格子共用的，只查一次
+        private void pruneEmptyCategories(WeightedTable<GoodsCategory> categoryTable,
+            WeightedTable<int> buffClothTable, WeightedTable<int> blankClothTable,
+            float itemWeight, float clothWeight, float blankWeight)
         {
-            float weight = category switch
-            {
-                GoodsCategory.Item => m_shopConfig.ItemWeight,
-                GoodsCategory.Cloth => m_shopConfig.ClothWeight,
-                _ => m_shopConfig.BlankClothWeight
-            };
+            categoryTable.Clear();
 
-            if (weight <= 0f)
-                return;
+            if (m_itemTable.Count > 0 && itemWeight > 0f)
+                categoryTable.Add(GoodsCategory.Item, itemWeight);
 
-            rebuildCategoryTableWithout(category);
+            if (buffClothTable.Count > 0 && clothWeight > 0f)
+                categoryTable.Add(GoodsCategory.Cloth, clothWeight);
+
+            if (blankClothTable.Count > 0 && blankWeight > 0f)
+                categoryTable.Add(GoodsCategory.BlankCloth, blankWeight);
         }
 
-        private void rebuildCategoryTableWithout(GoodsCategory excluded)
+        // 保底池只装够得上「高级」的那些：装备从保底档位起，布料从保底稀有度起且不要空白布
+        // 权重沿用付费格那一套，保底抽出来的东西和正常抽出来的手感不该是两个价
+        private void buildGuaranteeTables()
         {
-            m_categoryTable.Clear();
+            for (int tier = GUARANTEE_MIN_TIER; tier <= ShopConfigSO.TIER_COUNT; tier++)
+                m_guaranteeTierTable.Add(tier, m_shopConfig.PaidTierWeightAt(tier));
 
-            if (excluded != GoodsCategory.Item && m_itemTable.Count > 0)
-                m_categoryTable.Add(GoodsCategory.Item, m_shopConfig.ItemWeight);
+            if (m_catalog == null)
+                return;
 
-            if (excluded != GoodsCategory.Cloth && m_buffClothTable.Count > 0)
-                m_categoryTable.Add(GoodsCategory.Cloth, m_shopConfig.ClothWeight);
+            int clothCount = m_catalog.ClothCount;
 
-            if (excluded != GoodsCategory.BlankCloth && m_blankClothTable.Count > 0)
-                m_categoryTable.Add(GoodsCategory.BlankCloth, m_shopConfig.BlankClothWeight);
+            for (int i = 0; i < clothCount; i++)
+            {
+                ClothEntry cloth = m_catalog.ClothAt(i);
+
+                if (cloth == null || cloth.ShapeCount == 0 || cloth.IsBlank)
+                    continue;
+
+                if (cloth.RarityIndex < GUARANTEE_MIN_RARITY)
+                    continue;
+
+                m_guaranteeClothTable.Add(i, m_shopConfig.PaidClothRarityWeightAt(cloth.RarityIndex));
+            }
         }
 
         // 先抽类别再抽款式，同一面货架尽量不撞同款，撞够次数就作罢，别让空池子卡死上架
-        private void tryAppendEntry()
+        // 付费格多一道门槛：够不上高级的抽法当作没抽到，一直重抽，八次还不合格就走保底硬塞一件
+        private void tryAppendEntry(bool premium)
         {
+            WeightedTable<GoodsCategory> categoryTable = premium ? m_premiumCategoryTable : m_categoryTable;
+
             for (int attempt = 0; attempt < DEDUPE_MAX_ATTEMPTS; attempt++)
             {
-                if (!m_categoryTable.TrySample(nextRoll01(), out GoodsCategory category))
-                    return;
+                if (!categoryTable.TrySample(nextRoll01(), out GoodsCategory category))
+                    break;
 
                 ShopStockEntry entry = category switch
                 {
-                    GoodsCategory.Item => rollItem(),
-                    GoodsCategory.Cloth => rollCloth(m_buffClothTable),
-                    _ => rollCloth(m_blankClothTable)
+                    GoodsCategory.Item => rollItem(premium),
+                    GoodsCategory.Cloth => rollCloth(premium ? m_premiumBuffClothTable : m_buffClothTable, premium),
+                    _ => rollCloth(premium ? m_premiumBlankClothTable : m_blankClothTable, premium)
                 };
 
                 if (entry == null)
+                    continue;
+
+                if (premium && m_shopConfig.PaidGuaranteeEnabled && !qualifiesAsPremium(entry))
                     continue;
 
                 if (attempt + 1 < DEDUPE_MAX_ATTEMPTS && m_takenKeys.Contains(buildKey(entry)))
@@ -316,14 +410,69 @@ namespace Module.Shop.Service
                 m_stock.Add(entry);
                 return;
             }
+
+            // 走到这里说明这一格要么抽不出合格货、要么池子干脆是空的，花钱开的格子不能就这么空着
+            if (premium && m_shopConfig.PaidGuaranteeEnabled)
+                appendGuaranteeEntry();
         }
 
-        private ShopStockEntry rollItem()
+        // 布料看稀有度、装备看档位，两条线各走各的，一条都够不上就不该摆在花钱的格子上
+        private bool qualifiesAsPremium(ShopStockEntry entry)
+        {
+            if (entry.Definition is ClothPieceDef piece)
+                return piece.Cloth != null && !piece.Cloth.IsBlank
+                       && piece.Cloth.RarityIndex >= GUARANTEE_MIN_RARITY;
+
+            return entry.Tier >= GUARANTEE_MIN_TIER;
+        }
+
+        // 保底硬塞一件上架，保底池自己也空了就只能warning，别为了塞货把上架这条路卡死
+        private void appendGuaranteeEntry()
+        {
+            ShopStockEntry entry = forcePremiumEntry();
+
+            if (entry == null)
+            {
+                QLog.Warning($"[{nameof(ShopService)}] 付费格的保底池是空的，这一格只能空着");
+                return;
+            }
+
+            m_takenKeys.Add(buildKey(entry));
+            m_stock.Add(entry);
+        }
+
+        // 保底走哪一支照付费格的类别权重决定，那支空了就换另一支，两支都空才认输
+        private ShopStockEntry forcePremiumEntry()
+        {
+            if (!m_premiumCategoryTable.TrySample(nextRoll01(), out GoodsCategory category))
+                category = GoodsCategory.Item;
+
+            // 空白布不带 BUFF，在保底这里不算高级货，抽到它那一支就当走带加成的布
+            if (category == GoodsCategory.BlankCloth)
+                category = GoodsCategory.Cloth;
+
+            if (category == GoodsCategory.Item)
+            {
+                ShopStockEntry item = rollItemFrom(m_guaranteeTierTable, true);
+                return item != null ? item : rollCloth(m_guaranteeClothTable, true);
+            }
+
+            ShopStockEntry cloth = rollCloth(m_guaranteeClothTable, true);
+            return cloth != null ? cloth : rollItemFrom(m_guaranteeTierTable, true);
+        }
+
+        private ShopStockEntry rollItem(bool premium)
+        {
+            return rollItemFrom(premium ? m_premiumTierTable : m_tierTable, premium);
+        }
+
+        // 装备的款式池两套格子共用，只有档位权重分开，定价那条链路两边完全一致
+        private ShopStockEntry rollItemFrom(WeightedTable<int> tierTable, bool premium)
         {
             if (!m_itemTable.TrySample(nextRoll01(), out BackpackItemSO item))
                 return null;
 
-            if (!m_tierTable.TrySample(nextRoll01(), out int tier))
+            if (!tierTable.TrySample(nextRoll01(), out int tier))
                 tier = FIRST_TIER;
 
             int basePrice = item.TierPriceAt(tier);
@@ -331,11 +480,12 @@ namespace Module.Shop.Service
             if (basePrice <= 0)
                 basePrice = m_backpackConfig.TierPrice(tier);
 
-            return new ShopStockEntry(item, tier, applyJitter(basePrice));
+            return new ShopStockEntry(item, tier, applyJitter(basePrice), premium);
         }
 
         // 抽布只看稀有度权重，抽到之后剪成哪种异形是等概率，异形本身不参与稀有度
-        private ShopStockEntry rollCloth(WeightedTable<int> table)
+        // 传哪张表就是哪套格子的池子，两张表存的都是同一个下标
+        private ShopStockEntry rollCloth(WeightedTable<int> table, bool premium)
         {
             if (!table.TrySample(nextRoll01(), out int clothIndex))
                 return null;
@@ -353,7 +503,7 @@ namespace Module.Shop.Service
             if (piece == null)
                 return null;
 
-            return new ShopStockEntry(piece, piece.MaxTier, applyJitter(clothBasePriceOf(piece)));
+            return new ShopStockEntry(piece, piece.MaxTier, applyJitter(clothBasePriceOf(piece)), premium);
         }
 
         // 布料的基准价：单格价 × 占格数 × 稀有度系数，上架与回收共用这一条，改价只改总表那一行

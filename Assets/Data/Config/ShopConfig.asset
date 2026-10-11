@@ -20,6 +20,21 @@ MonoBehaviour:
   - 70
   - 25
   - 5
+  FreeSlotCount: 5
+  PaidSlotUnlockPriceList: 32000000500000006e00000096000000c8000000
+  PaidSlotGuarantee: 1
+  PaidItemCategoryWeight: 55
+  PaidClothCategoryWeight: 40
+  PaidBlankClothCategoryWeight: 5
+  PaidTierWeightList:
+  - 30
+  - 45
+  - 25
+  PaidClothRarityWeightList:
+  - 25
+  - 35
+  - 28
+  - 12
   PriceJitterRatio: 0.1
   ClothSellRatio: 0.5
   RefreshBaseCost: 10
