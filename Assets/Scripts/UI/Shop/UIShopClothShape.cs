@@ -30,7 +30,7 @@ namespace UI.Shop
         [Tooltip("单格边长，整面货架共用这个尺寸，格数多的预览就更大")]
         [SerializeField, Min(2f)] private float CellSize = 15f;
 
-        [Tooltip("格与格的间距，背包网格是 4，这里按卡面缩到 1")]
+        [Tooltip("格与格的间距，背包网格是 4，商品卡与暂存架统一缩到 2")]
         [SerializeField, Min(0f)] private float CellSpacing = 1f;
 
         [Tooltip("单格模板，自己保持关闭，只用来逐格复制，底图与背包格子同一张\n锚点取预览带顶边中线、轴心取左上角，代码按包围盒左上角逐格偏移，改了锚点预览会跑偏")]
