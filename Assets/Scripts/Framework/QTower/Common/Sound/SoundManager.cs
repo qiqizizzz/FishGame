@@ -32,6 +32,8 @@ namespace Framework.QTower.Common.Sound
         private static float m_voiceVolume = 1f;
         private static float m_effectVolume = 1f;
         private static string m_bgmRes;
+        private static float m_bgmScale = 1f;
+        private static int m_bgmSeq;
 
         public static bool IsStop
         {
@@ -84,19 +86,55 @@ namespace Framework.QTower.Common.Sound
             }
         }
 
-        // 播放 Addressables 中配置的背景音乐
-        public static void PlayBGM(string res)
+        /// <summary>
+        /// 播放 Addressables 中配置的背景音乐
+        /// </summary>
+        /// <param name="res">Addressables 地址</param>
+        /// <param name="volumeScale">相对全局 BGM 音量的倍率，用于单独压低某一首</param>
+        public static void PlayBGM(string res, float volumeScale = 1f)
         {
             if (m_isStop)
                 return;
 
             EnsureAudioSources();
-            // 同一首还在响时不重开，免得面板反复开关把 BGM 顶回开头
-            if (m_bgmRes == res && m_bgmSource.isPlaying)
+
+            bool sameTrack = m_bgmRes == res && m_bgmSource.isPlaying;
+
+            // 起停都算一代，排队中的旧淡出与旧加载从此作废
+            m_bgmSeq++;
+            m_bgmRes = res;
+            m_bgmScale = Mathf.Clamp01(volumeScale);
+
+            // 同一首还在响时不重开，只把音量拉回目标值，免得面板反复开关把 BGM 顶回开头
+            if (sameTrack)
+            {
+                RefreshBgmVolume();
+                return;
+            }
+
+            PlayBgmAsync(res).Forget();
+        }
+
+        /// <summary>
+        /// 停止背景音乐，默认带一小段淡出，淡出期间若被新的 PlayBGM 接管则本次停止作废
+        /// </summary>
+        /// <param name="fadeSeconds">淡出时长，传 0 立即硬停</param>
+        public static void StopBGM(float fadeSeconds = 0.25f)
+        {
+            if (m_isStop)
                 return;
 
-            m_bgmRes = res;
-            PlayBgmAsync(res).Forget();
+            EnsureAudioSources();
+            m_bgmSeq++;
+            m_bgmRes = null;
+
+            if (fadeSeconds <= 0f || !m_bgmSource.isPlaying)
+            {
+                m_bgmSource.Stop();
+                return;
+            }
+
+            FadeOutBgmAsync(m_bgmSeq, fadeSeconds).Forget();
         }
 
         // 在指定世界坐标播放 Addressables 中配置的一次性音效
@@ -210,6 +248,7 @@ namespace Framework.QTower.Common.Sound
 
             EnsureAudioSources();
             m_bgmSource.clip = clip;
+            RefreshBgmVolume();
             m_bgmSource.Play();
         }
 
@@ -273,7 +312,7 @@ namespace Framework.QTower.Common.Sound
         private static void RefreshBgmVolume()
         {
             EnsureAudioSources();
-            m_bgmSource.volume = m_bgmVolume * m_totalVolume;
+            m_bgmSource.volume = m_bgmVolume * m_totalVolume * m_bgmScale;
         }
 
         // 刷新音效最终音量
@@ -281,6 +320,30 @@ namespace Framework.QTower.Common.Sound
         {
             EnsureAudioSources();
             m_effectSource.volume = m_effectVolume * m_totalVolume;
+        }
+
+        // 淡出到零再真停，中途被新的 PlayBGM 接管就静默退出，音量由对方决定
+        private static async UniTaskVoid FadeOutBgmAsync(int seq, float fadeSeconds)
+        {
+            AudioSource source = m_bgmSource;
+            float startVolume = source.volume;
+            float elapsed = 0f;
+
+            while (elapsed < fadeSeconds)
+            {
+                if (seq != m_bgmSeq || source == null)
+                    return;
+
+                elapsed += Time.deltaTime;
+                source.volume = Mathf.Lerp(startVolume, 0f, Mathf.Clamp01(elapsed / fadeSeconds));
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            }
+
+            if (seq != m_bgmSeq || source == null)
+                return;
+
+            source.Stop();
+            source.volume = startVolume;
         }
 
         // 创建一次性音效播放节点

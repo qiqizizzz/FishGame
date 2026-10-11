@@ -422,16 +422,21 @@ namespace Module.Fish
                 settleLanded();
         }
 
-        // 入水反馈只在 Idle→Descending 那一次切换上响，收线与出水不再重复
+        // 入水与出水的音频反应只在阶段切换那一帧跑，收线与缠绕期间水底循环一路续着
         private void handlePhaseAudio(HookPhase phase)
         {
-            if (phase != HookPhase.Descending)
-                return;
-
-            SoundManager.PlaySFX(SFXDefines.DIVE);
-
-            // 水底循环走 BGM 通道，PlayBGM 里同首在响会自动跳过，所以连续下潜不会把音乐顶回开头
-            SoundManager.PlayBGM(SFXDefines.BGM_UNDERWATER_LOOP);
+            switch (phase)
+            {
+                case HookPhase.Descending:
+                    SoundManager.PlaySFX(SFXDefines.DIVE);
+                    // 水底循环走 BGM 通道，PlayBGM 里同首在响会自动跳过，所以连续下潜不会把音乐顶回开头
+                    SoundManager.PlayBGM(SFXDefines.BGM_UNDERWATER_LOOP);
+                    break;
+                case HookPhase.Landed:
+                    // 水面上不放任何 BGM，出水淡停，免得整段音乐被硬切
+                    SoundManager.StopBGM();
+                    break;
+            }
         }
 
         // 所有鱼都钓得起来，检测阶段只排除已挂在钩上的；钩上名额是否已满由 FishCarryService 判定

@@ -391,8 +391,8 @@ namespace UI.Shop
             restoreBackpackPanel();
             stopFlights();
             clearCraftFlyers();
-            // 出店回到钓鱼场景，店铺音乐换回场景音乐，同首在响时 SoundManager 自己会跳过
-            SoundManager.PlayBGM(SFXDefines.BGM_MAIN_MENU);
+            // 出店回到水面，水面上不放 BGM，等下一次入水再切水底循环
+            SoundManager.StopBGM();
         }
 
         // ==================== Public Function ====================
@@ -1172,7 +1172,8 @@ namespace UI.Shop
         }
 
         // ==================== 一键合成 ====================
-        // 按钮文案就是「现在按下去能合几组」，0 组直接禁用，免得玩家对着不会动的按钮连点
+        // 按钮文案就是「现在按下去能合几组」；0 组也保持可点，
+        // 禁用会把 onClick 连同点击音一起吞掉，玩家只会觉得按钮坏了，有没有得合让文案自己说
         private void refreshCraftUI()
         {
             if (m_craftButton == null || m_craftText == null)
@@ -1181,7 +1182,6 @@ namespace UI.Shop
             int groups = countCraftMerges();
 
             m_craftText.text = groups > 0 ? $"可合成 {groups} 组" : "无合成";
-            m_craftButton.interactable = groups > 0;
         }
 
         // 候选池按「先网格再暂存架」拼，服务拿前段长度分辨谁在格子上、该留谁当落点基准
@@ -1215,6 +1215,9 @@ namespace UI.Shop
         // 一次点下去把所有配得成的同款全升一档，逐笔执行；某笔落不进就整笔作废，不替玩家挑别的落点
         private void handleCraftAllClicked()
         {
+            // 按钮一直可点，按下先响一声，没得合的时候也有反馈，不会变成点了没动静的死键
+            SoundManager.PlaySFX(SFXDefines.UI_CLICK);
+
             if (m_backpack == null || m_craft == null)
                 return;
 
@@ -2116,6 +2119,9 @@ namespace UI.Shop
 
         private void handleRefreshClicked()
         {
+            // 按下先给一声点击音，钱不够被挡回来时也不至于毫无反馈
+            SoundManager.PlaySFX(SFXDefines.UI_CLICK);
+
             if (m_shop == null)
                 return;
 
@@ -2125,6 +2131,7 @@ namespace UI.Shop
                 return;
             }
 
+            // 真换了货再叠一声翻页音，和点击音分开，玩家分得清「按到了」与「刷出来了」
             SoundManager.PlaySFX(SFXDefines.UI_SWITCH);
             refreshAll();
         }
@@ -2133,6 +2140,8 @@ namespace UI.Shop
         // 面板不自己决定下一阶段是谁，只喊一声「离开商店」，切阶段交给控制器
         private void handleLeaveShopClicked()
         {
+            // 「开始下潜」与「关闭」共用这一个出口，点击音对齐主界面按钮
+            SoundManager.PlaySFX(SFXDefines.UI_CLICK);
             EventManager.PublishEvent(EventDefines.ShopExitRequested);
         }
     }

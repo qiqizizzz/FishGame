@@ -35,7 +35,7 @@ namespace Framework.QTower.Common.Defines
         // 背景音乐
         public const string BGM_MAIN_MENU = "BGM_mainMenu";
 
-        // 水底循环，钓钩入水后接管，出水不切回免得反复顶回开头
+        // 水底循环，钓钩入水后接管，出水或离开商店即淡停；同一首还在响时重复 PlayBGM 不会顶回开头
         public const string BGM_UNDERWATER_LOOP = "BGM_underwaterLoop";
         public const string BGM_SHOP = "BGM_shop";
     }

@@ -20,6 +20,9 @@ namespace UI.MainMenu
 {
     public class UIMainMenu : UIBase
     {
+        // 主界面那首曲子原本盖着水下音效，按曲压到六成
+        private const float MAIN_MENU_BGM_VOLUME = 0.6f;
+
         private Button m_startButton;
         private Button m_settingButton;
         private Button m_exitButton;
@@ -27,7 +30,7 @@ namespace UI.MainMenu
         // 主菜单一开就接管 BGM，从商店退回时也由这里把场景音乐接回去
         protected override void OnOpen(params object[] args)
         {
-            SoundManager.PlayBGM(SFXDefines.BGM_MAIN_MENU);
+            SoundManager.PlayBGM(SFXDefines.BGM_MAIN_MENU, MAIN_MENU_BGM_VOLUME);
         }
 
         // 回调统一在 OnInit 绑定，界面关闭后复用缓存实例时 OnOpen 会重复触发
