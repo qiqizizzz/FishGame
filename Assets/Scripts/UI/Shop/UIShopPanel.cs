@@ -32,6 +32,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Framework.QTower.Common.Defines;
+using Framework.QTower.Common.Sound;
 using Framework.QTower.Event;
 using Framework.QTower.View;
 using Module.Backpack.Data;
@@ -379,6 +380,7 @@ namespace UI.Shop
             // 上一眼可能正拖着东西就关了面板，提层状态在这里兜底清干净
             restoreBackpackPanel();
             refreshActionBar();
+            SoundManager.PlayBGM(SFXDefines.BGM_SHOP);
 
             refreshAll();
         }
@@ -389,6 +391,8 @@ namespace UI.Shop
             restoreBackpackPanel();
             stopFlights();
             clearCraftFlyers();
+            // 出店回到钓鱼场景，店铺音乐换回场景音乐，同首在响时 SoundManager 自己会跳过
+            SoundManager.PlayBGM(SFXDefines.BGM_MAIN_MENU);
         }
 
         // ==================== Public Function ====================
@@ -496,6 +500,7 @@ namespace UI.Shop
             flyNewStashEntries();
 
             m_run.AddCoins(price);
+            SoundManager.PlaySFX(SFXDefines.SELL_OUT);
             m_selectedPlate = null;
             QLog.Info($"{UIShopGoodsName.Of(plate.Definition, plate.Tier)} 已卖出，回收 {price} 金币");
             refreshBackpack();
@@ -557,6 +562,7 @@ namespace UI.Shop
         // 装备到手上了，操作条与详情小窗先收起来，免得拖的时候满屏控件
         public void BeginItemDrag(BackpackItemInstance item)
         {
+            SoundManager.PlaySFX(SFXDefines.TAKE_ITEM);
             raiseBackpackPanel();
             m_plateBar.gameObject.SetActive(false);
             m_detailRect.gameObject.SetActive(false);
@@ -565,6 +571,7 @@ namespace UI.Shop
         // 手上的装备落下或作废，条子按落点之后的选中态复原
         public void EndItemDrag(BackpackItemInstance item)
         {
+            SoundManager.PlaySFX(SFXDefines.TAKE_ITEM_DOWN);
             restoreBackpackPanel();
             refreshActionBar();
         }
@@ -674,6 +681,7 @@ namespace UI.Shop
                 return;
 
             m_plateInHand = plate;
+            SoundManager.PlaySFX(SFXDefines.TAKE_ITEM);
             raiseBackpackPanel();
             // 布已经离地，压在它下面的操作条与详情小窗跟着收起来，免得拖的时候满屏都是控件
             m_plateBar.gameObject.SetActive(false);
@@ -694,6 +702,7 @@ namespace UI.Shop
                 return;
 
             m_plateInHand = null;
+            SoundManager.PlaySFX(SFXDefines.TAKE_ITEM_DOWN);
             // 操作条不用在这里补回来：落下之后一定走 TryMovePlate 的重铺，那时会自己浮回来
             fillSlotColors();
         }
@@ -768,6 +777,7 @@ namespace UI.Shop
         public void BeginGoodsDrag(ShopStockEntry entry)
         {
             m_pendingPurchase = entry;
+            SoundManager.PlaySFX(SFXDefines.TAKE_ITEM);
             raiseBackpackPanel();
             m_plateBar.gameObject.SetActive(false);
             m_detailRect.gameObject.SetActive(false);
@@ -825,6 +835,9 @@ namespace UI.Shop
                 QLog.Info($"解锁这一格货架要 {price} 金币，钱不够");
                 return false;
             }
+
+            // 开格成交和买东西同属花钱，给同一声回响
+            SoundManager.PlaySFX(SFXDefines.BUY);
 
             // 新上架的那件不属于任何旧卡片，重铺整面货架才画得出来
             clearDetail();
@@ -2015,6 +2028,7 @@ namespace UI.Shop
                 return false;
 
             m_run.AddCoins(price);
+            SoundManager.PlaySFX(SFXDefines.SELL_OUT);
             m_selectedItem = null;
             QLog.Info($"{UIShopGoodsName.Of(item.Definition, item.Tier)} 已卖出，回收 {price} 金币");
             refreshBackpack();
@@ -2079,15 +2093,19 @@ namespace UI.Shop
             switch (result)
             {
                 case ShopBuyResult.Success:
+                    SoundManager.PlaySFX(SFXDefines.BUY);
                     QLog.Info(toStash ? $"{label} 已放进暂存架，暂存中的板块不生效" : $"{label} 已购入");
                     clearDetail();
                     refreshAll();
                     break;
                 case ShopBuyResult.NotEnoughCoins:
+                    SoundManager.PlaySFX(SFXDefines.TAKE_ITEM_DOWN);
                     QLog.Warning($"金币不够，还差 {entry.Price - m_run.Coins}");
                     break;
                 // 落点铺不开与架子满都是整笔作废，钱已原额退回，金币得跟着刷回去
                 case ShopBuyResult.NoRoom:
+                    // 整笔作废等于商品被放回货架，给它一声落位反馈
+                    SoundManager.PlaySFX(SFXDefines.TAKE_ITEM_DOWN);
                     QLog.Info(toStash ? "暂存架没有空位，钱已退回" : "这个位置铺不开，钱已退回");
                     refreshCounters();
                     break;
@@ -2107,6 +2125,7 @@ namespace UI.Shop
                 return;
             }
 
+            SoundManager.PlaySFX(SFXDefines.UI_SWITCH);
             refreshAll();
         }
 

@@ -29,6 +29,54 @@ MonoBehaviour:
     m_SerializedLabels:
     - SFX
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 326af99c00780ba43824e3a4cde20f14
+    m_Address: SFX_catchfish
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 689a425a93a397a4da78078cfdb72d3e
+    m_Address: SFX_coin
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c2fb3ee8109a10e428111ac09dab8e24
+    m_Address: SFX_buy
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: dd6293f365fa0204bbc6fcb5171d4053
+    m_Address: SFX_sellout
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3e80a2c8b21282d489a19b9f7e601888
+    m_Address: SFX_takeItem
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 51748d167ccc42a478d5f73751472d31
+    m_Address: SFX_takeItemDown
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 08063d9f6bdd57b4ba37a6389d665c8c
+    m_Address: BGM_mainMenu
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - BGM
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 963b43e7ead9c8144a30bbca28222137
+    m_Address: BGM_shop
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - BGM
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 4f95dfdb2ffedf9438e073f0e008a823, type: 2}
   m_SchemaSet:

@@ -31,6 +31,7 @@ namespace Framework.QTower.Common.Sound
         private static float m_bgmVolume = 1f;
         private static float m_voiceVolume = 1f;
         private static float m_effectVolume = 1f;
+        private static string m_bgmRes;
 
         public static bool IsStop
         {
@@ -89,6 +90,12 @@ namespace Framework.QTower.Common.Sound
             if (m_isStop)
                 return;
 
+            EnsureAudioSources();
+            // 同一首还在响时不重开，免得面板反复开关把 BGM 顶回开头
+            if (m_bgmRes == res && m_bgmSource.isPlaying)
+                return;
+
+            m_bgmRes = res;
             PlayBgmAsync(res).Forget();
         }
 
@@ -101,10 +108,24 @@ namespace Framework.QTower.Common.Sound
             PlayEffectAsync(res, pos).Forget();
         }
 
-        // 播放非空间化的一次性音效
+        // 播放非空间化的一次性音效，UI 与经济类反馈走这条
         public static void PlayEffect(string res)
         {
-            PlayEffect(res, Vector3.zero);
+            PlaySFX(res);
+        }
+
+        /// <summary>
+        /// 播放非空间化的一次性音效，不受距离衰减影响
+        /// </summary>
+        /// <param name="res">Addressables 地址</param>
+        /// <param name="volumeScale">相对全局音效音量的倍率</param>
+        /// <param name="pitch">变调倍率，小于 1 更闷更沉</param>
+        public static void PlaySFX(string res, float volumeScale = 1f, float pitch = 1f)
+        {
+            if (m_isStop)
+                return;
+
+            PlaySFXAsync(res, volumeScale, pitch).Forget();
         }
 
         // 在常驻音效源上叠加播放 UI 音效
@@ -183,6 +204,10 @@ namespace Framework.QTower.Common.Sound
             if (clip == null || m_isStop)
                 return;
 
+            // 排队期间又被切走的那首就作废，免得旧请求把新 BGM 盖掉
+            if (m_bgmRes != res)
+                return;
+
             EnsureAudioSources();
             m_bgmSource.clip = clip;
             m_bgmSource.Play();
@@ -196,6 +221,16 @@ namespace Framework.QTower.Common.Sound
                 return;
 
             PlayEffect(clip, pos);
+        }
+
+        // 异步加载后在常驻音效源上非空间化播放
+        private static async UniTaskVoid PlaySFXAsync(string res, float volumeScale, float pitch)
+        {
+            AudioClip clip = await LoadClipAsync(res);
+            if (clip == null || m_isStop)
+                return;
+
+            PlayEffect(clip, Vector3.zero, volumeScale, pitch, false);
         }
 
         // 通过 Addressables 地址加载并缓存音频资源

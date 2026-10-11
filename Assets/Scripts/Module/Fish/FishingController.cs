@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using Framework.QTower;
 using Framework.QTower.Common.Defines;
+using Framework.QTower.Common.Sound;
 using Framework.QTower.Controller;
 using Framework.QTower.Event;
 using Game;
@@ -441,6 +442,7 @@ namespace Module.Fish
             if (record == null)
                 return false;
 
+            SoundManager.PlaySFX(SFXDefines.CATCH_FISH);
             EventManager.PublishEvent(EventDefines.FishingFishCaptured, captureInfo(fish, record.AttachedDepth));
 
             return true;
@@ -470,6 +472,8 @@ namespace Module.Fish
             }
 
             m_buffer.Clear();
+            // 受阻反馈用咬钩音降调顶一下，专用素材到位后改 SFXDefines.HAZARD 即可
+            SoundManager.PlaySFX(SFXDefines.HAZARD, 0.9f, 0.62f);
             EventManager.PublishEvent(EventDefines.FishingPenaltyApplied, PenaltyType.Pufferfish);
         }
 
@@ -489,6 +493,10 @@ namespace Module.Fish
 
             m_run.SubmitDive(dive, m_maxDepth);
             m_buffer.Clear();
+
+            // 空手出水不播，免得每一下起竿都响成收钱
+            if (dive.Coins > 0)
+                SoundManager.PlaySFX(SFXDefines.COIN);
 
             QLog.Info($"[{nameof(FishingController)}] 第 {m_run.Round} 回合第 {m_run.DivesUsed} 潜带回 {dive.FishCount} 条，" +
                       $"本回合累计 {m_run.RoundValue}/{m_run.RoundTarget}，剩余下潜 {m_run.DivesRemaining} 次");
