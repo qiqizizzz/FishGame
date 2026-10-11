@@ -22,6 +22,7 @@
 * 物品视图与商品卡由模板复制并留用，只开关不销毁，销毁会延到帧尾被布局算进内容高度
 * 装备被布挤下网格就自己飞进暂存架那一格，飞完格子才显形，玩家看得见它去了哪
 * 详情小窗点它以外的空白处就收起，按钮、商品卡、物品与已上架的格子这些自己会响应点击的控件不算空白
+* 右上角两块木牌只画图标与数字，刷新要多少钱直接写在按钮上，买不起才把字染红，下潜次数不归这张面板
 * 合成按钮只报「现在能合几组」，配对、落位与回滚全在模型与服务里，面板不自己算品质链
 * 面板不决定流程走向，按钮只广播「离开商店」，切阶段由控制器负责
 */
@@ -51,7 +52,6 @@ namespace UI.Shop
     {
         private const string COINS_PATH = "Bg/Panel_Info/Txt_Coins";
         private const string TARGET_PATH = "Bg/Panel_Info/Txt_Target";
-        private const string DIVES_PATH = "Bg/Panel_Info/Txt_Dives";
         private const string GRID_PATH = "Bg/Panel_Backpack/Grid_Slots";
         private const string ITEMS_PATH = "Bg/Panel_Backpack/Layer_Items";
         private const string ITEM_TEMPLATE_PATH = ITEMS_PATH + "/Item_Template";
@@ -138,7 +138,6 @@ namespace UI.Shop
         // ==================== 字段[私有] ====================
         private TMP_Text m_coinsText;
         private TMP_Text m_targetText;
-        private TMP_Text m_divesText;
         private GridLayoutGroup m_grid;
         private UIShopSlotItem[] m_slots;
         private UIShopSlotItem[] m_storageSlots;
@@ -151,6 +150,10 @@ namespace UI.Shop
         private Button m_closeButton;
         private Button m_craftButton;
         private TMP_Text m_craftText;
+
+        // 刷新按钮上的「刷新 N」，价钱买不起时染红，默认色读自预制体
+        private TMP_Text m_refreshText;
+        private Color m_refreshDefaultColor;
 
         // 本局金币与次数，面板只读
         private RunState m_run;
@@ -275,7 +278,6 @@ namespace UI.Shop
         {
             m_coinsText = FindComponent<TMP_Text>(COINS_PATH);
             m_targetText = FindComponent<TMP_Text>(TARGET_PATH);
-            m_divesText = FindComponent<TMP_Text>(DIVES_PATH);
 
             RectTransform gridRect = FindComponent<RectTransform>(GRID_PATH);
             m_grid = gridRect.GetComponent<GridLayoutGroup>();
@@ -290,6 +292,10 @@ namespace UI.Shop
             m_diveButton = FindComponent<Button>(DIVE_PATH);
             m_closeButton = FindComponent<Button>(CLOSE_PATH);
             m_craftButton = FindComponent<Button>(CRAFT_PATH);
+
+            // 刷新按钮上的字要先拿到，下面编辑器校验才知道到底有没有
+            m_refreshText = m_refreshButton.GetComponentInChildren<TMP_Text>();
+            m_refreshDefaultColor = m_refreshText != null ? m_refreshText.color : Color.white;
 
             // 布层与物品层都挂在背包面板下，再往上一层就是整块背景，小窗挂它才能越过网格的范围摆
             m_backgroundRect = m_itemsRect.transform.parent.parent as RectTransform;
@@ -310,6 +316,8 @@ namespace UI.Shop
                 QLog.Error($"没有指定 {nameof(DetailWindowPrefab)}，点中布或装备不会有详情小窗");
             if (m_craftButton == null)
                 QLog.Error($"合成按钮没找到，商店阶段合不了东西：{CRAFT_PATH}");
+            if (m_refreshText == null)
+                QLog.Error($"刷新按钮上没有文字，玩家看不到刷新要多少钱：{REFRESH_PATH}");
             if (m_backgroundRect == null)
                 QLog.Error("背景节点没找到，详情小窗无处可挂");
             if (m_backpackPanelRect == null)
@@ -853,9 +861,14 @@ namespace UI.Shop
 
         private void refreshCounters()
         {
-            m_coinsText.text = $"金币 {m_run.Coins}";
-            m_targetText.text = $"渔获目标 {m_run.RoundValue} / {m_run.RoundTarget}";
-            m_divesText.text = $"下潜 {m_run.DivesRemaining} 次";
+            m_coinsText.text = $"{m_run.Coins}";
+            m_targetText.text = $"{m_run.RoundValue}/{m_run.RoundTarget}";
+
+            // 刷新价直接写在按钮上，玩家点之前就知道重开一面货架要多少；买不起只染字，按钮照样能点出提示
+            m_refreshText.text = $"刷新 {(m_shop != null ? m_shop.RefreshCost : 0)}";
+            m_refreshText.color = m_shop != null && m_run.Coins < m_shop.RefreshCost
+                ? UIShopQuality.PriceUnaffordable
+                : m_refreshDefaultColor;
         }
 
         private void fillBackpack()

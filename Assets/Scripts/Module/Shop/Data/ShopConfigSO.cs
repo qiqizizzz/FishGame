@@ -29,7 +29,7 @@ namespace Module.Shop.Data
         // ==================== 字段[外部设置] ====================
         [Header("货架")]
         [Tooltip("每回合上架的商品件数")]
-        [SerializeField, Range(1, 12)] private int GoodsSlotCount = 4;
+        [SerializeField, Range(1, 12)] private int GoodsSlotCount = 10;
 
         [Header("类别权重")]
         [Tooltip("抽到装备的权重，与下面两项同量纲，填 0 等于下架该类别")]

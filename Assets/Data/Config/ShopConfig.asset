@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dcfc810c4087e2f418972ff328751937, type: 3}
   m_Name: ShopConfig
   m_EditorClassIdentifier: 
-  GoodsSlotCount: 4
+  GoodsSlotCount: 10
   ItemCategoryWeight: 55
   ClothCategoryWeight: 35
   BlankClothCategoryWeight: 10

@@ -1,11 +1,11 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 商店货架上的一张商品卡，画图标或异形预览、名字与售价，点开看详情，拖进网格或暂存架才算买成
+* │  描    述: 商店货架上的一张商品卡，画图标或异形预览与售价，点开看详情，拖进网格或暂存架才算买成
 * │  类    名: UIShopGoodsItem.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 卡面只照条目本来的样子画，扣钱与入手全部交给宿主面板，卡片自己不改任何状态
-* 卡上不留详细信息行，预览加名字加价钱就够，加成那点字要到点开详情才写得下
+* 卡上不留详细信息行，预览加价钱就够，名字与加成那点字都要到点开详情才写得下
 * 买不起只把价钱染红，卡片照样能点能拖，拖起来整块染红、松手也成交不了
 * 卡面上半格两类商品各画各的：装备贴图标，布照真实异形逐格画出占几格、什么颜色
 * 布不吃图标那条链路，它的形状与颜色本来就是它的「图标」，画成方块等于没画
@@ -30,7 +30,6 @@ namespace UI.Shop
     public sealed class UIShopGoodsItem : UIItemBase, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         private const string ICON_PATH = "Img_Icon";
-        private const string NAME_PATH = "Txt_Name";
         private const string PRICE_PATH = "Txt_Price";
 
         // 布形预览带，与 Img_Icon 占同一块地方，两类商品在这块地方互斥
@@ -43,14 +42,13 @@ namespace UI.Shop
         private Image m_iconImage;
         private UIShopClothShape m_clothShape;
 
-        // 卖完就把预览区让给它，卡上只剩名字与「已售出」两行
+        // 卖完就把预览区让给它，卡上只剩价钱那一行写着「已售出」
         private Image m_soldOutImage;
 
         // 卡片从复用池里拉出来反复填商品，换货时要能还原预制体自带的底图
         private Sprite m_defaultIconSprite;
         private bool m_iconDefaultCached;
 
-        private TMP_Text m_nameText;
         private TMP_Text m_priceText;
         private Button m_button;
 
@@ -89,7 +87,7 @@ namespace UI.Shop
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 填入一件商品，卡上只留预览、名字与价钱
+        /// 填入一件商品，卡上只留预览与价钱
         /// </summary>
         /// <param name="entry">货架条目，款式档位售价都在里面</param>
         /// <param name="goodsColor">卡面主色，布走这块布自己的底色、装备走档位品质色</param>
@@ -113,8 +111,6 @@ namespace UI.Shop
             m_wasDragged = false;
 
             applyVisual(entry, goodsColor, cellSprite);
-            m_nameText.text = UIShopGoodsName.Of(entry.Definition, entry.Tier);
-            m_nameText.color = UIShopQuality.LabelColor(goodsColor);
             m_priceText.text = entry.IsSold ? "已售出" : $"{entry.Price} 金币";
             m_priceText.color = entry.IsSold || !affordable
                 ? UIShopQuality.PriceUnaffordable
@@ -259,7 +255,6 @@ namespace UI.Shop
 
             m_clothShape = FindComponent<UIShopClothShape>(CLOTH_SHAPE_PATH);
             m_soldOutImage = FindComponent<Image>(SOLD_OUT_PATH);
-            m_nameText = FindComponent<TMP_Text>(NAME_PATH);
             m_priceText = FindComponent<TMP_Text>(PRICE_PATH);
             m_button = GetComponent<Button>();
 
@@ -276,7 +271,7 @@ namespace UI.Shop
         private void ensureBound()
         {
             if (m_iconImage == null || m_clothShape == null || m_soldOutImage == null
-                || m_nameText == null || m_priceText == null)
+                || m_priceText == null)
                 bindNodes();
         }
     }

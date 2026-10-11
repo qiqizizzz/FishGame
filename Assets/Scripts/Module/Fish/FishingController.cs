@@ -7,6 +7,7 @@
 * 每帧顺序固定：采样输入 → 重建空间索引 → 推进状态机 → 钩上鱼跟随 → 流式生成 → 批量驱动行为
 * 状态迁移与判定规则全部收在控制器：Controller 是唯一可改 Model 的地方
 * 回合按「商店 → 钓鱼」两阶段推进，商店阶段整段暂停玩法驱动
+* 每进新的一回合先把整面货架重抽一次、刷新价打回起始价，上一轮卖空的格子不会残留到这轮
 */
 
 using System;
@@ -554,6 +555,10 @@ namespace Module.Fish
             if (m_run.IsTargetReached)
             {
                 m_run.AdvanceRound();
+
+                // 先重抽货架再开商店面板，enterShopPhase 不开新局也会走到，抽货架只能放在这条「进下一回合」的路上
+                m_shop.ResetForNewRound();
+
                 enterShopPhase();
                 return;
             }

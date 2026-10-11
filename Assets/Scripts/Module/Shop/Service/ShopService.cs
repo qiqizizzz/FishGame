@@ -12,7 +12,7 @@
 * 回收价与上架价同一条公式，只差最后一次浮动与回收比例，两处不会算出两个数
 * 扣钱与入手是分开的两步，入手失败原额退回，不会出现钱花了东西没影
 * 买入落点由玩家在界面上拖出来定，铺不开与架子满都算没成交，钱原额退回
-* 刷新价钱只在服务内部按次数累进，重开一局换新实例即回到起始价
+* 刷新价钱只在服务内部按次数累进，重开一局换新实例与新开一回合都把次数与价钱打回起始价
 */
 
 using System;
@@ -85,7 +85,7 @@ namespace Module.Shop.Service
 
         // ==================== Public Function ====================
         /// <summary>
-        /// 重抽一整面货架，已售标记与刷新次数一并复位
+        /// 重抽一整面货架，只换货不动刷新次数与价钱，复位那两样归 ResetForNewRound
         /// </summary>
         public void RollStock()
         {
@@ -94,6 +94,17 @@ namespace Module.Shop.Service
 
             for (int i = 0; i < m_shopConfig.GoodsCount; i++)
                 tryAppendEntry();
+        }
+
+        /// <summary>
+        /// 开一个新回合：刷新次数打回零、价钱回到起始档、整面货架重抽一遍
+        /// 上一轮卖空的格子不该跟着进这一轮，所以已售条目随库存一起重建
+        /// </summary>
+        public void ResetForNewRound()
+        {
+            m_refreshCount = 0;
+            RefreshCost = m_shopConfig.RefreshBaseCostValue;
+            RollStock();
         }
 
         /// <summary>
