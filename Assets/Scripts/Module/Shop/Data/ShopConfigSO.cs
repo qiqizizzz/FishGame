@@ -8,6 +8,7 @@
 * 板块这一整类不在这里摆清单，只挂一张布料总表，加一块布改一处就够
 * 空白布单独一份权重，保证它不会被带加成的布挤出货架
 * 货架分常开格与付费格两套权重：常开格便宜货多，付费格解锁之后才抽，高档装备与稀有的布在那一边密得多
+* 最高档装备与最高稀有度的布不再第一回合就露面：常开格要等 TopTierFreeEntryRound、付费格等 TopTierPaidEntryRound 那两回合才放开
 * 装备售价只认背包配置里的档位价，布料价由总表现算，这里只管浮动比例，避免两处定价打架
 * 卖布只按基准价乘回收比例，随机浮动不参与，免得玩家靠一次好运低买高卖
 * 合成规则表也挂在商店配置上，商店阶段是合成唯一的入口，别在场景里再散一份引用
@@ -60,9 +61,15 @@ namespace Module.Shop.Data
         [Tooltip("付费格抽到空白布的权重，空白布没有 BUFF，保底认的是带加成的布，这里压低")]
         [SerializeField, Min(0f)] private float PaidBlankClothCategoryWeight = 5f;
         [Tooltip("付费格抽装备时一二三级的权重，共 3 项，二三级比常开格重得多")]
-        [SerializeField] private List<float> PaidTierWeightList = new() { 30f, 45f, 25f };
+        [SerializeField] private List<float> PaidTierWeightList = new() { 35f, 55f, 10f };
         [Tooltip("付费格抽布时各档稀有度的权重，项数与布料总表的稀有度档数一致，越界钳最后一项")]
         [SerializeField] private List<float> PaidClothRarityWeightList = new() { 25f, 35f, 28f, 12f };
+
+        [Header("最高档进场回合")]
+        [Tooltip("常开格最早在第几回合刷出最高档装备与最高稀有度的布，未到回合前一律压到次高档")]
+        [SerializeField, Min(1)] private int TopTierFreeEntryRound = 5;
+        [Tooltip("付费格最早在第几回合刷出最高档，比常开格早一回合，留一点花钱开格子的意义")]
+        [SerializeField, Min(1)] private int TopTierPaidEntryRound = 4;
 
         [Header("价格浮动")]
         [Tooltip("在基准价上下的浮动比例，0.1 即最高低一成、最高高一成")]
@@ -111,6 +118,10 @@ namespace Module.Shop.Data
         public IReadOnlyList<BackpackItemSO> Items => ItemPool;
         public ClothCatalogSO Catalog => ClothCatalog;
         public CraftRuleSO CraftRules => CraftRuleList;
+        /// <summary>常开格放开最高档装备与最高稀有度布的最早回合</summary>
+        public int TopTierFreeEntryRoundValue => TopTierFreeEntryRound;
+        /// <summary>付费格放开最高档的最早回合</summary>
+        public int TopTierPaidEntryRoundValue => TopTierPaidEntryRound;
 
         // ==================== Public Function ====================
         /// <summary>

@@ -5,7 +5,7 @@
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 抽商品分三步：先抽类别，是装备再抽档位并从装备池抽款式，是布料则先按稀有度权重抽一块布再等概率剪一个异形
-* 档位与稀有度各按回合开闸：常开格第 N 回合最高只出 N 档装备与第 N 档稀有度的布，付费格提前一回合，最高档两路同回合
+* 档位与稀有度各按回合开闸：常开格第 N 回合最高只出 N 档装备与第 N 档稀有度的布，付费格提前一回合；最高档两路各等自己的进场回合（常开格晚、付费格早一回合），到点前一律压到次高档
 * 售价基准只有一个来源，装备优先取自己身上配的档位价、没配才回落背包配置的档位价，布料按「单格基准价 × 占格数 × 稀有度系数」现算
 * 装备自带价是为了让「占 2 格」和「占 6 格」不再同价：格子是本玩法的核心资源，它不进价格就逼不出取舍
 * 两边都只再乘一次浮动，回收价走同一条基准公式，只差一次回收比例，两处不会算出两个数
@@ -521,22 +521,32 @@ namespace Module.Shop.Service
             int top = ShopConfigSO.TIER_COUNT;
             int cap = Mathf.Clamp(m_round + advance, FIRST_TIER, top);
 
-            if (cap >= top && m_round < top && top - 1 >= GUARANTEE_MIN_TIER)
+            if (cap >= top && m_round < topTierEntryRound(advance) && top - 1 >= GUARANTEE_MIN_TIER)
                 cap = top - 1;
 
             return Mathf.Max(cap, FIRST_TIER);
         }
 
-        // 布料稀有度闸门，下标从 0 起算：第 N 回合开到下标 N 那一档，最高档同样不给提前
+        // 布料稀有度闸门，下标从 0 起算：第 N 回合开到下标 N 那一档，最高档同样要等进场回合
         private int rarityCap(int advance)
         {
             int top = m_catalog != null ? m_catalog.RarityTierCount - 1 : 0;
             int cap = Mathf.Clamp(m_round + advance, FIRST_RARITY, top);
 
-            if (cap >= top && m_round < top && top - 1 >= GUARANTEE_MIN_RARITY)
+            if (cap >= top && m_round < topTierEntryRound(advance) && top - 1 >= GUARANTEE_MIN_RARITY)
                 cap = top - 1;
 
             return Mathf.Max(cap, FIRST_RARITY);
+        }
+
+        // 最高档的进场回合：付费格读自己的配置、常开格读另一条，配崩了也不给早于第一回合
+        private int topTierEntryRound(int advance)
+        {
+            int entryRound = advance > 0
+                ? m_shopConfig.TopTierPaidEntryRoundValue
+                : m_shopConfig.TopTierFreeEntryRoundValue;
+
+            return Mathf.Max(FIRST_ROUND, entryRound);
         }
 
         private ShopStockEntry rollItem(bool premium)

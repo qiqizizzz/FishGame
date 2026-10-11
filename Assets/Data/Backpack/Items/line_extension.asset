@@ -18,14 +18,11 @@ MonoBehaviour:
   ModType: 0
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
-  - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
+  - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
   - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
   TierValues:
   - 8
   - 15
   - 24
-  TierPrices:
-  - 90
-  - 210
-  - 500
+  TierPrices: 5a000000d2000000f4010000
   Description: "\u628A\u9C7C\u7EBF\u653E\u5F97\u66F4\u957F\uFF0C\u9493\u94A9\u591F\u5F97\u7740\u66F4\u6DF1\u7684\u6C34\u5C42\uFF0C\u8D35\u9C7C\u5C31\u5728\u90A3\u91CC"

@@ -27,14 +27,16 @@ MonoBehaviour:
   PaidClothCategoryWeight: 40
   PaidBlankClothCategoryWeight: 5
   PaidTierWeightList:
-  - 30
-  - 45
-  - 25
+  - 35
+  - 55
+  - 10
   PaidClothRarityWeightList:
   - 25
   - 35
   - 28
   - 12
+  TopTierFreeEntryRound: 5
+  TopTierPaidEntryRound: 4
   PriceJitterRatio: 0.1
   ClothSellRatio: 0.5
   RefreshBaseCost: 10

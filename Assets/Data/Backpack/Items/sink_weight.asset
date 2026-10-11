@@ -18,8 +18,8 @@ MonoBehaviour:
   ModType: 5
   TierShapes:
   - {fileID: 11400000, guid: 32a8cb09d7b4b6d4eba2cb84171d3fca, type: 2}
-  - {fileID: 11400000, guid: ac755711869588b4198ebe3d2d91ca1d, type: 2}
   - {fileID: 11400000, guid: 38de60102a975ef41b9470ab6518a375, type: 2}
+  - {fileID: 11400000, guid: edbb692c3af6361438f81917e580dae3, type: 2}
   TierValues:
   - 1
   - 1.8
