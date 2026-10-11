@@ -20,14 +20,14 @@ namespace UI.MainMenu
 {
     public class UIMainMenu : UIBase
     {
-        // 主界面那首曲子原本盖着水下音效，按曲压到六成
+        // 用户嫌主界面那首太响，压到六成；水面上现在不放 BGM，只有主菜单这一处在用它
         private const float MAIN_MENU_BGM_VOLUME = 0.6f;
 
         private Button m_startButton;
         private Button m_settingButton;
         private Button m_exitButton;
 
-        // 主菜单一开就接管 BGM，从商店退回时也由这里把场景音乐接回去
+        // 主菜单一开就接管 BGM；游戏内的水面与出商店不再接回这首，水面保持静音等下一次入水
         protected override void OnOpen(params object[] args)
         {
             SoundManager.PlayBGM(SFXDefines.BGM_MAIN_MENU, MAIN_MENU_BGM_VOLUME);

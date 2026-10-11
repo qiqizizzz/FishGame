@@ -429,7 +429,8 @@ namespace Module.Fish
             {
                 case HookPhase.Descending:
                     SoundManager.PlaySFX(SFXDefines.DIVE);
-                    // 水底循环走 BGM 通道，PlayBGM 里同首在响会自动跳过，所以连续下潜不会把音乐顶回开头
+                    // 水底循环走 BGM 通道；出水已经把它停了，所以每次下潜都从头起，
+                    // 而同一首还在响时 PlayBGM 会跳过，不会把正在播的曲子顶回开头
                     SoundManager.PlayBGM(SFXDefines.BGM_UNDERWATER_LOOP);
                     break;
                 case HookPhase.Landed:
