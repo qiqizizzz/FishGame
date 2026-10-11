@@ -169,6 +169,8 @@ namespace Game
         {
 #if UNITY_ANDROID || UNITY_IOS
             Screen.orientation = ScreenOrientation.Portrait;
+            // 一局钓鱼时间不短，中途息屏会把回合打断，移动端常亮
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
 #elif UNITY_STANDALONE
             m_usableSize = usableDesktopSize();
             m_fitCoroutine = StartCoroutine(fitDesktopWindow());
