@@ -77,6 +77,18 @@ MonoBehaviour:
     m_SerializedLabels:
     - BGM
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: ac96bcfb58007ff4f99cb7a2bde90387
+    m_Address: SFX_dive
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - SFX
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 70dc359bdb67c9c44967d402b8c4aa31
+    m_Address: BGM_underwaterLoop
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - BGM
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: 4f95dfdb2ffedf9438e073f0e008a823, type: 2}
   m_SchemaSet:

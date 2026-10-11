@@ -17,6 +17,9 @@ namespace Framework.QTower.Common.Defines
         // 水下判定
         public const string CATCH_FISH = "SFX_catchfish";
 
+        // 钓钩入水，素材原名 large-underwater-explosion，已并入 SFX_ 命名
+        public const string DIVE = "SFX_dive";
+
         // 河豚专音还没到位，先借咬钩音降调顶一下，换素材只改这一行地址
         public const string HAZARD = "SFX_catchfish";
 
@@ -31,6 +34,9 @@ namespace Framework.QTower.Common.Defines
 
         // 背景音乐
         public const string BGM_MAIN_MENU = "BGM_mainMenu";
+
+        // 水底循环，钓钩入水后接管，出水不切回免得反复顶回开头
+        public const string BGM_UNDERWATER_LOOP = "BGM_underwaterLoop";
         public const string BGM_SHOP = "BGM_shop";
     }
 }

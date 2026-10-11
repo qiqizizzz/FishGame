@@ -414,11 +414,24 @@ namespace Module.Fish
                 m_lastPhase = phase;
                 m_phasePublished = true;
                 EventManager.PublishEvent(EventDefines.FishingPhaseChanged, phase);
+                handlePhaseAudio(phase);
             }
 
             // 出水会停 0.35 秒，只有刚进入的那一帧才结算，否则一次下潜要扣掉二十次
             if (phaseChanged && phase == HookPhase.Landed)
                 settleLanded();
+        }
+
+        // 入水反馈只在 Idle→Descending 那一次切换上响，收线与出水不再重复
+        private void handlePhaseAudio(HookPhase phase)
+        {
+            if (phase != HookPhase.Descending)
+                return;
+
+            SoundManager.PlaySFX(SFXDefines.DIVE);
+
+            // 水底循环走 BGM 通道，PlayBGM 里同首在响会自动跳过，所以连续下潜不会把音乐顶回开头
+            SoundManager.PlayBGM(SFXDefines.BGM_UNDERWATER_LOOP);
         }
 
         // 所有鱼都钓得起来，检测阶段只排除已挂在钩上的；钩上名额是否已满由 FishCarryService 判定
