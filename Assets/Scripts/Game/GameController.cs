@@ -1,6 +1,6 @@
 /*
  * ┌──────────────────────────────────┐
- * │  描    述: 游戏场景控制器，负责启动游戏场景默认模块与界面
+ * │  描    述: 游戏场景控制器，负责启动游戏场景默认模块与全局界面
  * │  类    名: GameController.cs
  * │  创    建: By qiqizizzz
  * └──────────────────────────────────┘
@@ -16,6 +16,7 @@ using Framework.QTower.Event;
 using UI.Common;
 using UI.MainMenu;
 using UI.Setting;
+using UI.Tutorial;
 using UnityEngine;
 using Utils.log;
 
@@ -25,6 +26,8 @@ namespace Game
     {
         private const int MAIN_MENU_SORTING_ORDER = 0;
         private const int SETTINGS_SORTING_ORDER = 100;
+        // 教程压在设置（100）之上，两者同为全局面板，谁后开谁在上
+        private const int TUTORIAL_SORTING_ORDER = 110;
         private const int LOADING_SORTING_ORDER = 200;
 
         // 遮罩要在场景切换完成后多等两帧再收，让新场景相机先出画
@@ -57,6 +60,15 @@ namespace Game
                 Parent = GameApp.UIManager.UIRoot,
                 Controller = this,
                 SortingOrder = SETTINGS_SORTING_ORDER
+            });
+
+            // 注册功能面板：教程界面
+            GameApp.UIManager.Register<UITutorial>(new UIData
+            {
+                Address = UIDefines.UITutorial,
+                Parent = GameApp.UIManager.UIRoot,
+                Controller = this,
+                SortingOrder = TUTORIAL_SORTING_ORDER
             });
 
             // 注册切场景遮罩：必须压在所有界面之上

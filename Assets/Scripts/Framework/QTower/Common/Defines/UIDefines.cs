@@ -12,6 +12,7 @@ namespace Framework.QTower.Common.Defines
     {
         public const string UIMainMenu = "UIMainMenu";
         public const string UISetting = "UISetting";
+        public const string UITutorial = "UITutorial";
         public const string UIFishingHUD = "UIFishingHUD";
         public const string UIRoundHUD = "UIRoundHUD";
         public const string UIResultPanel = "UIResultPanel";

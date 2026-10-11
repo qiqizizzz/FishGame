@@ -22,6 +22,12 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 186ab459d1729364ca331da1f9ad1070
+    m_Address: UITutorial
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - UI
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5065beb482c23ae4d9c74ab5fae0d237
     m_Address: UIRoundHUD
     m_ReadOnly: 0

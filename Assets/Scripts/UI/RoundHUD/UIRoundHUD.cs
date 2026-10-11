@@ -1,6 +1,6 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 回合 HUD，常驻回合数与阶段切换横幅
+* │  描    述: 回合 HUD，常驻回合数、阶段切换横幅与右上角设置教程入口
 * │  类    名: UIRoundHUD.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
@@ -9,10 +9,15 @@
 * 出屏距离按面板根节点宽度实时换算，不在 prefab 里写死分辨率
 */
 
+using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using Framework.QTower.View;
+using Game;
 using TMPro;
+using UI.Setting;
+using UI.Tutorial;
 using UnityEngine;
+using UnityEngine.UI;
 using Utils.log;
 
 namespace UI.RoundHUD
@@ -22,6 +27,8 @@ namespace UI.RoundHUD
         private const string ROUND_TEXT_PATH = "Panel_Round/Txt_Round";
         private const string BANNER_PATH = "Banner";
         private const string BANNER_TEXT_PATH = "Banner/Txt_Phase";
+        private const string SETTING_BUTTON_PATH = "Panel_SideButtons/Btn_Setting";
+        private const string TUTORIAL_BUTTON_PATH = "Panel_SideButtons/Btn_Tutorial";
 
         private const int MIN_ROUND = 1;
 
@@ -63,6 +70,7 @@ namespace UI.RoundHUD
             m_roundText = FindComponent<TMP_Text>(ROUND_TEXT_PATH);
             m_bannerRect = FindComponent<RectTransform>(BANNER_PATH);
             m_bannerText = FindComponent<TMP_Text>(BANNER_TEXT_PATH);
+            bindSideButtons();
         }
 
         protected override void OnOpen(params object[] args)
@@ -108,6 +116,26 @@ namespace UI.RoundHUD
         }
 
         // ==================== Private Function ====================
+        // 右上角常驻入口：设置与教程都注册在 UIManager 上，这里只做转发
+        private void bindSideButtons()
+        {
+            Button settingButton = FindComponent<Button>(SETTING_BUTTON_PATH);
+            Button tutorialButton = FindComponent<Button>(TUTORIAL_BUTTON_PATH);
+
+            settingButton.onClick.AddListener(openSettingPanel);
+            tutorialButton.onClick.AddListener(openTutorialPanel);
+        }
+
+        private void openSettingPanel()
+        {
+            GameApp.UIManager.Open<UISetting>().Forget();
+        }
+
+        private void openTutorialPanel()
+        {
+            GameApp.UIManager.Open<UITutorial>().Forget();
+        }
+
         private void playBanner(GamePhase phase)
         {
             m_bannerText.text = phaseTitle(phase);

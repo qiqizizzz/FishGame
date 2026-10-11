@@ -471,6 +471,7 @@ namespace Module.Fish
                 return false;
 
             SoundManager.PlaySFX(SFXDefines.CATCH_FISH);
+            GameSettings.VibrateIfEnabled();
             EventManager.PublishEvent(EventDefines.FishingFishCaptured, captureInfo(fish, record.AttachedDepth));
 
             return true;
@@ -502,6 +503,7 @@ namespace Module.Fish
             m_buffer.Clear();
             // 受阻反馈用咬钩音降调顶一下，专用素材到位后改 SFXDefines.HAZARD 即可
             SoundManager.PlaySFX(SFXDefines.HAZARD, 0.9f, 0.62f);
+            GameSettings.VibrateIfEnabled();
             EventManager.PublishEvent(EventDefines.FishingPenaltyApplied, PenaltyType.Pufferfish);
         }
 
