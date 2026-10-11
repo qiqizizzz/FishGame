@@ -58,6 +58,9 @@ namespace Module.Fish.View
 
         public bool IsPressing => m_isPressing;
 
+        /// <summary>每屏幕像素折算的世界米数，控制器把指针位移换成米时取这里</summary>
+        public float PixelsToMeters => m_pixelsToMeters;
+
         /// <summary>钩子当前世界坐标，鱼线与特效取这里</summary>
         public Vector3 WorldPosition => m_transform.position;
 
@@ -116,12 +119,17 @@ namespace Module.Fish.View
         }
 
         /// <summary>
-        /// 每帧喂入玩家意图：按住状态与本帧横向拖拽的屏幕像素位移
+        /// 每帧喂入玩家意图：按住状态与本帧已折算成米的横向位移
         /// </summary>
-        public void FeedInput(bool isPressing, float dragDeltaPixels)
+        /// <param name="isPressing">本帧是否按住放线键</param>
+        /// <param name="lateralMeters">本帧横向意图折算成的米数，指针拖拽与键盘横轴已在控制器合流</param>
+        public void FeedInput(bool isPressing, float lateralMeters)
         {
             m_isPressing = isPressing;
-            LateralInput = isPressing ? dragDeltaPixels * m_pixelsToMeters : 0f;
+
+            // 这里不再按 isPressing 归零：指针项已在 provider 内门控过，
+            // 键盘项若再被它挡住，回收段就只剩注释里那句「全程保留横向操控」而落不了地
+            LateralInput = lateralMeters;
         }
 
         public void MoveTo(float x, float depth)

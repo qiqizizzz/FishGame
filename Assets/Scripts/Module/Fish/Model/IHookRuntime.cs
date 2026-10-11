@@ -46,7 +46,7 @@ namespace Module.Fish.Model
         /// <summary>横向残余速度，带惯性用，由状态读写</summary>
         float LateralVelocity { get; set; }
 
-        /// <summary>本帧横向拖拽意图位移（米，已换算到世界单位）</summary>
+        /// <summary>本帧横向操控意图位移（米，已换算到世界单位，指针与键盘都汇到这里）</summary>
         float LateralInput { get; }
 
         /// <summary>玩家是否处于按住状态</summary>

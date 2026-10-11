@@ -50,7 +50,12 @@ namespace Module.Fish
 
         // ==================== 字段[私有] ====================
         private readonly FishingScene m_scene;
-        private readonly MouseInputProvider m_input = new();
+        // PC 走 A/D 横向 + 左键放线，移动端保持单指拖拽，两端各用一套采集口径
+#if UNITY_STANDALONE || UNITY_EDITOR
+        private readonly IInputProvider m_input = new DesktopInputProvider();
+#else
+        private readonly IInputProvider m_input = new MouseInputProvider();
+#endif
         private readonly FishSpawnService m_spawn = new();
         private readonly FishAiService m_ai = new();
         private readonly FishDetectionService m_detection = new();
@@ -164,10 +169,14 @@ namespace Module.Fish
             if (!m_running)
                 return;
 
-            m_input.Tick();
+            m_input.Tick(deltaTime);
+
+            // 指针拖拽按屏幕像素折算成米，键盘横轴按限速积分成米，两条各只在一端贡献非零项
+            float lateralMeters = m_input.DragDeltaPixels.x * m_hook.PixelsToMeters
+                                + m_input.LateralAxis * m_stats.LateralSpeed * deltaTime;
 
             // 同一帧内按下并松开也算按住，避免快点被采样吞掉
-            m_hook.FeedInput(m_input.IsPressed || m_input.PressBegan, m_input.DragDeltaPixels.x);
+            m_hook.FeedInput(m_input.IsPressed || m_input.PressBegan, lateralMeters);
 
             m_detection.Rebuild(m_spawn.Alive);
             m_machine.Update(m_hook, deltaTime);
