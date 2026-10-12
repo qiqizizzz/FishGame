@@ -23,7 +23,7 @@ namespace Module.Fish.Type
         /// <summary>飘动：带状身体随水流摆动，速度低但覆盖深度大</summary>
         Drift = 2,
 
-        /// <summary>警戒漂行：障碍专用，几乎不位移，靠体积形成路线阻碍</summary>
+        /// <summary>警戒漂行：障碍专用，慢速横穿泳道，靠体积与走位形成路线阻碍</summary>
         Guard = 3,
 
         /// <summary>闪避：受威胁时朝背离钩子的方向随机短冲，冷却窗口内可靠预判捕获</summary>

@@ -49,6 +49,10 @@ namespace Module.Fish.Service
         private const float SPEED_JITTER_MAX = 1.15f;
         private const int MAX_ALIVE = 20;
         private const int MAX_BATCH_PER_SLICE = 4;
+        // 在场河豚上限：不进加权表也不产收益，纯粹负责挡路，放任按概率补片就会铺满深水区
+        private const int MAX_HAZARD_ALIVE = 3;
+        // 单切片河豚上限：同一段 5 米水里最多一条，一屏之内不该看到两片鼓肚子叠在一起
+        private const int MAX_HAZARD_PER_SLICE = 1;
         // 目标点被别的鱼占住时换一条鱼重试，避免整个切片白等一次
         private const int PICK_RETRY = 3;
         private const int SCHOOL_MIN = 2;
@@ -379,7 +383,6 @@ namespace Module.Fish.Service
                 Root = view.transform,
                 Behavior = data.Behavior,
                 BaseDepth = depth,
-                BaseX = x,
                 DisplayHeight = height,
                 BodyHalf = new Vector2(bodyBox.x, bodyBox.y),
                 BodyOffset = new Vector2(bodyBox.z, bodyBox.w),
@@ -446,13 +449,13 @@ namespace Module.Fish.Service
             return true;
         }
 
-        // 抽一条鱼并定下生成深度，先按会话概率试河豚，再回落到切片表
+        // 抽一条鱼并定下生成深度，密度闸门放行才按会话概率试河豚，否则直接回落到切片表
         private bool tryPickFish(int slice, out FishDataSO data, out float depth)
         {
             data = null;
             depth = 0f;
 
-            if (m_hazards.Count > 0 && Random.value < m_session.HazardChance)
+            if (canSpawnHazard(slice) && Random.value < m_session.HazardChance)
             {
                 FishDataSO hazard = m_hazards[Random.Range(0, m_hazards.Count)];
 
@@ -464,6 +467,52 @@ namespace Module.Fish.Service
             }
 
             return m_slices[slice].TrySample(Random.value, out data) && tryPickDepth(data, slice, out depth);
+        }
+
+        // 河豚密度闸门：全局与单切片两道都没触顶，才允许这次生成去抽它
+        // 深水区没有别的鱼进得来，补片全靠河豚，不设闸就是一整屏鼓肚子
+        private bool canSpawnHazard(int slice)
+        {
+            if (m_hazards.Count == 0 || countAliveHazards() >= MAX_HAZARD_ALIVE)
+                return false;
+
+            return countHazardsInSlice(slice) < MAX_HAZARD_PER_SLICE;
+        }
+
+        // 在场河豚条数：被钓走与越窗回收都会从在场列表摘掉，直接扫一遍就够，不另存计数器
+        private int countAliveHazards()
+        {
+            int count = 0;
+
+            for (int i = 0; i < m_alive.Count; i++)
+            {
+                FishInstance fish = m_alive[i];
+
+                if (fish != null && fish.IsAlive && fish.Data != null && fish.Data.Rarity == FishRarity.Hazard)
+                    count++;
+            }
+
+            return count;
+        }
+
+        // 切片内河豚条数：归片口径与 countInSlice 一致，都按生成时锁定的基准深度算
+        private int countHazardsInSlice(int slice)
+        {
+            DepthBand band = sliceBandOf(slice);
+            int count = 0;
+
+            for (int i = 0; i < m_alive.Count; i++)
+            {
+                FishInstance fish = m_alive[i];
+
+                if (fish == null || !fish.IsAlive || fish.Data == null || fish.Data.Rarity != FishRarity.Hazard)
+                    continue;
+
+                if (band.Contains(fish.BaseDepth))
+                    count++;
+            }
+
+            return count;
         }
 
         private bool tryPickDepth(FishDataSO data, int slice, out float depth)
@@ -552,7 +601,7 @@ namespace Module.Fish.Service
             };
         }
 
-        // 档位巡游基准速度：浅层小鱼灵活，深层大鱼慢而显眼，河豚几乎不动
+        // 档位巡游基准速度：浅层小鱼灵活，深层大鱼慢而显眼，河豚压到普通鱼的三成速
         private static float baseSpeed(FishRarity rarity)
         {
             return rarity switch
@@ -562,7 +611,7 @@ namespace Module.Fish.Service
                 FishRarity.Rare => 0.9f,
                 FishRarity.Epic => 0.8f,
                 FishRarity.Legendary => 1.6f,
-                FishRarity.Hazard => 0.15f,
+                FishRarity.Hazard => 0.45f,
                 _ => 1.0f
             };
         }

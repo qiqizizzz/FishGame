@@ -1,11 +1,12 @@
 /*
 * ┌──────────────────────────────────┐
-* │  描    述: 警戒漂行行为，障碍专用，绕出生岗位定幅横向巡守
+* │  描    述: 警戒漂行行为，障碍鱼慢速横穿泳道并带轻微纵向悬浮
 * │  类    名: GuardFishBehavior.cs
 * │  创    建: By qiqizizzz
 * └──────────────────────────────────┘
 * 挡路但不能定死：钉在一点的河豚会让「规划穿行路线」退化成认死一个静态路障，看穿就没有博弈
-* 横向绝不做绝对定位，只做速度积分加折返，否则被惊散游远后会在逃逸结束的当帧瞬移回岗位
+* 横向跟普通鱼同一条路子：只做速度积分加撞壁折返，绝不做绝对定位，否则被惊散游远后会在逃逸结束的当帧瞬移回原处
+* 快慢只由 fish.Speed 决定，生成服务给 Hazard 档一份低基准速度，本类不再自带一套巡守速度
 */
 
 using Module.Fish.Model;
@@ -16,13 +17,7 @@ namespace Module.Fish.Service
 {
     public sealed class GuardFishBehavior : IFishBehavior
     {
-        // 巡守速度，慢到玩家看得出在动、也来得及照着它的走位挑穿行的时机
-        private const float PATROL_SPEED = 0.25f;
-        // 离岗位的横向半径，鱼的游动半宽也就 3.3 米左右，0.7 已经够让一整条鱼挪出能穿过去的缝
-        private const float PATROL_RANGE = 0.7f;
-        // 超出半径多半是刚被惊散回来，回岗比平时巡守快点，免得那个位置长时间空着
-        private const float RETURN_SPEED = 0.5f;
-
+        // 悬浮幅度比巡游鱼大些：慢鱼也得让人看出它在水里浮着，而不是一块贴在水里的贴图
         private const float HOVER_AMPLITUDE = 0.45f;
         private const float HOVER_FREQUENCY = 0.5f;
 
@@ -31,29 +26,15 @@ namespace Module.Fish.Service
         public void Advance(FishInstance fish, float deltaTime, float swimHalfWidth, in HookProbe hook)
         {
             fish.Phase += deltaTime;
-
-            patrolToPost(fish, deltaTime, swimHalfWidth);
-
-            fish.Depth = fish.BaseDepth + Mathf.Sin(fish.Phase * HOVER_FREQUENCY) * HOVER_AMPLITUDE;
-        }
-
-        // 定幅巡守：绕岗位两侧折返，游出半径就掉头回岗，撞壁顺着壁滑，全程不动坐标基准
-        private static void patrolToPost(FishInstance fish, float deltaTime, float swimHalfWidth)
-        {
-            float offset = fish.X - fish.BaseX;
-            bool returning = Mathf.Abs(offset) > PATROL_RANGE;
-
-            if (returning)
-                fish.Direction = offset > 0f ? -1 : 1;
-
-            float speed = returning ? RETURN_SPEED : PATROL_SPEED;
-            fish.X += fish.Direction * speed * deltaTime;
+            fish.X += fish.Direction * fish.Speed * deltaTime;
 
             if (Mathf.Abs(fish.X) >= swimHalfWidth)
             {
                 fish.X = Mathf.Clamp(fish.X, -swimHalfWidth, swimHalfWidth);
                 fish.Direction = -fish.Direction;
             }
+
+            fish.Depth = fish.BaseDepth + Mathf.Sin(fish.Phase * HOVER_FREQUENCY) * HOVER_AMPLITUDE;
         }
     }
 }
